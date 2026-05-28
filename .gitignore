@@ -62,3 +62,6 @@ test-results/
 # Local-only
 *.local
 *.tmp
+
+# Generated env files for deployment (uploaded with scp; never committed)
+.deploy-env/
