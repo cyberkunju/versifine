@@ -65,3 +65,6 @@ test-results/
 
 # Generated env files for deployment (uploaded with scp; never committed)
 .deploy-env/
+
+# Local probe artefacts (screenshots, HTML dumps from headless Chrome)
+_probe/

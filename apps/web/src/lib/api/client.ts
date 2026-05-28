@@ -82,7 +82,22 @@ interface RequestOptions extends RequestInit {
 }
 
 function buildUrl(path: string, query?: RequestOptions['query']): string {
-  const base = path.startsWith('http') ? path : `${PUBLIC_API_URL}${path}`;
+  // If the caller passed an absolute URL, honour it as-is.
+  // Otherwise: prepend `/api` to every relative API path so requests
+  // route through nginx (`/api/* -> api`) in production and the Vite
+  // dev proxy in local dev. This keeps the client bundle host-free.
+  let base: string;
+  if (path.startsWith('http')) {
+    base = path;
+  } else if (PUBLIC_API_URL) {
+    // Explicit override (cross-origin dev). Path must already include
+    // any prefix the override expects; we don't add /api.
+    base = `${PUBLIC_API_URL}${path}`;
+  } else {
+    // Same-origin behind a proxy. The web routes also use `/login`,
+    // `/transactions`, etc., so we MUST prefix to avoid collisions.
+    base = `/api${path}`;
+  }
   if (!query) return base;
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {

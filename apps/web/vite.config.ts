@@ -14,6 +14,21 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: false,
+    // Same-origin proxy for local dev. The web client uses relative
+    // URLs (`/api/...`, `/ws`) in production behind nginx; we mirror
+    // that behaviour here so the bundle never embeds a hardcoded host.
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:5000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+      '/ws': {
+        target: 'ws://127.0.0.1:5000',
+        ws: true,
+        changeOrigin: true,
+      },
+    },
   },
   preview: {
     port: 5173,
