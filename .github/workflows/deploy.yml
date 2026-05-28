@@ -1,0 +1,81 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'scripts/**'
+      - 'package.json'
+      - 'bun.lock'
+      - 'tsconfig.base.json'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-versifine
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - name: Set up SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
+          SSH_HOST: ${{ secrets.EC2_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          cat > ~/.ssh/config <<EOF
+          Host versifine
+            HostName $SSH_HOST
+            User fedora
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking accept-new
+            ServerAliveInterval 30
+          EOF
+
+      - name: Trigger remote deploy
+        run: |
+          ssh versifine "set -e; \
+            curl -fsSL 'https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/scripts/remote-deploy.sh' -o /tmp/versifine-deploy.sh && \
+            BRANCH=${{ github.ref_name }} bash /tmp/versifine-deploy.sh"
+
+      - name: Smoke test (origin via Host header)
+        run: |
+          set -e
+          for url in / /healthz /api/health /wa-qr/; do
+            code=$(curl -sk -o /dev/null -w '%{http_code}' \
+              -H 'Host: versifine.com' \
+              "https://${{ secrets.EC2_HOST }}$url" || true)
+            echo "GET $url -> $code"
+            case $code in
+              2*|3*) ;;
+              *) echo "::error::Smoke test failed for $url ($code)"; exit 1 ;;
+            esac
+          done
+
+      - name: Smoke test (public via Cloudflare)
+        run: |
+          set -e
+          for url in / /healthz /api/health /wa-qr/; do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' \
+              "https://versifine.com$url" || true)
+            echo "GET https://versifine.com$url -> $code"
+            case $code in
+              2*|3*) ;;
+              *) echo "::error::Public smoke test failed for $url ($code)"; exit 1 ;;
+            esac
+          done

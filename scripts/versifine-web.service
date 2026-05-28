@@ -1,0 +1,27 @@
+[Unit]
+Description=Versifine Web (SvelteKit, adapter-node)
+After=network-online.target versifine-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=versifine
+Group=versifine
+WorkingDirectory=/opt/versifine/repo/apps/web
+EnvironmentFile=/etc/versifine/web.env
+# adapter-node emits build/index.js; HOST/PORT/ORIGIN come from web.env.
+ExecStart=/usr/local/bin/bun build/index.js
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+KillSignal=SIGTERM
+
+ReadWritePaths=/opt/versifine
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

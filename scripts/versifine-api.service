@@ -1,0 +1,27 @@
+[Unit]
+Description=Versifine API (Bun + Hono + Drizzle/Postgres)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=versifine
+Group=versifine
+WorkingDirectory=/opt/versifine/repo/apps/api
+EnvironmentFile=/etc/versifine/api.env
+ExecStart=/usr/local/bin/bun dist/index.js
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+KillSignal=SIGINT
+
+# Hardening
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/opt/versifine
+
+[Install]
+WantedBy=multi-user.target

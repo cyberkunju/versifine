@@ -1,0 +1,29 @@
+[Unit]
+Description=Versifine WhatsApp Bot (whatsapp-web.js + Chromium)
+After=network-online.target versifine-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=versifine
+Group=versifine
+WorkingDirectory=/opt/versifine/repo/apps/wa-bot
+EnvironmentFile=/etc/versifine/wabot.env
+Environment=PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+Environment=CHROME_PATH=/usr/bin/chromium-browser
+ExecStart=/usr/local/bin/bun dist/index.js
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+KillSignal=SIGINT
+TimeoutStartSec=180
+
+# Need write access to the bot session dir + puppeteer profile cache.
+ReadWritePaths=/opt/versifine /home/versifine/.config /home/versifine/.cache
+NoNewPrivileges=yes
+ProtectSystem=full
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

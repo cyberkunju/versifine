@@ -51,7 +51,9 @@ app.get('/qr', (c) => {
   }
   const snap = getQrSnapshot();
   const status = snap ? 'Scan this QR with WhatsApp on your phone.' : 'Waiting for QR…';
-  const png = snap?.pngPath ? '<img src="/qr.png" alt="WhatsApp pairing QR" style="width:320px;height:320px;border:1px solid #e2e8f0;border-radius:12px"/>' : '<p>QR not ready yet. Refreshing…</p>';
+  // Use a relative href so the same page works both directly on the bot
+  // (`/qr` → `qr.png`) and behind the nginx proxy at `/wa-qr/` → `/wa-qr/qr.png`.
+  const png = snap?.pngPath ? '<img src="qr.png" alt="WhatsApp pairing QR" style="width:320px;height:320px;border:1px solid #e2e8f0;border-radius:12px"/>' : '<p>QR not ready yet. Refreshing…</p>';
   return c.html(
     `<!doctype html><html><head><meta charset="utf-8"><title>${env.BOT_NAME} bot — pair</title>
 <meta http-equiv="refresh" content="5">
