@@ -28,6 +28,8 @@ build/
 **/SingletonLock
 **/SingletonCookie
 **/SingletonSocket
+# Bot runtime QR snapshot (regenerated every 30s)
+**/.qr.png
 
 # ML model artifacts (downloaded by build script)
 apps/api/src/ml/model/

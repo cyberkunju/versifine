@@ -18,7 +18,7 @@
   import { pendingCaptures } from '$lib/stores/pendingCaptures.svelte';
   import { panels } from '$lib/stores/panels.svelte';
   import { socket } from '$lib/api/ws';
-  import { invalidate } from '$lib/api/queries';
+  import { invalidate } from '$lib/api/queries.svelte';
   import { toast } from '$lib/stores/toast.svelte';
   import { getMessages } from '$lib/i18n';
   import { formatCurrency } from '$lib/utils/format';

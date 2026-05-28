@@ -121,8 +121,14 @@ export async function createClient(): Promise<WhatsAppLikeClient> {
   });
 
   client.on('disconnected', (reason) => {
-    isReady = false;
     log.warn('CLIENT_DISCONNECTED', { reason: String(reason).slice(0, 200) });
+    if (!isReady) {
+      // We never finished pairing — stay alive so the user can keep
+      // scanning. Pre-pair "disconnects" are normal (e.g. QR refresh
+      // cycle on Windows + Bun).
+      return;
+    }
+    isReady = false;
     process.exit(2);
   });
 
@@ -154,6 +160,14 @@ export function isClientReady(): boolean {
 
 export async function startWatchdog(client: WhatsAppLikeClient): Promise<ReturnType<typeof setInterval>> {
   const probe = async () => {
+    // Don't run health probes until pairing has completed at least once.
+    // The pre-pair states (UNPAIRED, OPENING, PAIRING, ...) are normal
+    // and shouldn't be treated as degraded — the user might still be
+    // scanning the QR code.
+    if (!isReady) {
+      watchdogFails = 0;
+      return;
+    }
     try {
       const state = await client.getState();
       if (state && state !== 'CONNECTED') {

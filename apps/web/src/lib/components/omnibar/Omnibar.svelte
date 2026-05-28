@@ -15,7 +15,7 @@
   import { api } from '$lib/api/client';
   import { ApiError } from '$lib/api/types';
   import type { CaptureResponse, WalletSummary } from '$lib/api/types';
-  import { invalidate } from '$lib/api/queries';
+  import { invalidate } from '$lib/api/queries.svelte';
   import { settings } from '$lib/stores/settings.svelte';
   import { toast } from '$lib/stores/toast.svelte';
   import { pendingCaptures } from '$lib/stores/pendingCaptures.svelte';

@@ -20,7 +20,7 @@
   import { goto } from '$app/navigation';
   import type { TransactionSummary } from '$lib/api/types';
   import { api } from '$lib/api/client';
-  import { useQuery } from '$lib/api/queries';
+  import { useQuery } from '$lib/api/queries.svelte';
   import { settings } from '$lib/stores/settings.svelte';
   import { getMessages } from '$lib/i18n';
   import { formatCurrency } from '$lib/utils/format';

@@ -6,7 +6,7 @@
    */
   import { CATEGORIES, CATEGORY_META, type Category } from '@finehance/shared';
   import { api } from '$lib/api/client';
-  import { invalidate } from '$lib/api/queries';
+  import { invalidate } from '$lib/api/queries.svelte';
   import type { TransactionSummary, WalletSummary } from '$lib/api/types';
   import { toast } from '$lib/stores/toast.svelte';
   import { settings } from '$lib/stores/settings.svelte';

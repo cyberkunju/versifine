@@ -7,7 +7,7 @@
   import type { CaptureResponse } from '$lib/api/types';
   import { CATEGORIES, type Category } from '@finehance/shared';
   import { api } from '$lib/api/client';
-  import { invalidate } from '$lib/api/queries';
+  import { invalidate } from '$lib/api/queries.svelte';
   import { toast } from '$lib/stores/toast.svelte';
   import { formatCurrency } from '$lib/utils/format';
   import { Button, Dialog, Input, Label } from '$lib/components/ui';

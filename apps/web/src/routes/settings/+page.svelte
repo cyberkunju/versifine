@@ -22,7 +22,7 @@
   import { LANGUAGES, LANGUAGE_META, type Language } from '@finehance/shared';
   import { CURRENCIES } from '@finehance/shared';
   import { api } from '$lib/api/client';
-  import { useQuery, invalidate } from '$lib/api/queries';
+  import { useQuery, invalidate } from '$lib/api/queries.svelte';
   import { auth } from '$lib/stores/auth.svelte';
   import { settings } from '$lib/stores/settings.svelte';
   import { toast } from '$lib/stores/toast.svelte';

@@ -13,7 +13,8 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently --kill-others --names api,web,bot -c blue,green,magenta \"bun run --cwd apps/api dev\" \"bun run --cwd apps/web dev\" \"bun run --cwd apps/wa-bot dev\"",
+    "dev": "concurrently --names api,web,bot -c blue,green,magenta \"bun run --cwd apps/api dev\" \"bun run --cwd apps/web dev\" \"bun run --cwd apps/wa-bot dev\"",
+    "dev:core": "concurrently --names api,web -c blue,green \"bun run --cwd apps/api dev\" \"bun run --cwd apps/web dev\"",
     "dev:api": "bun run --cwd apps/api dev",
     "dev:web": "bun run --cwd apps/web dev",
     "dev:bot": "bun run --cwd apps/wa-bot dev",
