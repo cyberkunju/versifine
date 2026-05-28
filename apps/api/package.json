@@ -17,10 +17,12 @@
   },
   "dependencies": {
     "@finehance/shared": "workspace:*",
+    "@hono/zod-validator": "0.4.2",
     "@huggingface/transformers": "3.3.3",
     "@scalar/hono-api-reference": "0.5.166",
     "drizzle-orm": "0.38.4",
     "hono": "4.6.16",
+    "jose": "5.9.6",
     "openai": "4.77.0",
     "postgres": "3.4.5",
     "zod": "3.24.1"
