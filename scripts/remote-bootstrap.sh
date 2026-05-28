@@ -54,29 +54,53 @@ if ! command -v psql >/dev/null; then
         "postgresql${PG_VERSION}-contrib" \
         || sudo dnf -y -q install postgresql-server postgresql postgresql-contrib >/dev/null
 fi
-# pgvector: use the dnf package on Fedora 43 if present, else build from source.
-if ! sudo -u postgres -H psql -c "SELECT 1" 2>/dev/null | grep -q 1; then
-    SETUP_BIN="$(command -v postgresql-setup || echo /usr/bin/postgresql-setup)"
-    if [ -x "$SETUP_BIN" ]; then
-        sudo "$SETUP_BIN" --initdb >/dev/null 2>&1 || true
+# Add the postgresql16 binary dir to PATH so psql / pg_config work without the suffix.
+if [ -d "/usr/pgsql-${PG_VERSION}/bin" ]; then
+    echo "export PATH=/usr/pgsql-${PG_VERSION}/bin:\$PATH" | sudo tee /etc/profile.d/pgsql.sh >/dev/null
+    export PATH="/usr/pgsql-${PG_VERSION}/bin:$PATH"
+fi
+# Initialize the data directory if empty. Fedora ships postgresql-setup at
+# /usr/bin/postgresql-setup; the SCL flavours put it in the version dir.
+if ! sudo -u postgres test -s /var/lib/pgsql/data/PG_VERSION 2>/dev/null \
+   && ! sudo -u postgres test -s "/var/lib/pgsql/${PG_VERSION}/data/PG_VERSION" 2>/dev/null; then
+    if [ -x "/usr/pgsql-${PG_VERSION}/bin/postgresql-${PG_VERSION}-setup" ]; then
+        sudo "/usr/pgsql-${PG_VERSION}/bin/postgresql-${PG_VERSION}-setup" initdb >/dev/null
+    elif command -v postgresql-setup >/dev/null; then
+        sudo postgresql-setup --initdb >/dev/null
     fi
 fi
-sudo systemctl enable --now postgresql
-sleep 2
+sudo systemctl enable --now "postgresql${PG_VERSION}.service" 2>/dev/null \
+    || sudo systemctl enable --now postgresql.service
+sleep 3
 if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_extension WHERE extname='vector'" 2>/dev/null | grep -q 1; then
     if sudo dnf list --installed pgvector >/dev/null 2>&1 || sudo dnf -y -q install pgvector 2>/dev/null; then
         log "  · pgvector installed via dnf"
     else
         log "  · pgvector dnf package missing — building from source"
-        sudo dnf -y -q install postgresql-devel >/dev/null 2>&1 || true
-        TMP="$(mktemp -d)"
+        # Fedora 43 ships PG16 under postgresql16-devel (with pgxs.mk), not the
+        # generic postgresql-devel. Try both, in order.
+        sudo dnf -y -q install "postgresql${PG_VERSION}-devel" >/dev/null 2>&1 \
+            || sudo dnf -y -q install postgresql-devel >/dev/null 2>&1 \
+            || true
+        # Find pg_config so make picks up pgxs.mk regardless of where it lives.
+        PGCFG="$(command -v pg_config || true)"
+        if [ -z "$PGCFG" ]; then
+            for cand in /usr/pgsql-${PG_VERSION}/bin/pg_config /usr/lib64/pgsql/bin/pg_config /usr/bin/pg_config; do
+                [ -x "$cand" ] && PGCFG="$cand" && break
+            done
+        fi
+        if [ -z "$PGCFG" ]; then
+            echo "ERROR: pg_config not found after installing devel packages"; exit 1
+        fi
+        log "  · using pg_config: $PGCFG"
         sudo dnf -y -q install git make gcc clang >/dev/null
+        TMP="$(mktemp -d)"
         git clone --depth=1 --branch v0.8.0 https://github.com/pgvector/pgvector.git "$TMP/pgvector" >/dev/null
-        ( cd "$TMP/pgvector" && make -s && sudo make -s install )
+        ( cd "$TMP/pgvector" && PG_CONFIG="$PGCFG" make -s && sudo PG_CONFIG="$PGCFG" make -s install )
         rm -rf "$TMP"
     fi
 fi
-sudo systemctl restart postgresql
+sudo systemctl restart "postgresql${PG_VERSION}.service" 2>/dev/null || sudo systemctl restart postgresql
 sleep 2
 
 log "6/12 Provisioning role + databases (versifine_dev / versifine_test)"
@@ -109,7 +133,7 @@ if ! sudo grep -q '^host[[:space:]]\+versifine_dev' "$PGCONF"; then
 host    versifine_dev   versifine   127.0.0.1/32    md5
 host    versifine_test  versifine   127.0.0.1/32    md5
 HBA
-    sudo systemctl reload postgresql
+    sudo systemctl reload "postgresql${PG_VERSION}.service" 2>/dev/null || sudo systemctl reload postgresql
 fi
 
 log "8/12 Creating deploy user '${DEPLOY_USER}'"
