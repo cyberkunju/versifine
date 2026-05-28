@@ -1,0 +1,62 @@
+# Reference material — kept locally for design decisions, never committed
+_study/
+
+# Node / Bun
+node_modules/
+bun.lockb.local
+.npm/
+.yarn/
+.pnp.*
+*.tsbuildinfo
+
+# Build outputs
+dist/
+build/
+.svelte-kit/
+.vite/
+.cache/
+.turbo/
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# WhatsApp Web auth + cache (NEVER commit; contains session credentials)
+.wwebjs_auth/
+.wwebjs_cache/
+**/SingletonLock
+**/SingletonCookie
+**/SingletonSocket
+
+# ML model artifacts (downloaded by build script)
+apps/api/src/ml/model/
+apps/web/static/models/
+*.onnx
+*.safetensors
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+bun-debug.log*
+
+# Editors
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.recommended.json
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Test outputs
+coverage/
+playwright-report/
+test-results/
+
+# Local-only
+*.local
+*.tmp

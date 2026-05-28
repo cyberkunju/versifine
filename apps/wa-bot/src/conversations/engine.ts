@@ -1,0 +1,245 @@
+/**
+ * Conversation engine — top-level dispatcher.
+ *
+ * Receives a normalized `IncomingMessage` (from real WhatsApp or the
+ * simulator transport), routes through the right flow, and returns an
+ * `OutgoingReply` containing the text bubble plus an optional voice-note
+ * promise the transport awaits in pass two.
+ *
+ * Order of routing:
+ *   1. If audio: transcribe to text + maybe-update session language.
+ *   2. Universal commands (HELP / STATUS / RESET / STOP / LANGUAGE).
+ *   3. `LINK <code>` always handled regardless of state.
+ *   4. State-based dispatch:
+ *        GREETING / AWAITING_LANGUAGE        → identity
+ *        AWAITING_LINK_CODE                  → link prompt
+ *        CAPTURE_CONFIRM                     → confirm flow (CONFIRM/CANCEL/EDIT or follow-up)
+ *        SET_BUDGET_*                        → budget flow
+ *        LINKED_MAIN (or any linked state)   → capture flow
+ *        ERROR                               → silent unless RESET
+ *
+ * Translation + TTS happens AFTER the flow returns; en/hi/ml use their
+ * native packs verbatim, ta/te/kn translate the en pack at send time.
+ * Voice synthesis is offered only when `replyMode !== 'text'` and the
+ * caller asks for it.
+ */
+import type {
+  ConversationState,
+  IncomingMessage,
+  OutgoingReply,
+  OutgoingVoice,
+  Session,
+} from '../types.ts';
+import { LANGUAGE_META, type Language } from '@finehance/shared';
+import { synthesizeIndicSpeech } from '../services/ai/indicSpeech.ts';
+import { synthesizeSpeech } from '../services/ai/tts.ts';
+import { transcribe } from '../services/ai/transcribe.ts';
+import { translateForUser } from '../services/ai/translate.ts';
+import { log } from '../utils/logger.ts';
+import { chunkText, parseLinkCommand, parseUniversal } from '../utils/text.ts';
+import { handleBudget, looksLikeBudgetTrigger } from './flows/budget.ts';
+import { handleCapture, handleConfirm } from './flows/capture.ts';
+import { handleCorrection, looksLikeCorrection } from './flows/correct.ts';
+import { handleGreetingOrLanguage } from './flows/identity.ts';
+import {
+  handleHelp,
+  handleLanguageSwitch,
+  handleReset,
+  handleStatus,
+  handleStop,
+} from './flows/help.ts';
+import { handleLinkCommand, rePrompt } from './flows/link.ts';
+import { hasNativePack } from './messages/index.ts';
+import { getSession, setReplyMode, updateSession } from './state.ts';
+
+interface DispatchOutcome {
+  /** Localized text from the flow handler (still in the *engine's source language*, en for ta/te/kn). */
+  text: string;
+  /** Optional state override; the flow may have already set this on the session. */
+  state?: ConversationState;
+  /** Whether the engine should attempt voice synthesis for this reply. */
+  speakable?: boolean;
+}
+
+function detectVoiceLanguage(detected: string, current: Language): Language {
+  const lower = detected.toLowerCase().split('-')[0] ?? '';
+  if (
+    lower === 'en' ||
+    lower === 'hi' ||
+    lower === 'ml' ||
+    lower === 'ta' ||
+    lower === 'te' ||
+    lower === 'kn'
+  ) {
+    return lower as Language;
+  }
+  return current;
+}
+
+async function dispatch(session: Session, message: IncomingMessage): Promise<DispatchOutcome> {
+  // Universal commands first — they always win.
+  const universal = parseUniversal(message.body);
+  if (universal) {
+    switch (universal.command) {
+      case 'HELP':
+      case 'MENU':
+        return { text: handleHelp(session).text, speakable: false };
+      case 'STATUS':
+        return { text: handleStatus(session).text, speakable: false };
+      case 'RESET':
+      case 'BACK':
+        return { text: handleReset(session).text, speakable: false };
+      case 'STOP':
+        return { text: handleStop(session).text, speakable: false };
+      case 'LANGUAGE':
+        return { text: handleLanguageSwitch(session).text, speakable: false };
+      case 'HUMAN':
+        return { text: handleHelp(session).text, speakable: false };
+      case 'UNDO':
+        // UNDO not yet wired; fall back to help.
+        return { text: handleHelp(session).text, speakable: false };
+      case 'CONFIRM':
+      case 'CANCEL':
+      case 'EDIT': {
+        // Confirm-flow universal terms only matter in CAPTURE_CONFIRM.
+        if (session.state === 'CAPTURE_CONFIRM') {
+          const result = await handleConfirm(
+            session,
+            universal.command,
+            universal.command === 'EDIT' ? '' : null,
+          );
+          return { text: result.text, speakable: true };
+        }
+        // Otherwise the user typed CONFIRM/CANCEL out of context; ignore.
+        return { text: 'Nothing to confirm right now. Send HELP for commands.', speakable: false };
+      }
+    }
+  }
+
+  // Link command always honored.
+  const link = parseLinkCommand(message.body);
+  if (link) {
+    const out = await handleLinkCommand(session, link.code);
+    return { text: out.text, speakable: true };
+  }
+
+  // Greeting / language-pick.
+  if (session.state === 'GREETING' || session.state === 'AWAITING_LANGUAGE') {
+    const out = handleGreetingOrLanguage(session, message.body);
+    return { text: out.text, state: out.state, speakable: false };
+  }
+
+  // Awaiting LINK code — anything else gets the link prompt back.
+  if (session.state === 'AWAITING_LINK_CODE' || !session.linked) {
+    return { text: rePrompt(session).text, speakable: false };
+  }
+
+  // CAPTURE_CONFIRM with free-form follow-up.
+  if (session.state === 'CAPTURE_CONFIRM') {
+    const result = await handleConfirm(session, 'EDIT', message.body);
+    return { text: result.text, speakable: true };
+  }
+
+  // Multi-step budget.
+  if (
+    session.state === 'SET_BUDGET_CATEGORY' ||
+    session.state === 'SET_BUDGET_AMOUNT' ||
+    looksLikeBudgetTrigger(message.body)
+  ) {
+    const out = await handleBudget(session, message.body);
+    return { text: out.text, speakable: true };
+  }
+
+  // "Last one was X not Y" — correction shortcut.
+  if (looksLikeCorrection(message.body)) {
+    const out = await handleCorrection(session, message.body);
+    return { text: out.text, speakable: true };
+  }
+
+  // Default linked path: capture.
+  const out = await handleCapture(session, message);
+  return { text: out.text, speakable: true };
+}
+
+async function maybeTranscribe(message: IncomingMessage, session: Session): Promise<{
+  text: string;
+  language: Language;
+}> {
+  if (!message.hasAudio || !message.audioBuffer) {
+    return { text: message.body, language: session.language };
+  }
+  const result = await transcribe(
+    message.audioBuffer,
+    message.audioMimetype ?? 'audio/ogg',
+    LANGUAGE_META[session.language].bcp47,
+  );
+  if (!result.text) {
+    return { text: '', language: session.language };
+  }
+  const detected = detectVoiceLanguage(result.language, session.language);
+  if (detected !== session.language) updateSession(session.phone, { language: detected });
+  return { text: result.text, language: detected };
+}
+
+async function localize(text: string, language: Language): Promise<string> {
+  if (hasNativePack(language)) return text;
+  return await translateForUser(text, language);
+}
+
+async function speak(text: string, language: Language): Promise<OutgoingVoice | null> {
+  if (language === 'ta' || language === 'ml') {
+    const result = await synthesizeIndicSpeech({ text, language });
+    return result ? { buffer: result.buffer, mimetype: result.mimetype, spokenText: result.spokenText } : null;
+  }
+  return await synthesizeSpeech({ text, language });
+}
+
+export async function runEngine(message: IncomingMessage): Promise<OutgoingReply> {
+  const session = getSession(message.phone);
+  if (session.state === 'ERROR' && parseUniversal(message.body)?.command !== 'RESET') {
+    // STOP was previously acknowledged — stay silent unless the user says RESET.
+    return { text: '', state: session.state };
+  }
+
+  // Voice → text bookkeeping.
+  if (message.hasAudio && message.audioBuffer) {
+    setReplyMode(message.phone, 'auto');
+    const transcribed = await maybeTranscribe(message, session);
+    message = {
+      ...message,
+      body: transcribed.text,
+    };
+    log.debug('VOICE_TRANSCRIBED', {
+      phone: session.phone,
+      length: transcribed.text.length,
+      language: transcribed.language,
+    });
+  }
+
+  let outcome: DispatchOutcome;
+  try {
+    outcome = await dispatch(session, message);
+  } catch (err) {
+    log.warn('ENGINE_FAIL', {
+      phone: session.phone,
+      error: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    });
+    outcome = { text: 'Something went wrong. Try again or send RESET.' };
+  }
+
+  const localized = await localize(outcome.text, session.language);
+  const speakable = outcome.speakable !== false && session.replyMode !== 'text' && message.hasAudio;
+  const voicePromise: Promise<OutgoingVoice | null> | undefined = speakable
+    ? speak(localized, session.language)
+    : undefined;
+
+  const final: OutgoingReply = {
+    text: localized,
+    state: getSession(session.phone).state,
+    ...(voicePromise ? { voicePromise } : {}),
+  };
+
+  return final;
+}
+
+export { chunkText };

@@ -1,0 +1,38 @@
+{
+  "name": "finehance",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Personal finance manager with frictionless multimodal capture and AI co-pilot.",
+  "type": "module",
+  "packageManager": "bun@1.3.14",
+  "engines": {
+    "bun": ">=1.1.0"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently --kill-others --names api,web,bot -c blue,green,magenta \"bun run --cwd apps/api dev\" \"bun run --cwd apps/web dev\" \"bun run --cwd apps/wa-bot dev\"",
+    "dev:api": "bun run --cwd apps/api dev",
+    "dev:web": "bun run --cwd apps/web dev",
+    "dev:bot": "bun run --cwd apps/wa-bot dev",
+    "db:init": "bun run scripts/db-init.ts",
+    "db:migrate": "bun run --cwd apps/api db:migrate",
+    "db:seed": "bun run --cwd apps/api db:seed",
+    "db:reset": "bun run --cwd apps/api db:reset",
+    "build": "bun run --filter '*' build",
+    "typecheck": "bun run --filter '*' typecheck",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "concurrently": "9.1.2",
+    "typescript": "5.7.3"
+  },
+  "dependencies": {
+    "postgres": "3.4.5"
+  }
+}

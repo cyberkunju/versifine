@@ -1,0 +1,122 @@
+/**
+ * Hindi (हिन्दी) message pack.
+ *
+ * Hand-translated copy in Devanagari, paired with the English helpers
+ * for currency formatting (numbers stay in Latin digits — most Indian
+ * users read ₹4,250 the same way regardless of UI language).
+ */
+import type { DraftSummary, MessagePack } from './types.ts';
+
+function formatINR(value: number): string {
+  const intPart = Math.abs(Math.floor(value));
+  const fraction = Math.round((Math.abs(value) - intPart) * 100);
+  const intStr = intPart.toString();
+  const lastThree = intStr.slice(-3);
+  const head = intStr.slice(0, -3);
+  const grouped = head ? `${head.replace(/\B(?=(\d{2})+(?!\d))/g, ',')},${lastThree}` : lastThree;
+  const sign = value < 0 ? '-' : '';
+  return fraction > 0 ? `${sign}${grouped}.${String(fraction).padStart(2, '0')}` : `${sign}${grouped}`;
+}
+
+function formatAmount(value: number, currency: string): string {
+  if (currency === 'INR') return `₹${formatINR(value)}`;
+  return `${currency} ${formatINR(value)}`;
+}
+
+function describeDraft(d: DraftSummary): string {
+  const parts: string[] = [];
+  if (d.amount !== null && d.currency) parts.push(formatAmount(d.amount, d.currency));
+  else if (d.amount !== null) parts.push(`₹${formatINR(d.amount)}`);
+  if (d.description) parts.push(`— ${d.description}`);
+  if (d.category) parts.push(`(${d.category})`);
+  if (d.splitPeople && d.splitPeople >= 2) parts.push(`${d.splitPeople} लोगों में बँटा`);
+  if (d.date) parts.push(`(${d.date})`);
+  return parts.join(' ');
+}
+
+export const hi: MessagePack = {
+  greeting:
+    'नमस्ते! मैं Finehance हूँ — आपका पर्सनल पैसे का साथी। अपनी भाषा चुनें:\n' +
+    '1. English\n' +
+    '2. हिन्दी\n' +
+    '3. മലയാളം\n' +
+    '4. தமிழ்\n' +
+    '5. తెలుగు\n' +
+    '6. ಕನ್ನಡ\n\n' +
+    "एक नंबर भेजें या सीधे 'हिन्दी' लिखें।",
+
+  languageSet: (lang) => `बढ़िया। अब मैं आपसे ${lang} में बात करूँगा।`,
+
+  linkPrompt:
+    'यह नंबर मेरे साथ अभी लिंक नहीं है। तीन छोटे कदम:\n' +
+    '1. वेब पर रजिस्टर करें: finehance.app\n' +
+    '2. Settings → Link WhatsApp खोलें — 6 अंकों का कोड मिलेगा\n' +
+    '3. यहाँ भेजें: LINK 482917 (अपना कोड)\n\n' +
+    'लिंक होते ही मैं आपका हर खर्चा रिकॉर्ड कर दूँगा।',
+
+  linkConfirmed: (name) =>
+    name
+      ? `✅ लिंक हो गया! स्वागत है ${name}। आज़माएँ: "200 चाय पे" या HELP भेजें।`
+      : '✅ लिंक हो गया! आज़माएँ: "200 चाय पे" या HELP भेजें।',
+
+  linkInvalid:
+    'यह कोड नहीं चला। वेब Settings → Link WhatsApp से नया कोड लें और LINK <कोड> भेजें।',
+
+  helpCard:
+    'मैं ये सब कर सकता हूँ:\n' +
+    "• खर्चा लिखें — '450 रुपये ऑटो पर'\n" +
+    "• आमदनी — 'salary 85000 आई'\n" +
+    "• फोटो — रसीद भेजें, मैं पढ़ लूँगा\n" +
+    "• वॉइस नोट — 6 भाषाओं में बोलें\n" +
+    "• पूछें — 'इस महीने खाने पर कितना खर्च?'\n" +
+    "• बजट — 'set budget groceries 8000'\n" +
+    "• सुधार — 'पिछला Food नहीं Transport था'\n\n" +
+    'त्वरित कमांड: MENU · HELP · STATUS · UNDO · LANGUAGE · RESET · STOP',
+
+  captureLogged: (amount, currency, category) =>
+    category
+      ? `✅ ${formatAmount(amount, currency)} ${category} में जोड़ दिया।`
+      : `✅ ${formatAmount(amount, currency)} रिकॉर्ड हो गया।`,
+
+  captureNeedsConfirm: (draft) =>
+    `पुष्टि करें: ${describeDraft(draft)}\n\nCONFIRM लिखें save करने के लिए, EDIT बदलने के लिए, या CANCEL।`,
+
+  captureFollowup: (q) => q,
+
+  captureCancelled: 'रद्द कर दिया। कुछ save नहीं हुआ।',
+
+  captureFailed: 'इसे रिकॉर्ड नहीं कर पाया। फिर से कोशिश करें या RESET भेजें।',
+
+  queryAnswer: (text) => text,
+
+  copilotNudge:
+    'गहरे सवाल के लिए वेब copilot आज़माएँ: finehance.app। यहाँ भी पूछ सकते हैं — सीधे सवाल भेजें।',
+
+  budgetAskCategory:
+    'किस कैटेगरी के लिए? (जैसे Groceries, Restaurants, Transportation)',
+  budgetAskAmount: (category) => `${category} के लिए हर महीने कितना?`,
+  budgetSet: (category, amount) =>
+    `📊 बजट सेट: ${category} → ${formatAmount(amount, 'INR')}/महीना। 80% पर alert कर दूँगा।`,
+
+  correctApplied: (newCategory) =>
+    `✅ बदल दिया। पिछला transaction अब ${newCategory} है। आगे similar entries भी इसी कैटेगरी में जाएँगी।`,
+  correctNotPossible:
+    'सुधारने के लिए कोई हाल का transaction नहीं मिला। पिछला खर्च सही कैटेगरी के साथ फिर से भेजें।',
+
+  statusLine: (state, language) =>
+    `स्थिति: लिंक्ड, भाषा ${language}, वर्तमान चरण: ${state.toLowerCase()}।`,
+
+  resetDone: '🔄 रीसेट हो गया। HELP भेजें यह देखने के लिए कि मैं क्या कर सकता हूँ।',
+
+  stopAcknowledged:
+    'ठीक है, अब चुप हो जाता हूँ। कभी भी messages भेज कर फिर से जगा सकते हैं।',
+
+  unknown:
+    "समझ नहीं आया। कोई खर्चा लिखें (जैसे '200 चाय पे') या HELP भेजें।",
+
+  error:
+    'मेरी तरफ़ से कुछ गड़बड़ हुई। फिर से कोशिश करें या RESET भेजें।',
+
+  notLinked:
+    'आपका message मिल गया लेकिन यह नंबर अभी लिंक नहीं है। वेब से 6 अंकों का कोड लेकर LINK <कोड> भेजें।',
+};

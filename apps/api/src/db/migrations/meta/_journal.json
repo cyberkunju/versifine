@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1779976149847,
+      "tag": "0000_mysterious_pet_avengers",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1779976149848,
+      "tag": "0001_add_cyclic_fk_and_index_tuning",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779977463060,
+      "tag": "0002_unique_category_overrides_index",
+      "breakpoints": true
+    }
+  ]
+}

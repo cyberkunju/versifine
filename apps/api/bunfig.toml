@@ -1,0 +1,6 @@
+[test]
+# Bun's test runner doesn't auto-load the workspace .env. The preload
+# script reads ../../.env (the repo-root file) and seeds process.env
+# before any test body runs. Without this every test fails on env
+# validation in apps/api/src/env.ts.
+preload = ["./tests/setup.ts"]

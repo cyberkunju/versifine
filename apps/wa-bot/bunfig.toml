@@ -1,0 +1,5 @@
+[test]
+# The bot's config.ts validates env at module-load time. Tests run in the
+# wa-bot cwd which doesn't itself contain a .env, so we preload a setup
+# script that pulls the workspace root file before any test body runs.
+preload = ["./tests/setup.ts"]
