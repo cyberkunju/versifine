@@ -38,8 +38,14 @@ fi
 node -v
 
 log "4/12 Installing Bun system-wide"
-if ! command -v bun >/dev/null; then
-    curl -fsSL https://bun.sh/install | bash >/dev/null
+if [ ! -x /usr/local/bin/bun ] || [ -L /usr/local/bin/bun ]; then
+    if ! command -v bun >/dev/null; then
+        curl -fsSL https://bun.sh/install | bash >/dev/null
+    fi
+    # Replace any prior symlink with a real binary copy. Symlinks into a
+    # specific user's $HOME/.bun fail under sudo for any other user
+    # because $HOME is typically 0700.
+    sudo rm -f /usr/local/bin/bun
     sudo install -m 0755 "$HOME/.bun/bin/bun" /usr/local/bin/bun
 fi
 bun --version
@@ -151,11 +157,18 @@ done
 log "7/12 Allowing local password auth from versifine"
 PGCONF="$(sudo -u postgres psql -tAc 'SHOW hba_file')"
 if ! sudo grep -q '^host[[:space:]]\+versifine_dev' "$PGCONF"; then
-    sudo bash -c "cat >> '$PGCONF'" <<'HBA'
-# versifine app
-host    versifine_dev   versifine   127.0.0.1/32    md5
-host    versifine_test  versifine   127.0.0.1/32    md5
-HBA
+    # Insert versifine rules ABOVE the catch-all "host all all 127.0.0.1/32 ident"
+    # line. Postgres uses first-match semantics, so appending at the end leaves
+    # the ident rule winning. Use awk to inject right after the IPv4 banner.
+    sudo bash -c 'awk "
+      /^# IPv4 local connections:/ {
+        print
+        print \"host    versifine_dev   versifine   127.0.0.1/32    md5\"
+        print \"host    versifine_test  versifine   127.0.0.1/32    md5\"
+        next
+      }
+      { print }
+    " '"$PGCONF"' > /tmp/hba.versifine && install -m 0600 -o postgres -g postgres /tmp/hba.versifine '"$PGCONF"' && rm /tmp/hba.versifine'
     sudo systemctl reload "postgresql${PG_VERSION}.service" 2>/dev/null || sudo systemctl reload postgresql
 fi
 
