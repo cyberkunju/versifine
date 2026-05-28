@@ -135,7 +135,6 @@ BEGIN
         CREATE ROLE versifine WITH LOGIN PASSWORD 'versifine_local';
     END IF;
 END$$;
-SELECT 'create-versifine_dev' WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname='versifine_dev')\gexec
 SQL
 sudo -u postgres createdb -O versifine versifine_dev 2>/dev/null || true
 sudo -u postgres createdb -O versifine versifine_test 2>/dev/null || true
