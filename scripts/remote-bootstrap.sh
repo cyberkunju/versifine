@@ -77,22 +77,36 @@ if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_extension WHERE extname='vecto
         log "  · pgvector installed via dnf"
     else
         log "  · pgvector dnf package missing — building from source"
-        # Fedora 43 ships PG16 under postgresql16-devel (with pgxs.mk), not the
-        # generic postgresql-devel. Try both, in order.
-        sudo dnf -y -q install "postgresql${PG_VERSION}-devel" >/dev/null 2>&1 \
-            || sudo dnf -y -q install postgresql-devel >/dev/null 2>&1 \
+        # Fedora 43: postgresql16's pgxs.mk lives in postgresql16-server-devel.
+        # The plain "postgresql-devel" name on Fedora 43 ships PG18 headers,
+        # which won't link against the 16-server we just installed.
+        sudo dnf -y -q install "postgresql${PG_VERSION}-server-devel" >/dev/null 2>&1 \
+            || sudo dnf -y -q install postgresql-server-devel >/dev/null 2>&1 \
             || true
-        # Find pg_config so make picks up pgxs.mk regardless of where it lives.
-        PGCFG="$(command -v pg_config || true)"
+        # Find pg_config that points at the matching server's pgxs tree.
+        # The libpq-devel package may have installed /usr/bin/pg_config for
+        # a different PG version, so prefer the explicit versioned binary.
+        PGCFG=""
+        for cand in /usr/pgsql-${PG_VERSION}/bin/pg_config \
+                    /usr/lib64/pgsql${PG_VERSION}/bin/pg_config \
+                    /usr/lib64/pgsql/bin/pg_config \
+                    /usr/bin/pg_config; do
+            [ -x "$cand" ] || continue
+            # Only accept it if its --pgxs path actually exists.
+            PGXS_PATH="$($cand --pgxs 2>/dev/null || echo MISSING)"
+            if [ -f "$PGXS_PATH" ]; then
+                PGCFG="$cand"
+                break
+            fi
+        done
         if [ -z "$PGCFG" ]; then
-            for cand in /usr/pgsql-${PG_VERSION}/bin/pg_config /usr/lib64/pgsql/bin/pg_config /usr/bin/pg_config; do
-                [ -x "$cand" ] && PGCFG="$cand" && break
+            echo "ERROR: no pg_config found whose --pgxs file exists"
+            for c in /usr/pgsql-${PG_VERSION}/bin/pg_config /usr/bin/pg_config; do
+                [ -x "$c" ] && echo "  · $c -> $($c --pgxs 2>/dev/null)"
             done
+            exit 1
         fi
-        if [ -z "$PGCFG" ]; then
-            echo "ERROR: pg_config not found after installing devel packages"; exit 1
-        fi
-        log "  · using pg_config: $PGCFG"
+        log "  · using pg_config: $PGCFG ($($PGCFG --version))"
         sudo dnf -y -q install git make gcc clang >/dev/null
         TMP="$(mktemp -d)"
         git clone --depth=1 --branch v0.8.0 https://github.com/pgvector/pgvector.git "$TMP/pgvector" >/dev/null
