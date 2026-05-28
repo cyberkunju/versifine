@@ -20,75 +20,30 @@
 
 ## Real, currently-open issues
 
-### 🟠 1. `bun test` does not auto-load the root `.env`
+> Live ground truth as of 2026-05-29. Most of the original list is now resolved (see the Resolved section below). Only two items remain open, both non-blocking.
 
-**Symptom**: `cmd /c "bun test --cwd apps/api"` fails with `DATABASE_URL: Required`. Tests crash before any test body runs.
-
-**Cause**: Bun's test runner ignores the `--env-file` flag in the package script (`"test": "bun test"`). It loads `.env` only from the cwd, and the workspace cwd is `apps/api`, not the repo root.
-
-**Fix**: One of:
-1. Update `apps/api/package.json` to `"test": "bun --env-file=../../.env test"` — but Bun ignores `--env-file` for the `test` subcommand.
-2. Symlink `apps/api/.env` → `../../.env`.
-3. Add `apps/api/bunfig.toml` with `[test] preload = ["./tests/setup.ts"]` and have `setup.ts` call `import { config } from 'dotenv'; config({ path: '../../.env' });`.
-
-The cleanest is option 3. Action: create `apps/api/tests/setup.ts` and `apps/api/bunfig.toml`.
-
-**Status**: ⛔ Open
-
-### 🟠 2. MiniLM ONNX model not exported
+### 🟠 1. MiniLM ONNX model not exported
 
 **Symptom**: Categorizer Tier 3 silently returns null on every call. The categorizer waterfall drops to Tier 4 (default `Other` confidence 0) for any merchant not in `data/merchants.json` or `category_overrides`.
 
-**Cause**: The conversion script `apps/api/scripts/convert-minilm-to-onnx.ts` exists but hasn't been run. Running it requires Python + `optimum-cli`.
+**Cause**: The conversion script `apps/api/scripts/convert-minilm-to-onnx.ts` exists and has been run — it correctly fetches the tokenizer + config from the HuggingFace repo. The repo only ships SafeTensors though, and there's no robust pure-JS converter for SafeTensors → ONNX, so the ONNX siblings remain absent until someone runs the Python toolchain once.
 
-**Fix**: 
+**Fix**:
 ```bash
 # requires Python 3.10+ and pip
-pip install optimum[exporters,onnxruntime] transformers
+pip install --upgrade "optimum[exporters,onnxruntime]" transformers
 optimum-cli export onnx \
   --model CyberKunju/finehance-categorizer-minilm \
-  --task text-classification \
   apps/api/src/ml/model/onnx
+# Then mirror into the web bundle:
+bun run --cwd apps/api convert:minilm
 ```
-Then `bun run --cwd apps/api convert:minilm` to verify the inference works end-to-end and update the manifest. The same `model.onnx` file should be copied to `apps/web/static/models/onnx/` for privacy mode.
 
-**Status**: ⛔ Open
+The same `model.onnx` ends up in both `apps/api/src/ml/model/onnx/` and `apps/web/static/models/onnx/` (the conversion script copies them), enabling Privacy Mode in the browser too.
 
-### 🟡 3. WhatsApp bot — conversation engine not yet written
+**Status**: ⛔ Open (artefact-only — the code is wired and tested; the categorizer degrades gracefully without it)
 
-**Symptom**: `apps/wa-bot` has all the AI services and utilities but no `index.ts`, `supervisor.ts`, openwa client, or message packs. `bun run --cwd apps/wa-bot dev` fails because there's no entry file.
-
-**Cause**: This is just remaining work — Phases 10–11 of the implementation plan.
-
-**Fix**: Phases 10–11 of the roadmap. ~28 hours of focused work as estimated in [11-bot.md](./11-bot.md).
-
-**Status**: ⛔ Open (remaining work)
-
-### 🟡 4. Web app — only foundation files
-
-**Symptom**: `apps/web` has package.json, configs, and a basic app shell but no routes, stores, components. `bun run --cwd apps/web dev` boots Vite but renders an empty page.
-
-**Cause**: Phase 12–17 not started.
-
-**Fix**: Phases 12–17 of the roadmap. ~62 hours of focused work as estimated in [12-web.md](./12-web.md).
-
-**Status**: ⛔ Open (remaining work)
-
-### 🟡 5. Demo seed is a stub
-
-**Symptom**: `bun run --cwd apps/api db:seed` prints "stub: real seed lands with task 11" and exits cleanly.
-
-**Cause**: Task 11 in the spec was deferred. The 90-day realistic Indian dataset hasn't been implemented yet.
-
-**Fix**: Build `apps/api/src/data/seed-fixtures.ts` with:
-- 1 demo user (`demo@finehance.app` / `Finehance#2026!`)
-- 4 wallets (HDFC, Cash, GPay UPI, ICICI Credit Card)
-- 90 days of expense + income transactions covering subscriptions, salary, UPI to common merchants, FX scenarios, split bills, anomalies
-- 3 budgets, 2 goals, 3 ledger entries, ~5 detected recurring items
-
-**Status**: ⛔ Open
-
-### 🟡 6. Numeric custom types declare `data: number` but inserts pass `.toFixed(2)` strings
+### 🟢 2. Numeric custom types declare `data: number` but inserts pass `.toFixed(2)` strings
 
 **Symptom**: TypeScript currently lets the inserts through because Drizzle's inferred insert type is permissive. But strictly speaking the contract is mismatched: a `numeric(14,2)` column expects a number per the customType declaration, but every caller passes a string.
 
@@ -98,53 +53,43 @@ Then `bun run --cwd apps/api convert:minilm` to verify the inference works end-t
 1. Change the customTypes to `data: string, driverData: string` and have callers pass strings explicitly. Cleaner.
 2. Add `toDriver: (v) => v.toString()` to each customType and have callers pass numbers. More TS-pretty.
 
-Option 1 is closer to the underlying SQL semantics; option 2 is closer to JS conventions. I'd pick option 1 but it's not blocking.
+Option 1 is closer to the underlying SQL semantics; option 2 is closer to JS conventions.
 
 **Status**: ⛔ Open (cosmetic / future cleanup)
 
-### 🟡 7. `apps/wa-bot` typecheck error: cannot find type definition file for 'bun'
+---
 
-**Symptom**: `bun run --cwd apps/wa-bot typecheck` fails with "TS2688: Cannot find type definition file for 'bun'".
+## Resolved issues
 
-**Cause**: The wa-bot tsconfig extends `tsconfig.base.json` which has `types: ['bun-types']`. The wa-bot's local node_modules doesn't have `bun-types` because the package only uses `@types/bun`.
+### ✅ 7. `apps/wa-bot` typecheck error: cannot find type definition file for 'bun'
 
-**Fix**: One of:
-1. Add `bun-types` to wa-bot devDependencies.
-2. Override types in wa-bot's tsconfig: `"types": ["@types/bun"]`.
+**Symptom (was)**: `bun run --cwd apps/wa-bot typecheck` failed with "TS2688: Cannot find type definition file for 'bun'".
 
-Option 2 is cleaner since `@types/bun` is already a devDep.
+**Resolution**: `tsconfig.base.json` now lists `"types": ["bun"]` — `@types/bun` provides the `bun` named entry, so every workspace inherits it correctly. `bun run typecheck` returns 0 errors across all four workspaces.
 
-**Status**: ⛔ Open (small fix)
+**Status**: ✅ Fixed
 
-### 🟡 8. `services/capture/queryStubs.ts` uses dynamic imports with stale function names
+### ✅ 8. `services/capture/queryStubs.ts` referenced names that didn't exist on `query.ts`
 
-**Symptom**: The capture pipeline's query intent path tries to call `summarize` and `totalSpentByCategory` from `services/transactions/query.ts`. Those exports don't exist in the current query.ts (the file exports `listTransactions`, `getTransactionById`, `serializeTransaction`).
+**Symptom (was)**: The capture pipeline's query intent path tried to call `summarize` and `totalSpentByCategory`. Those exports were missing.
 
-**Cause**: When the modules were rebuilt, the consumer's import names weren't updated. Because they're dynamic imports wrapped in try/catch, the failure is silent — query intents return "service not ready" stub messages instead of real data.
+**Resolution**: `services/transactions/query.ts` now exports both `summarize` (range-window report data) and `totalSpentByCategory` (per-category total in a window). The dynamic-import wrapper in `queryStubs.ts` resolves them on first call and caches the result; on miss it returns the structured stub envelope.
 
-**Fix**: Either add `summarize` and `totalSpentByCategory` to `query.ts` (preferred — the names match the dispatcher tools in `copilotTools.ts`), or rewrite `queryStubs.ts` to use the existing `listTransactions` plus aggregation in JS.
+**Status**: ✅ Fixed
 
-**Status**: ⛔ Open
+### ✅ 9. `_study/` directory not gitignored on its own line
 
-### 🟢 9. `_study/` directory not gitignored on its own line in `.gitignore`
+**Resolution**: `_study/` is now its own first line in `.gitignore` with an explanatory comment ("Reference material — kept locally for design decisions, never committed"). The folder stays out of every commit.
 
-**Symptom**: `.gitignore` has `_study/` in the list but it's mixed with comment formatting. Easy to read on a closer look but worth a tidy.
+**Status**: ✅ Fixed
 
-**Cause**: I wrote it that way originally; cosmetic.
+### ✅ 10. Copilot's `compute_total` tool defaulted to "this month" when `from`/`to` missing
 
-**Fix**: Reorder for clarity. Trivial.
+**Symptom (was)**: The LLM could call `compute_total({"category":"Transportation"})` without dates, and the tool returned a this-month total — the LLM had no way to recover for "last week" queries.
 
-**Status**: ⛔ Open (cosmetic)
+**Resolution**: The tool spec in `apps/api/src/services/ai/copilotTools.ts` now declares `from` and `to` as required parameters (`required: ['from', 'to']`). The implementation also rejects an invalid date range with a structured `unavailable('compute_total', 'invalid date range')` envelope, so the LLM gets clean feedback when it forgets. The system prompt's context block hands the model "today" so it can compute relative ranges directly.
 
-### 🟢 10. Copilot's `compute_total` tool defaults to "this month" when `from`/`to` missing — should match user request
-
-**Symptom**: When the user asks "how much did I spend on transport last week", the LLM may (correctly) call `compute_total({"category":"Transportation"})` without dates, and our tool returns this-month total. The LLM has no way to recover.
-
-**Cause**: The default range is set inside the tool, not handed to the LLM as a parameter.
-
-**Fix**: Make the tool require `from` and `to` (no defaults). The LLM has to compute them from "today" in the system prompt's context block. This forces the model to reason about dates explicitly and removes a class of subtle bugs.
-
-**Status**: ⛔ Open (correctness improvement)
+**Status**: ✅ Fixed
 
 ---
 
@@ -211,6 +156,34 @@ ALTER TABLE "users" ADD CONSTRAINT "users_active_space_id_fk"
 **Resolution**: Updated all `apps/api/package.json` scripts to use `bun --env-file=../../.env run scripts/migrate.ts`. Now boots cleanly.
 
 **Status**: ✅ Done
+
+### ✅ Svelte 5 runes mode broke pre-compiled vendor components
+
+**Symptom**: `bun x vite build` failed inside `apps/web` with `Cannot use $$props in runes mode` pointing to `lucide-svelte/dist/Icon.svelte`. Lucide ships its components pre-compiled with the legacy `$$props` API; Svelte 5 won't run them when the rest of the app is in runes mode.
+
+**Cause**: `svelte.config.js` had `compilerOptions.runes = true`, which forces every `.svelte` file (including vendored ones) into runes mode regardless of how they were written.
+
+**Resolution**: Removed the global override. Svelte 5's default is auto-detection per file — any file with `$state`/`$derived`/`$props` flips itself into runes mode while pre-compiled vendor components keep using `$$props`. Build and `svelte-check` both clean.
+
+**Status**: ✅ Fixed
+
+### ✅ `extractDate` matched "yesterday" inside "day before yesterday"
+
+**Symptom**: `extractDate('day before yesterday i paid 800', frozenNow)` returned `frozenNow - 1 day` instead of `frozenNow - 2 days`. Caught by the new `tests/parser-regex.test.ts` suite.
+
+**Cause**: The bare `\byesterday\b` regex matched inside the longer phrase before the "day before yesterday" branch was checked.
+
+**Resolution**: Reordered the branches in `extractDate` so the longer phrase is tested first, with a clarifying comment so a future reader doesn't reorder them back. All 32 parser-regex tests green.
+
+**Status**: ✅ Fixed
+
+### ✅ Service worker registered but the source file didn't exist
+
+**Symptom (was)**: The web layout called `navigator.serviceWorker.register('/service-worker.js', { scope: '/' })`, but no `service-worker.ts` existed under `apps/web/src/`. The registration silently failed in production.
+
+**Resolution**: Authored `apps/web/src/service-worker.ts` with three caching strategies — cache-first for the precache + static models, stale-while-revalidate for everything else. The layout now lets SvelteKit auto-register the worker (it picks up `src/service-worker.ts` when present) and adds a message-channel listener so a `SYNC_PENDING_CAPTURES` ping from the page triggers a `DRAIN_QUEUE` broadcast back to drain the offline omnibar queue.
+
+**Status**: ✅ Fixed
 
 ---
 

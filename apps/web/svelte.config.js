@@ -20,9 +20,11 @@ const config = {
       $lib: 'src/lib',
     },
   },
-  compilerOptions: {
-    runes: true,
-  },
+  // Note: do NOT force `compilerOptions.runes = true` globally. Svelte 5
+  // auto-detects runes per-file (any `$state`/`$derived`/`$props` usage
+  // flips that file into runes mode). Forcing it globally breaks
+  // pre-compiled vendor components like `lucide-svelte` which still rely
+  // on `$$props`.
 };
 
 export default config;

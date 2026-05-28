@@ -136,7 +136,7 @@ Phase 0 ─→ 1 ─→ 2 ─→ 3 ─→ 4 ─→ 5 ─→ 6 ─→ 7 ─→ 8 
   - Generate migration `003_budgets_goals_ledger`
   - _Requirements: R9, R10, R13, R4_
 
-- [ ] 11. Build seed data (deferred to Phase 7)
+- [x] 11. Build seed data (deferred to Phase 7)
   - `apps/api/src/db/seed.ts` and `data/seed-fixtures.ts` with 90 days of realistic INR transactions (Phase R19 spec)
   - Include subscriptions, salary, UPI merchants, FX scenarios, split bill, anomalies
   - `bun run --cwd apps/api db:seed` runs cleanly twice (idempotent)
@@ -331,29 +331,29 @@ Phase 0 ─→ 1 ─→ 2 ─→ 3 ─→ 4 ─→ 5 ─→ 6 ─→ 7 ─→ 8 
 
 ## Phase 10 — WhatsApp bot foundation
 
-- [ ] 41. Bootstrap `apps/wa-bot`
+- [x] 41. Bootstrap `apps/wa-bot`
   - `package.json` (Bun), `tsconfig.json`
   - Author `config.ts`, `index.ts`, `supervisor.ts`, `types.ts` from scratch
   - `types.ts` `ConversationState` enum reflects finance states from design § 9
   - _Requirements: R6_
 
-- [ ] 42. Author `openwa/` and `utils/`
+- [x] 42. Author `openwa/` and `utils/`
   - Author `createClient.ts` (whatsapp-web.js client with LocalAuth, browser path detection, keepalive, watchdog, auto-disconnect-exit), `handlers.ts` (LID resolution, two-pass send), `media.ts` (image/audio download with placeholder fallback), `sharedClient.ts` (late-bound client accessor)
   - Author `utils/logger.ts` (structured JSON logger with phone masking), `utils/phone.ts` (E.164 normalization + allowlist check), `utils/text.ts` (universal command detection across all 6 languages), `utils/retry.ts` (exponential backoff helper)
   - _Requirements: R6_
 
-- [ ] 43. Author internal HTTP server (Hono)
+- [x] 43. Author internal HTTP server (Hono)
   - `server/internalServer.ts` — Hono on port 5001 with `/health`, `/qr`, `/qr.png`, `/sessions`, `/send-message` (auth via `X-Bot-Secret`)
   - Add finance-specific endpoints: `/broadcast/budget-alert`, `/broadcast/forecast-anomaly`
   - _Requirements: R6, R15_
 
-- [ ] 44. Author AI services (transcription, TTS, indicSpeech, translate, NLU helpers)
+- [x] 44. Author AI services (transcription, TTS, indicSpeech, translate, NLU helpers)
   - `services/transcribe.ts` — `gpt-4o-transcribe` with `whisper-1` fallback, language hint passthrough
   - `services/tts.ts` — `gpt-4o-mini-tts` with explicit per-language `instructions` field, `tts-1` fallback
   - `services/indicSpeech.ts` — `gpt-4o-audio-preview` for ta/ml combined translate-and-speak
   - _Requirements: R6, R14_
 
-- [ ] 45. Author finance message packs
+- [x] 45. Author finance message packs
   - `conversations/messages/en.ts`, `hi.ts`, `ml.ts` — every user-visible string in three packs
   - Greeting, Help, error messages, confirmation prompts, finance-specific copy: "Logged ₹X under Y", "Budget warning", "What did you spend on?", etc.
   - `messages/index.ts` router with LANGUAGE_META and `getMessages(lang)` helper
@@ -361,74 +361,74 @@ Phase 0 ─→ 1 ─→ 2 ─→ 3 ─→ 4 ─→ 5 ─→ 6 ─→ 7 ─→ 8 
 
 ## Phase 11 — Bot conversation engine and flows
 
-- [ ] 46. Implement state and engine skeletons
+- [x] 46. Implement state and engine skeletons
   - `conversations/state.ts` — in-memory session map, getSession/updateSession/resetSession
   - `conversations/engine.ts` — top-level dispatcher: voice transcribe → universal commands → state handlers → translate → TTS → two-pass send
   - _Requirements: R6_
 
-- [ ] 47. Implement identity flow
+- [x] 47. Implement identity flow
   - `flows/identity.ts` — GREETING → AWAITING_LANGUAGE → linked check
   - On unlinked phone: instruct to register on web and use `LINK <code>`
   - _Requirements: R6, R1_
 
-- [ ] 48. Implement link flow
+- [x] 48. Implement link flow
   - `flows/link.ts` — handles `LINK 482917` style messages, calls `/auth/phone-link/confirm`
   - On success: persist linked status in session and reply with welcome
   - _Requirements: R1, R6_
 
-- [ ] 49. Implement capture flow
+- [x] 49. Implement capture flow
   - `flows/capture.ts` — non-command messages route here: posts to `/capture/text`, `/capture/voice`, or `/capture/image` on the API
   - Handles confirmation pings (`CONFIRM` / `EDIT` / `CANCEL`) before persisting drafts
   - On `query_spending`/`view_summary` intents: render the API result as a 1-2 line bot reply
   - On `chat` intent: stream copilot response (or buffer + chunk if > 1500 chars for WhatsApp)
   - _Requirements: R5, R6, R8_
 
-- [ ] 50. Implement query, budget, correct, help flows
+- [x] 50. Implement query, budget, correct, help flows
   - `flows/query.ts` — handle "how much on X this month" without going through API parser when fast pattern matches
   - `flows/budget.ts` — multi-step "set budget for groceries 5000"
   - `flows/correct.ts` — "that should be Transport not Food" → posts category correction to API
   - `flows/help.ts` — universal HELP command renders localized help card
   - _Requirements: R6, R7, R8, R9_
 
-- [ ] 51. Implement bot apiClient
+- [x] 51. Implement bot apiClient
   - `services/apiClient.ts` — typed wrapper around `apps/api` calls with `X-Bot-Secret` and `X-Phone` headers
   - All flow files use this wrapper exclusively
   - _Requirements: R6_
 
-- [ ] 52. Wire QR pairing UI
+- [x] 52. Wire QR pairing UI
   - Verify `/qr` (HTML auto-refresh) + `/qr.png` work; first run prints QR to terminal AND serves it
   - _Requirements: R6, R19_
 
-- [ ] 53. End-to-end bot smoke test
+- [x] 53. End-to-end bot smoke test
   - From simulator (`POST /simulator/message`): send "spent 450 on auto" as an allowlisted phone, assert reply contains confirmation, assert API created the transaction
   - _Requirements: R5, R6_
 
 ## Phase 12 — Web app foundation
 
-- [ ] 54. Bootstrap SvelteKit
+- [x] 54. Bootstrap SvelteKit
   - `apps/web` with Svelte 5, TypeScript strict, Tailwind v4, Vite
   - `svelte.config.js` with adapter-static or adapter-node (pick adapter-node for SSR convenience)
   - `tailwind.config.ts` with content paths and shadcn-svelte palette
   - Theme tokens in `app.css`
   - _Requirements: R19_
 
-- [ ] 55. Install shadcn-svelte primitives
+- [x] 55. Install shadcn-svelte primitives
   - Initialize shadcn-svelte CLI with chosen theme
   - Add: button, input, card, dialog, drawer, sheet, dropdown-menu, command, toast, tooltip, table, tabs, badge, avatar, switch, slider, popover, scroll-area, skeleton
   - _Requirements: R19_
 
-- [ ] 56. Implement auth client
+- [x] 56. Implement auth client
   - `lib/api/client.ts` — fetch wrapper with auto-refresh on 401, attaches access JWT, base URL from env
   - `lib/stores/auth.svelte.ts` — login/logout/refresh logic, exposes `user` rune
   - Login + Register pages with form validation against shared Zod schemas
   - Auth guard in `+layout.ts` redirects unauthenticated to `/login`
   - _Requirements: R1, R18_
 
-- [ ] 57. Implement WebSocket client
+- [x] 57. Implement WebSocket client
   - `lib/api/ws.ts` — connect on auth, exponential backoff reconnect, polling fallback, dispatch into TanStack Query cache
   - _Requirements: R15_
 
-- [ ] 58. Implement layout shell
+- [x] 58. Implement layout shell
   - `routes/+layout.svelte` — sidebar + topbar + content + slide-in copilot panel
   - Sidebar items: Dashboard, Transactions, Budgets, Goals, Forecast, Reports, Settings
   - Theme toggle, language pill, user menu
@@ -438,7 +438,7 @@ Phase 0 ─→ 1 ─→ 2 ─→ 3 ─→ 4 ─→ 5 ─→ 6 ─→ 7 ─→ 8 
 
 ## Phase 13 — Omnibar, Privacy Mode, and capture flows
 
-- [ ] 59. Implement omnibar component
+- [x] 59. Implement omnibar component
   - `components/omnibar/Omnibar.svelte` — single input with hotkey `⌘L` global focus
   - Voice button uses MediaRecorder, posts to `/capture/voice`
   - Image drop / paste uses `/capture/image`
@@ -446,7 +446,7 @@ Phase 0 ─→ 1 ─→ 2 ─→ 3 ─→ 4 ─→ 5 ─→ 6 ─→ 7 ─→ 8 
   - When `needs_confirmation`: opens confirmation dialog with editable fields, submits to `/capture/confirm`
   - _Requirements: R5, R8_
 
-- [ ] 60. Implement Privacy Mode
+- [x] 60. Implement Privacy Mode
   - `lib/ai/minilm-client.ts` — Transformers.js loader using `apps/web/static/models/`
   - First-toggle UX: progress bar showing model download to IndexedDB
   - When ON: omnibar runs categorize client-side, posts pre-categorized transaction to `/transactions` endpoint with `categorized_by='client'`
@@ -456,12 +456,12 @@ Phase 0 ─→ 1 ─→ 2 ─→ 3 ─→ 4 ─→ 5 ─→ 6 ─→ 7 ─→ 8 
 
 ## Phase 14 — Web pages
 
-- [ ] 61. Build dashboard page
+- [x] 61. Build dashboard page
   - `routes/+page.svelte` — top tiles (this month income, expense, savings rate, net worth), recent transactions, this month forecast preview, top 3 categories, budget alerts strip, copilot quick-prompt cards
   - Subscribe to WS events; animate new transactions in
   - _Requirements: R4, R9, R10, R11, R15_
 
-- [ ] 62. Build transactions page
+- [x] 62. Build transactions page
   - Filter bar (date range, type, category, wallet, search)
   - Virtualized table (use TanStack Virtual)
   - Bulk select + bulk category change + bulk delete
@@ -469,33 +469,33 @@ Phase 0 ─→ 1 ─→ 2 ─→ 3 ─→ 4 ─→ 5 ─→ 6 ─→ 7 ─→ 8 
   - Import CSV button + Export CSV button
   - _Requirements: R4, R7, R12_
 
-- [ ] 63. Build budgets page
+- [x] 63. Build budgets page
   - List with progress bars per category, color-coded thresholds
   - Create/edit form with `{category: amount}` builder
   - Live recompute on transaction events
   - _Requirements: R9, R15_
 
-- [ ] 64. Build goals page
+- [x] 64. Build goals page
   - Cards with progress + projected completion
   - Create/edit form with optional category link
   - Update progress action (manual contribution)
   - _Requirements: R9_
 
-- [ ] 65. Build forecast page
+- [x] 65. Build forecast page
   - Big chart using Layerchart: actuals + recurring base + variable forecast band
   - Recurring items list with amounts and next dates
   - Anomalies callout strip
   - Last 90 days vs forecast next 30 comparison
   - _Requirements: R10, R15_
 
-- [ ] 66. Build reports page
+- [x] 66. Build reports page
   - Date-range picker
   - Summary tiles, income/expense breakdowns (donut + table)
   - Budget adherence list
   - Export CSV button
   - _Requirements: R12_
 
-- [ ] 67. Build settings page
+- [x] 67. Build settings page
   - Account: change password, change display name
   - Language picker (6 langs)
   - Base currency
@@ -506,26 +506,26 @@ Phase 0 ─→ 1 ─→ 2 ─→ 3 ─→ 4 ─→ 5 ─→ 6 ─→ 7 ─→ 8 
 
 ## Phase 15 — Copilot panel
 
-- [ ] 68. Build copilot panel
+- [x] 68. Build copilot panel
   - `components/copilot/CopilotPanel.svelte` — slide-in sheet with message list + input
   - Use Vercel AI SDK with custom SSE endpoint at `routes/api/copilot/+server.ts` (proxies to API `/copilot/chat`)
   - Render markdown + streaming tokens via `MessageBubble.svelte`
   - Quick-prompt chips: "How much did I spend on food this month?", "Forecast next 30 days", "Where am I overspending?"
   - _Requirements: R11_
 
-- [ ] 69. Build copilot tool-result UI
+- [x] 69. Build copilot tool-result UI
   - When the model returns tool results (compute_total, breakdown), render them as inline charts/tables instead of plain text
   - _Requirements: R11_
 
 ## Phase 16 — PWA + offline
 
-- [ ] 70. Configure PWA
+- [x] 70. Configure PWA
   - `manifest.webmanifest`, icons, theme color
   - Register service worker
   - App shell cached cache-first; static models cache-first
   - _Requirements: R16_
 
-- [ ] 71. Implement offline capture queue
+- [x] 71. Implement offline capture queue
   - `lib/stores/pendingCaptures.svelte.ts` — IndexedDB-backed queue
   - Service worker background-sync drains the queue when online
   - "Pending captures" UI surfaces queue + sync errors
@@ -533,38 +533,38 @@ Phase 0 ─→ 1 ─→ 2 ─→ 3 ─→ 4 ─→ 5 ─→ 6 ─→ 7 ─→ 8 
 
 ## Phase 17 — Polish, testing, demo
 
-- [ ] 72. Write parser unit tests
+- [x] 72. Write parser unit tests
   - 50+ phrases across en/hi/ml mixed, including Malayalam, Tamil, Telugu, and Kannada slang
   - _Requirements: R5, R8_
 
-- [ ] 73. Write categorize unit tests
+- [x] 73. Write categorize unit tests
   - Override priority, merchant DB hits, MiniLM fallback
   - _Requirements: R7_
 
-- [ ] 74. Write forecast unit tests
+- [x] 74. Write forecast unit tests
   - Synthetic series with known recurring + known variable + known anomaly
   - _Requirements: R10_
 
-- [ ] 75. Write end-to-end happy path test (Playwright)
+- [x] 75. Write end-to-end happy path test (Playwright)
   - Login → omnibar capture → transaction visible → budget progress updated → copilot answers
   - _Requirements: R5, R9, R11, R15, R19_
 
-- [ ] 76. Write bot conversation engine test
+- [x] 76. Write bot conversation engine test
   - Headless `bun run test:flow` walks: greet → link → capture text → capture voice (mock) → query → set budget → correct
   - _Requirements: R6_
 
-- [ ] 77. Write final README
+- [x] 77. Write final README
   - Replace placeholder with full setup recipe (R19), demo credentials, architecture diagram link, screenshots, demo URL placeholder
   - Document the demo phone setup (using personal WhatsApp + allowlisted second number)
   - Document `bun run reset:demo` for re-running demo cleanly
   - _Requirements: R19_
 
-- [ ] 78. Prepare demo script
+- [x] 78. Prepare demo script
   - Step-by-step demo flow document for the hackathon presentation
   - Includes the "wow" sequence: WhatsApp voice in Malayalam → web dashboard updates live → copilot answers → privacy mode toggled and demonstrated
   - _Requirements: R19_
 
-- [ ] 79. Final pass: lint, typecheck, dead code removal
+- [x] 79. Final pass: lint, typecheck, dead code removal
   - `bun run check` across all workspaces returns clean
   - All env vars documented in `.env.example`
   - All TODO/FIXME comments resolved or moved to issues

@@ -94,14 +94,25 @@
   onMount(() => {
     window.addEventListener('keydown', handleKey);
     cleanups = setupSocketHandlers();
+    // SvelteKit auto-registers `src/service-worker.ts` when present, so
+    // we don't need an explicit `register()` call here.
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/service-worker.js', { scope: '/' }).catch(() => {
-        // Fine — we still work without the SW.
-      });
+      // Listen for DRAIN_QUEUE pings the SW relays after a SYNC_PENDING_CAPTURES.
+      const onMessage = (event: MessageEvent<{ type?: string }>) => {
+        if (event.data?.type === 'DRAIN_QUEUE') {
+          void pendingCaptures.drain();
+        }
+      };
+      navigator.serviceWorker.addEventListener('message', onMessage);
+      cleanups.push(() => navigator.serviceWorker.removeEventListener('message', onMessage));
     }
-    window.addEventListener('online', () => {
+    const onOnline = () => {
       void pendingCaptures.drain();
-    });
+      // Also nudge the SW so any background-sync state stays in lockstep.
+      navigator.serviceWorker?.controller?.postMessage({ type: 'SYNC_PENDING_CAPTURES' });
+    };
+    window.addEventListener('online', onOnline);
+    cleanups.push(() => window.removeEventListener('online', onOnline));
   });
 
   onDestroy(() => {

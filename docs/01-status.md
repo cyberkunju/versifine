@@ -1,96 +1,124 @@
 # 01 · Project Status
 
-> Updated 2026-05-28. Verified by typecheck (`tsc --noEmit` clean for `packages/shared`, `apps/api`), live boot of the API (`/health/ready` returns 200), and database round-trip.
+> Updated 2026-05-29. Verified by typecheck (`bun run typecheck` clean across all four workspaces), live boot (`/health` returns 200), 9 smoke scripts green against a seeded database, and a full test run (`47 pass, 0 fail` across 3 test files in `apps/api` plus `2 pass, 0 fail` in `apps/wa-bot`).
 
 ## Headline
 
-**Phase 0 → 9 are substantially complete. Phases 10–17 are the remaining work.** The previous audit (delivered to the user a few turns ago) was outdated; it described a much earlier state. This document is the corrected ground truth.
+**Every MVP phase (0 → 17) is now substantially complete.** The previous version of this document (and `13-issues.md`) significantly understated progress because they were authored mid-build and never refreshed when later sweeps landed. This file now reflects what the repo actually contains.
 
 | Phase | Status | Notes |
 | --- | --- | --- |
 | 0 — Repository foundation | ✅ Done | Bun workspaces, biome, env validation, gitignore, README, db-init script, native Postgres 16 + pgvector 0.8.2. |
 | 1 — DB schema + migrations | ✅ Done | 16 tables live, 3 migrations applied, all 4 extensions enabled, IVFFlat + GIN indexes verified. |
 | 2 — API foundation + auth | ✅ Done | Hono + middleware + JWT (access+refresh rotation) + bcrypt + OTP + smoke test passes. |
-| 3 — MiniLM ONNX + categorize | 🟡 Partial | Tier resolver, overrides, merchants DB, MiniLM loader all written. ONNX export not run yet. |
+| 3 — MiniLM ONNX + categorize | 🟡 Code complete · ONNX artefact missing | Tier resolver, overrides, merchants DB, MiniLM loader all written and tested. The ONNX export still needs the Python toolchain run once (see "Known caveats"). |
 | 4 — AI services | ✅ Done | client, transcribe, vision, intent, parser+regex, translate, embed, advice, copilotTools. |
-| 5 — Capture pipeline | ✅ Done | drafts, persist, wallet picker, query stubs; all four capture routes (text/voice/image/confirm). |
+| 5 — Capture pipeline | ✅ Done | drafts, persist, wallet picker, query helpers; all four capture routes (text/voice/image/confirm). |
 | 6 — Budgets/Goals/Ledger/Recurring/Forecast | ✅ Done | 5 service modules + 5 route files. Recurring detector, ARIMA(1,1,1), anomaly z-score, threshold alerts. |
 | 7 — Reports + advice | ✅ Done | Summary service + report routes (JSON + CSV). Advice service uses gpt-4o-mini with rule fallback. |
 | 8 — Copilot RAG + tool-calling | ✅ Done | Embed query → PgVector cosine → context build → streaming SSE → tool dispatch loop (4 rounds cap). |
 | 9 — WebSocket | ✅ Done | Upgrade endpoint with subprotocol JWT auth, per-user fan-out, lazy bus subscription, reconnect-friendly. |
-| 10 — wa-bot foundation | 🟡 Partial | config, types, AI services (transcribe/tts/indicSpeech/translate), utils all written. Missing: openwa client, internal server, message packs. |
-| 11 — wa-bot conversation engine | ⛔ Not started | engine, state, flows, apiClient still to do. |
-| 12 — Web foundation (SvelteKit) | 🟡 Partial | package.json, svelte.config, vite.config, tsconfig, app.html, app.css present. Missing: routes, lib, stores, components. |
-| 13 — Omnibar + privacy mode | ⛔ Not started | Tokenizer assets in `apps/web/static/models/` ready; ONNX siblings missing. |
-| 14 — Web pages | ⛔ Not started | Dashboard, transactions, budgets, goals, forecast, reports, settings. |
-| 15 — Copilot UI | ⛔ Not started | Slide-in panel, message bubbles, quick-prompt chips, tool-result rendering. |
-| 16 — PWA + offline | ⛔ Not started | Service worker, IndexedDB queue, manifest icons. |
-| 17 — Polish + testing + demo | ⛔ Not started | Tests beyond `categorize.test.ts`, end-to-end Playwright, README/demo script polish. |
+| 10 — wa-bot foundation | ✅ Done | config, supervisor, openwa client (LocalAuth + watchdog), internal HTTP server (`/qr`, `/qr.png`, `/sessions`, `/send`, `/broadcast/*`, `/simulator/message`), AI services, utils. |
+| 11 — wa-bot conversation engine | ✅ Done | engine, state, 7 flows (identity, link, capture, confirm, query, budget, correct, help), 3 message packs (en/hi/ml), apiClient. Bot smoke test green. |
+| 12 — Web foundation (SvelteKit) | ✅ Done | SvelteKit + Tailwind 4 + bits-ui primitives, auth store, ws client with reconnect, layout shell with sidebar / topbar / command menu / floating copilot button, login + register. |
+| 13 — Omnibar + privacy mode | ✅ Done | Omnibar with text/voice/image, ConfirmDialog, MiniLM client loader. Privacy mode runs categorisation client-side once the ONNX artefact is in `apps/web/static/models/onnx/`. |
+| 14 — Web pages | ✅ Done | Dashboard, Transactions, Budgets, Goals, Forecast, Reports, Settings — every page renders with seeded data, every page subscribes to the relevant WS events. |
+| 15 — Copilot UI | ✅ Done | Slide-in panel, message bubbles, quick-prompt chips, SSE proxy at `/api/copilot`. Streaming + tool-result rendering. |
+| 16 — PWA + offline | ✅ Done | Service worker (`apps/web/src/service-worker.ts`) with three caching strategies, IndexedDB-backed pending-capture queue, manifest + theme. |
+| 17 — Polish + testing + demo | ✅ Done | 47 API tests across categorize / parser-regex / forecast plus 2 wa-bot engine tests. README, demo runbook (`docs/14-runbook.md`), demo script (`docs/15-roadmap.md`'s "When the demo lands" section). |
 
 ## File counts
 
 ```
 apps/api/src/         111 .ts files (routes, services, schema, middleware, utils)
-apps/wa-bot/src/        9 .ts files (config, types, ai/*, utils/*)
-apps/web/src/           4 files (.ts/.css/.html/.d.ts) + svelte.config + vite.config
+apps/wa-bot/src/       28 .ts files (config, supervisor, openwa/, server/, services/ai/, conversations/{engine,state,flows,messages}, utils)
+apps/web/src/          70+ .ts/.svelte files (routes, lib/{api,ai,components,i18n,stores,utils})
 packages/shared/src/   13 .ts files (categories, currencies, languages, intents, events, schemas/*)
-scripts/                1 .ts file (db-init)
+scripts/                3 .ts files (db-init, check-db, smoke-web)
 .kiro/specs/finehance/  3 .md files (requirements, design, tasks)
+docs/                  16 .md files
 ```
 
 Total Drizzle tables: **16** (users, spaces, space_members, refresh_tokens, phone_link_otps, wallets, transactions, transaction_embeddings, category_overrides, category_corrections, budgets, goals, ledger_entries, ledger_settlements, recurring_items, fx_rates).
 
 Total Hono routes mounted: **14** (health, auth, capture, wallets, transactions, budgets, goals, ledger, recurring, forecast, reports, advice, copilot, ws).
 
-Total smoke scripts: **9** (auth, transaction, budget, goal, ledger, recurring, forecast, reports, advice, copilot).
+Total smoke scripts (all green): **9** (auth, transaction, budget, goal, ledger, recurring, forecast, reports, advice, copilot).
 
 ## What works right now end-to-end
 
-You can run all of this on the laptop today:
+All of this runs on a clean clone after `bun install && bun run db:init && bun run db:migrate && bun run db:seed`:
 
-1. Register a user via `POST /auth/register`
-2. Log in, refresh, hit `/auth/me`
-3. Create a wallet
-4. Create a transaction (manual)
-5. List, filter, paginate, soft-delete transactions
-6. Import + export CSV
-7. Create a budget, get progress, watch threshold alerts emit on `budget.warning` / `budget.exceeded`
-8. Create goals, post progress, see projected completion
-9. Lend / borrow ledger entries with settlements
-10. Run recurring detection, get a forecast (`GET /forecast?days=30`)
-11. Reports summary (JSON or CSV)
-12. Advice (LLM-backed if `OPENAI_API_KEY` set, deterministic fallback otherwise)
-13. Copilot chat (streaming SSE with tool-calling) — gated on `OPENAI_API_KEY`
-14. WebSocket upgrade with bearer-subprotocol JWT auth — connect from a websocket client and listen
-15. Capture text via `/capture/text` → intent classification → expense parser → wallet pick → persist → events fire
+1. `bun run dev` boots api (5000), web (5173), and the bot (5001) concurrently.
+2. Register a user via `POST /auth/register` or open the web at `/register`.
+3. Log in, refresh, hit `/auth/me` — JWT rotation works.
+4. Create wallets, transactions, transfers (web UI + API).
+5. List, filter, paginate, soft-delete transactions; CSV import + export.
+6. Create budgets, watch threshold alerts emit on `budget.warning` / `budget.exceeded`.
+7. Create goals, post progress, see projected completion.
+8. Lend / borrow ledger entries with settlements.
+9. Run recurring detection, forecast (`GET /forecast?days=30`) — ARIMA + rolling-average fallback both tested.
+10. Reports summary (JSON or CSV), Advice (LLM-backed when `OPENAI_API_KEY` is set, deterministic fallback otherwise).
+11. Copilot chat (streaming SSE with tool-calling) — gated on `OPENAI_API_KEY`.
+12. WebSocket upgrade with bearer-subprotocol JWT auth — every event-emitting service writes through the bus.
+13. Capture text via `/capture/text` → intent classification → expense parser → wallet pick → persist → events fire.
+14. Open the bot's `/qr` page, scan with WhatsApp, send "spent 450 on auto" — bot replies with the localised "Logged ₹450 (Transportation)" line.
+15. Toggle Privacy Mode in `/settings` — once the MiniLM ONNX artefact lands in `apps/web/static/models/onnx/`, categorisation runs in the browser.
 
-## What's outright missing (the remaining work)
+## Verification matrix
 
-1. **WhatsApp bot openwa client + handlers + media + sharedClient** — the conversation engine, state, flows, message packs, and supervisor.
-2. **Web app**: every route under `apps/web/src/routes/`, every store, every component, every shadcn-svelte primitive, the omnibar, the copilot panel, the privacy-mode loader, the PWA service worker.
-3. **MiniLM ONNX siblings** — the `.onnx` weight file under `apps/api/src/ml/model/onnx/` and `apps/web/static/models/onnx/`. The conversion script `convert-minilm-to-onnx.ts` exists but the artifact hasn't been generated and uploaded yet.
-4. **Comprehensive test coverage** — only `apps/api/tests/categorize.test.ts` exists. The plan calls for parser, forecast, end-to-end Playwright, and bot-engine tests.
-5. **Demo seed data** — `scripts/seed.ts` is a stub. The 90-day realistic Indian dataset (R19) needs to land before a judge clones the repo.
+| Check | Command | Result |
+| --- | --- | --- |
+| Workspace typecheck | `bun run typecheck` | 0 errors across `@finehance/shared`, `@finehance/api`, `@finehance/wa-bot`, `@finehance/web` |
+| API tests | `bun run --cwd apps/api test` | 47 pass / 0 fail (categorize, parser-regex, forecast) |
+| Bot tests | `bun run --cwd apps/wa-bot test` | 2 pass / 0 fail (engine flow + cancel-on-draft) |
+| API live boot | `curl http://127.0.0.1:5000/health` | `{ "success": true, "data": { "service": "finehance-api" ... } }` |
+| Smoke: auth | `bun --env-file=../../.env scripts/smoke-auth.ts` | OK |
+| Smoke: transaction | `scripts/smoke-transaction.ts` | OK (FX, soft-delete, balance) |
+| Smoke: budget | `scripts/smoke-budget.ts` | OK (warn + exceeded events emit) |
+| Smoke: forecast | `scripts/smoke-forecast.ts` | OK (30-day, anomalies flagged: 4) |
+| Smoke: copilot | `scripts/smoke-copilot.ts` | OK (SSE 17 chunks, WS events received) |
+| Web build | `bun x vite build` (in `apps/web`) | Clean SSR + client bundle |
+| Web typecheck | `bun x svelte-check` | 0 errors / 0 warnings |
+| Seed | `bun run --cwd apps/api db:seed` | 4 wallets, 216 transactions over 90 days, 3 budgets, 3 goals, 3 ledger entries, 13 detected recurring items |
 
-## Known issues right now
+## Known caveats (all non-blocking)
 
-Detailed list with severity and one-line fixes lives in [13-issues.md](./13-issues.md). Highlights:
+1. **MiniLM ONNX artefact not yet checked in.** The fine-tuned MiniLM ships as SafeTensors only on HuggingFace; converting needs the Python `optimum-cli` toolchain run once. The categorizer detects the absence and degrades cleanly to merchant DB + default tiers (`categorized_by` becomes `merchants` or `default` instead of `minilm`). To enable the ML tier:
+   ```sh
+   pip install --upgrade "optimum[exporters,onnxruntime]" transformers
+   optimum-cli export onnx --model CyberKunju/finehance-categorizer-minilm apps/api/src/ml/model/onnx
+   bun run --cwd apps/api convert:minilm   # mirrors into apps/web/static/models/
+   ```
+2. **`compute_total` defaults to "this month" when `from`/`to` are missing.** The tool spec already requires both, so the LLM is prompted to compute dates. The defensive fallback is still in place. Acceptable.
+3. **Numeric custom types declare `data: number` but inserts pass `.toFixed(2)` strings.** TypeScript permissively accepts both because Drizzle's inferred insert type is wide; postgres-js coerces strings on the way in. Cosmetic; flagged for a future cleanup sweep.
+4. **`apps/web/static/models/onnx/` is empty.** Same root cause as (1). Privacy mode shows a friendly "model artefact missing" message in settings until the ONNX is exported.
 
-- **Test runner doesn't load `.env`** — `bun test` skips Bun's `--env-file` flag automatically. `tests/categorize.test.ts` fails on env validation. Fix: add a `bunfig.toml` with `[test] preload = ["./tests/setup.ts"]` that calls `dotenv.config({ path: '../../.env' })`, or run tests via the `bun test --env-file=../../.env` invocation from a `package.json` script.
-- **`apps/web/static/models/onnx/` is empty** — privacy mode can't run client-side categorization until the ONNX is in place.
-- **Most schema customTypes declare `data: number` but inserts pass strings** — typechecks pass currently because Drizzle's inferred insert type is permissive enough; long-term we should align by either changing the customType to `data: string` or adding `toDriver` so callers pass numbers.
+## Reproducibility
 
-## What the previous audit got wrong
+```sh
+bun install
+bun run db:init                    # creates finehance_dev + finehance_test, enables extensions
+bun run db:migrate                 # applies the three Drizzle migrations
+bun run db:seed                    # 90 days of realistic Indian transactions, demo@finehance.app
 
-For the record: the sub-agent I ran first incorrectly reported 37 typescript errors and accused several files of being missing. Re-running `tsc --noEmit` directly returns **0 errors** for both `packages/shared` and `apps/api`. The files the audit said were missing (`apps/api/src/services/categorize/index.ts`, `minilm.ts`, `merchants.ts`, `overrides.ts`; the entire `services/{forecast,goals,ledger,reports}/`; routes `goals/ledger/recurring/forecast/reports/copilot/advice/ws`; `apps/wa-bot` directory; `apps/web` directory) **all exist**.
+bun run typecheck                  # 0 errors in every workspace
+bun run --cwd apps/api test        # 47 pass / 0 fail
+bun run --cwd apps/wa-bot test     # 2 pass / 0 fail
 
-Likely cause: the sub-agent had a stale view of the workspace from earlier in the session. Lesson: always corroborate with a live tool call (`tsc`, `psql \dt`, `curl /health`) before trusting an LLM-generated audit.
+bun run dev                        # api 5000, web 5173, bot 5001
+```
 
-## Next decision point
+Demo credentials: `demo@finehance.app` / `Finehance#2026!`.
 
-Two viable paths from here:
+## What's next
 
-1. **Finish wa-bot first** (Phases 10–11). Then web. Then polish. This delivers the WhatsApp killer feature earliest and lets us demo "voice note in Malayalam → transaction logged" without a web app.
-2. **Finish web first** (Phases 12–17). Then wa-bot. This delivers the dashboard / copilot UI that judges will actually click during the demo.
+The MVP arc is complete. Remaining items live in [15-roadmap.md](./15-roadmap.md) under "Stretch / production-readiness":
 
-The roadmap in [15-roadmap.md](./15-roadmap.md) recommends path 2 (web first) because the API end-to-end is already curl-able and the wow factor for a hackathon judge is more visual than audible.
+- PDF report export
+- Voice replies inside the web copilot (Web Speech API)
+- Bank-statement PDF parser for batch import
+- Recurring "cancel this dormant subscription" engine
+- Goal streaks / gamification
+
+Beyond MVP, the production hardening list (HTTPS termination, httpOnly cookies, managed Postgres, Redis-backed rate limiter / event bus, observability, CI pipeline, etc.) is also catalogued in the roadmap.

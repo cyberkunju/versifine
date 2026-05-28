@@ -118,14 +118,17 @@ export function extractDate(text: string, now: Date = new Date()): string | null
   const lower = text.toLowerCase();
 
   if (/\btoday\b/.test(lower)) return toIsoDate(now);
+  // Check "day before yesterday" BEFORE the bare "yesterday" pattern; the
+  // shorter token would otherwise greedy-match inside the longer phrase
+  // and we'd report off-by-one.
+  if (/\bday\s+before\s+yesterday\b/.test(lower)) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 2);
+    return toIsoDate(d);
+  }
   if (/\byesterday\b/.test(lower)) {
     const d = new Date(now);
     d.setDate(d.getDate() - 1);
-    return toIsoDate(d);
-  }
-  if (/\b(?:day before yesterday)\b/.test(lower)) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - 2);
     return toIsoDate(d);
   }
 
