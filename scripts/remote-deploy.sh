@@ -42,11 +42,31 @@ log "Installing workspace dependencies"
 /usr/local/bin/bun install --frozen-lockfile
 
 log "Building API bundle"
-/usr/local/bin/bun build apps/api/src/index.ts --target=bun --outdir=apps/api/dist
+# Mark optional native/native-only deps external (e.g. @huggingface/transformers'
+# onnxruntime native bindings). Runtime resolution lets the deploy install
+# the right platform binary when needed.
+/usr/local/bin/bun build apps/api/src/index.ts \
+    --target=bun \
+    --outdir=apps/api/dist \
+    --external '@huggingface/transformers' \
+    --external 'onnxruntime-node' \
+    --external 'sharp'
 [ -f apps/api/dist/index.js ] || { echo "ERROR: apps/api/dist/index.js missing"; exit 1; }
 
 log "Building wa-bot bundle"
-/usr/local/bin/bun build apps/wa-bot/src/index.ts --target=bun --outdir=apps/wa-bot/dist
+# Mark optional/native deps as external — these aren't actually used by our
+# code path but are conditionally `require()`d inside dependencies (e.g.
+# unzipper's S3 backend, puppeteer's chromium downloader). Bun's bundler is
+# strict about resolution; marking them external lets `bun run dist/index.js`
+# defer the resolution to the runtime, where they remain unresolved no-ops.
+/usr/local/bin/bun build apps/wa-bot/src/index.ts \
+    --target=bun \
+    --outdir=apps/wa-bot/dist \
+    --external '@aws-sdk/client-s3' \
+    --external 'puppeteer' \
+    --external 'whatsapp-web.js' \
+    --external 'qrcode' \
+    --external 'qrcode-terminal'
 [ -f apps/wa-bot/dist/index.js ] || { echo "ERROR: apps/wa-bot/dist/index.js missing"; exit 1; }
 
 log "Building web (SvelteKit + adapter-node)"
