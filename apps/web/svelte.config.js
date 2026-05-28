@@ -14,7 +14,10 @@ const config = {
     adapter: adapter({
       out: 'build',
       precompress: false,
-      envPrefix: 'PUBLIC_',
+      // Default adapter env names: HOST, PORT, ORIGIN, etc. (no prefix).
+      // Vite's own `import.meta.env` keys still pick up VITE_* at build time.
+      // Keeping the adapter unprefixed avoids the strict guard that throws
+      // on any PUBLIC_* env var the adapter doesn't recognise.
     }),
     alias: {
       $lib: 'src/lib',
