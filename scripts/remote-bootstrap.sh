@@ -80,6 +80,16 @@ if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_extension WHERE extname='vecto
         # Fedora 43: postgresql16's pgxs.mk lives in postgresql16-server-devel.
         # The plain "postgresql-devel" name on Fedora 43 ships PG18 headers,
         # which won't link against the 16-server we just installed.
+        # On the lab box, libpq-devel-18 is pre-installed (from a different
+        # project). It conflicts with postgresql16-private-devel which is a
+        # transitive dep of postgresql16-server-devel, so remove it first if
+        # nothing else depends on it.
+        if rpm -q libpq-devel >/dev/null 2>&1; then
+            if ! rpm -q --whatrequires libpq-devel >/dev/null 2>&1; then
+                log "    · removing conflicting libpq-devel (no rdeps)"
+                sudo dnf -y -q remove libpq-devel >/dev/null
+            fi
+        fi
         sudo dnf -y -q install "postgresql${PG_VERSION}-server-devel" >/dev/null 2>&1 \
             || sudo dnf -y -q install postgresql-server-devel >/dev/null 2>&1 \
             || true
