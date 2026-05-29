@@ -94,11 +94,10 @@
   let slideIdx = $state(0);
   const slide = $derived(SLIDES[slideIdx]!);
 
-  // Honest reading pace: a short base plus time per word, clamped so even
-  // one-liners breathe and long lines never overstay.
-  function readingMs(text: string): number {
-    const words = text.trim().split(/\s+/).length;
-    return Math.min(10500, Math.max(6000, 3800 + words * 260));
+  // Fixed cadence: every slide stays exactly 4 seconds, regardless of
+  // length. Predictable, calm rhythm.
+  function readingMs(_text: string): number {
+    return 4000;
   }
 
   // Advance after the current slide's reading time. Re-runs whenever the
