@@ -41,6 +41,7 @@ from modal_app import VOLUME_ROOT, app, export_image, local_src, volume  # noqa:
 )
 def evaluate() -> str:
     import numpy as np
+    import pandas as pd
     import pyarrow.parquet as pq
     import torch
     from optimum.onnxruntime import ORTModelForFeatureExtraction, ORTModelForSequenceClassification
@@ -79,8 +80,27 @@ def evaluate() -> str:
         return np.vstack(vecs).astype("float32")
 
     df = pq.read_table(vol / "eval.parquet").to_pandas()
+    # Optional hand-curated adversarial set (text, leaf, segment) — the real
+    # exam (see docs/08-evaluation.md). Unioned in when present.
+    hard_path = vol / "eval_hard.jsonl"
+    segments: list[str] = []
+    if hard_path.exists():
+        import json as _json
+
+        hard_rows = [
+            _json.loads(line)
+            for line in hard_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        hdf = pd.DataFrame(hard_rows)
+        if not hdf.empty:
+            df = pd.concat([df.assign(segment="synthetic"), hdf], ignore_index=True)
+    if "segment" not in df.columns:
+        df["segment"] = "synthetic"
+
     texts = df["text"].tolist()
     gold = df["leaf"].tolist()
+    segments = df["segment"].fillna("synthetic").tolist()
     print(f"Eval rows: {len(texts)}")
 
     emb = embed(texts, "query: ")
@@ -93,6 +113,8 @@ def evaluate() -> str:
     confident_correct = confident_total = 0
     group_correct: dict = defaultdict(int)
     group_total: dict = defaultdict(int)
+    seg_correct: dict = defaultdict(int)
+    seg_total: dict = defaultdict(int)
 
     for i, gleaf in enumerate(gold):
         cand = [leaf_keys[j] for j in topk_idx[i]]
@@ -113,15 +135,21 @@ def evaluate() -> str:
         winner = cand[best]
         winner_sim = float(sims[i, topk_idx[i, best]])
 
-        if winner == gleaf:
+        hit = winner == gleaf
+        if hit:
             rr_correct += 1
-        group_total[group_of.get(gleaf, "?")] += 1
-        if winner == gleaf:
-            group_correct[group_of.get(gleaf, "?")] += 1
+        g = group_of.get(gleaf, "?")
+        group_total[g] += 1
+        if hit:
+            group_correct[g] += 1
+        seg = segments[i]
+        seg_total[seg] += 1
+        if hit:
+            seg_correct[seg] += 1
 
         if winner_sim >= threshold:
             confident_total += 1
-            if winner == gleaf:
+            if hit:
                 confident_correct += 1
 
     n = len(texts)
@@ -136,6 +164,9 @@ def evaluate() -> str:
         "per_group": {
             g: group_correct[g] / group_total[g] for g in sorted(group_total)
         },
+        "per_segment": {
+            s: seg_correct[s] / seg_total[s] for s in sorted(seg_total)
+        },
     }
     (bundle / "eval_report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     volume.commit()
@@ -147,6 +178,9 @@ def evaluate() -> str:
     print("  per-group reranked top1:")
     for g, acc in report["per_group"].items():
         print(f"    {g:18} {acc:.3f}")
+    print("  per-segment reranked top1:")
+    for s, acc in report["per_segment"].items():
+        print(f"    {s:18} {acc:.3f}")
     return json.dumps(report)
 
 

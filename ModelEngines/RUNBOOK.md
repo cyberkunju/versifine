@@ -51,10 +51,11 @@ modal volume get versifine-categorizer-vol gemma_templates.jsonl data/   # pull 
 ## Phase 2 — LAPTOP: explode to millions of rows (minutes, free)
 
 ```sh
-python local/expand.py     # → data/train.parquet, eval.parquet, example_bank.parquet
+python local/expand.py     # -> data/train.parquet, eval.parquet, calib.parquet, example_bank.parquet
 # push the datasets to the Volume for training:
 modal volume put versifine-categorizer-vol data/train.parquet train.parquet
 modal volume put versifine-categorizer-vol data/eval.parquet eval.parquet
+modal volume put versifine-categorizer-vol data/calib.parquet calib.parquet
 modal volume put versifine-categorizer-vol data/example_bank.parquet example_bank.parquet
 ```
 

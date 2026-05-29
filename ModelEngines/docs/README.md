@@ -21,6 +21,7 @@ Read in order. Each document is standalone but they build on each other.
 | 10 | [Cost & Compute](10-cost-and-compute.md) | Budget, GPU selection, Modal specifics |
 | 11 | [Reproducibility & Provenance](11-reproducibility-and-provenance.md) | Licensing, determinism, compliance |
 | 12 | [Glossary & References](12-glossary-and-references.md) | Terms + all research sources |
+| 13 | [Adversarial Review & Fixes](13-review-and-fixes.md) | What 3 review agents found, what was fixed, honest caveats |
 
 ## The one-paragraph summary
 

@@ -86,9 +86,12 @@ def generate(smoke: bool = False) -> str:
         sampling = SamplingParams(
             temperature=0.9,        # diversity for synthesis
             top_p=0.95,
-            max_tokens=2400,
-            # JSON object guidance keeps outputs parseable.
-            # (vLLM guided decoding via outlines backend.)
+            # The pack asks for 40 templates + 60 aliases + 30 phrasings + 25
+            # code-mixed as one JSON object; 2400 tokens truncates it and the
+            # parser then silently returns an empty pack. Give generous room
+            # within max_model_len (8192) minus the prompt.
+            max_tokens=6000,
+            seed=config.GLOBAL_SEED,  # reproducibility (constraint N9)
         )
 
         async def one(leaf) -> dict:
@@ -121,9 +124,19 @@ def generate(smoke: bool = False) -> str:
             fh.write(json.dumps(pack, ensure_ascii=False) + "\n")
     volume.commit()
 
+    # Fail loudly if generation produced empty packs (truncation / parse fail)
+    # — better to error than to silently train on nothing.
+    empty = [p["leaf"] for p in packs if not p.get("phrasings") and not p.get("merchant_aliases")]
     counts = {p["leaf"]: len(p.get("merchant_aliases", [])) for p in packs}
-    print(f"Wrote {len(packs)} packs → {out_path}")
+    print(f"Wrote {len(packs)} packs -> {out_path}")
     print("Alias counts (sample):", dict(list(counts.items())[:6]))
+    if empty:
+        print(f"WARNING: {len(empty)} packs are EMPTY (truncation/parse failure): {empty}")
+        if len(empty) > len(packs) // 5:
+            raise RuntimeError(
+                f"{len(empty)}/{len(packs)} packs empty — generation likely "
+                f"truncated. Raise max_tokens or check the prompt before reusing."
+            )
     return str(out_path)
 
 

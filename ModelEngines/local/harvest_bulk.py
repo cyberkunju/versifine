@@ -85,12 +85,24 @@ def harvest_foursquare(url: str, country: str, limit: int) -> int:
 
 def _fsq_top_family(labels) -> str | None:
     """fsq_category_labels looks like ['Dining and Drinking > Restaurant', ...].
-    Take the top-level family of the first label."""
+
+    The crosswalk's foursquare_families keys include both top-level families
+    ('Dining and Drinking', 'Travel and Transportation') and specific ones
+    ('Gas Station', 'Pharmacy', 'Hotel'). crosswalk.resolve_fsq matches a known
+    key that appears as a substring of the candidate (longest wins). So we hand
+    it the FULL label path — that way both a specific key ('Gas Station') and a
+    top-level key ('Dining and Drinking') can match, and the more specific
+    (longer) key is preferred. Returning only the top level would mislabel
+    every petrol pump/hotel/airport as transit; returning only the leaf segment
+    ('Restaurant') would miss the 'Dining and Drinking' key. The full path is
+    the safe choice. Unmatched → caller drops the row (P3)."""
     if not labels:
         return None
     first = labels[0] if isinstance(labels, (list, tuple)) else str(labels)
-    top = str(first).split(">")[0].strip()
-    return top or None
+    parts = [p.strip() for p in str(first).split(">") if p.strip()]
+    if not parts:
+        return None
+    return " ".join(parts)  # full path; resolve_fsq picks the longest known key
 
 
 def harvest_overture(url: str, bbox: str, limit: int) -> int:

@@ -110,12 +110,25 @@ def export_and_publish(publish: bool = True) -> str:
         bank = pq.read_table(bank_path)
         pq.write_table(bank, bundle / "example_bank.parquet")
 
-    # ---- 3. conformal calibration ------------------------------------------
-    print("Calibrating conformal abstention threshold...")
-    threshold, coverage = _calibrate(vol, bi_model, bi_tok, label_emb, leaf_keys, embed)
+    # ---- 3. conformal-style calibration (on the CALIB split, not eval) ------
+    print("Calibrating abstention threshold on the held-out calib split...")
+    ce_model = ORTModelForSequenceClassification.from_pretrained(
+        ce_onnx, file_name="model_quantized.onnx"
+    )
+    ce_tok = AutoTokenizer.from_pretrained(ce_onnx)
+    threshold, retained_acc, coverage = _calibrate(
+        vol, bi_model, bi_tok, ce_model, ce_tok, label_emb, label_sentences, leaf_keys, embed
+    )
     (bundle / "conformal.json").write_text(
-        json.dumps({"threshold": threshold, "coverage": coverage,
-                    "target": config.CONFORMAL_COVERAGE}, indent=2),
+        json.dumps(
+            {
+                "threshold": threshold,
+                "retained_accuracy": retained_acc,
+                "coverage": coverage,
+                "accuracy_target": config.CALIB_ACCURACY_TARGET,
+            },
+            indent=2,
+        ),
         encoding="utf-8",
     )
 
@@ -131,6 +144,7 @@ def export_and_publish(publish: bool = True) -> str:
         "kind_map": {leaf.key: leaf.kind for leaf in tax.leaves},
         "retrieve_top_k": config.RETRIEVE_TOP_K,
         "conformal_threshold": threshold,
+        "conformal_retained_accuracy": retained_acc,
         "conformal_coverage": coverage,
         "confidence_floor": config.CONFIDENCE_FLOOR,
         "languages": list(config.LANGUAGES),
@@ -158,58 +172,113 @@ def export_and_publish(publish: bool = True) -> str:
 
 
 def _export_quant_feature(src, dst, ORTModel, QConf, Quantizer, Tok):
+    import shutil
+
+    # Clear any prior export so the quantizer doesn't see multiple .onnx files
+    # on a re-run (the Volume persists between runs).
+    if Path(dst).exists():
+        shutil.rmtree(dst)
     model = ORTModel.from_pretrained(src, export=True)
     model.save_pretrained(dst)
     Tok.from_pretrained(src).save_pretrained(dst)
     quantizer = Quantizer.from_pretrained(dst)
     qconfig = QConf.avx512_vnni(is_static=False, per_channel=True)
     quantizer.quantize(save_dir=dst, quantization_config=qconfig)
+    # Drop the fp32 model.onnx so only the INT8 file ships.
+    _drop_fp32_onnx(dst)
 
 
 def _export_quant_seqcls(src, dst, ORTModel, QConf, Quantizer, Tok):
+    import shutil
+
+    if Path(dst).exists():
+        shutil.rmtree(dst)
     model = ORTModel.from_pretrained(src, export=True)
     model.save_pretrained(dst)
     Tok.from_pretrained(src).save_pretrained(dst)
     quantizer = Quantizer.from_pretrained(dst)
     qconfig = QConf.avx512_vnni(is_static=False, per_channel=True)
     quantizer.quantize(save_dir=dst, quantization_config=qconfig)
+    _drop_fp32_onnx(dst)
 
 
-def _calibrate(vol, bi_model, bi_tok, label_emb, leaf_keys, embed):
-    """Find the cosine-sim threshold where the true leaf is in the top-1 with
-    CONFORMAL_COVERAGE probability, using the eval split as calibration."""
+def _drop_fp32_onnx(dst):
+    """Remove the unquantized model.onnx (+ external data) so the bundle ships
+    only model_quantized.onnx. Keeps the repo small and unambiguous."""
+    d = Path(dst)
+    for name in ("model.onnx", "model.onnx_data", "model.onnx.data"):
+        f = d / name
+        if f.exists():
+            try:
+                f.unlink()
+            except OSError:
+                pass
+
+
+def _calibrate(vol, bi_model, bi_tok, ce_model, ce_tok, label_emb, label_sentences, leaf_keys, embed):
+    """Calibrate the abstention threshold on the held-out CALIB split, running
+    the EXACT runtime pipeline (bi-encoder retrieve -> cross-encoder rerank ->
+    gate on the reranked winner's bi-encoder cosine). This makes the calibrated
+    score identical to what the API/eval gate on. Returns
+    (threshold, retained_accuracy, coverage). Lowest threshold whose retained
+    predictions reach CALIB_ACCURACY_TARGET accuracy (maximises coverage)."""
     import numpy as np
     import pyarrow.parquet as pq
+    import torch
 
-    eval_path = vol / "eval.parquet"
-    if not eval_path.exists():
-        return float(config.CONFIDENCE_FLOOR), 0.0
-    df = pq.read_table(eval_path).to_pandas().sample(frac=1.0, random_state=3).head(3000)
+    calib_path = vol / "calib.parquet"
+    if not calib_path.exists():
+        # fall back to a slice of eval only if calib is absent (degraded)
+        calib_path = vol / "eval.parquet"
+    if not calib_path.exists():
+        return float(config.CONFIDENCE_FLOOR), 0.0, 0.0
+
+    df = pq.read_table(calib_path).to_pandas()
+    df = df.sample(frac=1.0, random_state=config.GLOBAL_SEED).head(3000)
     texts = df["text"].tolist()
-    leaves = df["leaf"].tolist()
+    gold = df["leaf"].tolist()
+    if not texts:
+        return float(config.CONFIDENCE_FLOOR), 0.0, 0.0
+
     emb = embed(texts, "query: ")
     sims = emb @ label_emb.T
-    top1_idx = sims.argmax(axis=1)
-    top1_score = sims.max(axis=1)
-    correct = np.array([leaf_keys[i] == lf for i, lf in zip(top1_idx, leaves)])
+    K = min(config.RETRIEVE_TOP_K, len(leaf_keys))
+    topk_idx = np.argsort(-sims, axis=1)[:, :K]
 
-    # threshold = the score quantile below which we abstain to hit target
-    # coverage among predictions we DO make.
-    order = np.argsort(top1_score)
-    # choose threshold so that retained predictions reach target accuracy
-    target = config.CONFORMAL_COVERAGE
+    winner_scores = []
+    correct = []
+    for i, gleaf in enumerate(gold):
+        cand = [leaf_keys[j] for j in topk_idx[i]]
+        pairs_a = [texts[i]] * len(cand)
+        pairs_b = [label_sentences[c] for c in cand]
+        enc = ce_tok(pairs_a, pairs_b, padding=True, truncation=True,
+                     max_length=config.CROSSENCODER_MAX_LEN, return_tensors="pt")
+        logits = ce_model(**enc).logits.squeeze(-1)
+        best = int(torch.as_tensor(logits).argmax().item())
+        winner = cand[best]
+        winner_scores.append(float(sims[i, topk_idx[i, best]]))
+        correct.append(winner == gleaf)
+
+    winner_scores = np.array(winner_scores)
+    correct = np.array(correct)
+    target = config.CALIB_ACCURACY_TARGET
     best_thr = float(config.CONFIDENCE_FLOOR)
-    for thr in np.quantile(top1_score, np.linspace(0.0, 0.9, 50)):
-        kept = top1_score >= thr
+    best_acc = 0.0
+    for thr in np.quantile(winner_scores, np.linspace(0.0, 0.95, 60)):
+        thr = float(max(thr, config.CONFIDENCE_FLOOR))
+        kept = winner_scores >= thr
         if kept.sum() == 0:
             continue
-        acc = correct[kept].mean()
+        acc = float(correct[kept].mean())
         if acc >= target:
-            best_thr = float(thr)
+            best_thr = thr
+            best_acc = acc
             break
-    coverage = float((top1_score >= best_thr).mean())
-    print(f"  conformal threshold={best_thr:.3f} coverage={coverage:.3f}")
-    return best_thr, coverage
+        best_acc = acc  # track last seen
+    coverage = float((winner_scores >= best_thr).mean())
+    retained_acc = float(correct[winner_scores >= best_thr].mean()) if (winner_scores >= best_thr).any() else 0.0
+    print(f"  threshold={best_thr:.3f} retained_acc={retained_acc:.3f} coverage={coverage:.3f}")
+    return best_thr, retained_acc, coverage
 
 
 @app.local_entrypoint()

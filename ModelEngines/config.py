@@ -24,8 +24,13 @@ HARVEST_PAIRS = DATA_DIR / "harvest_pairs.parquet"       # merchant/POI → leaf
 GEMMA_TEMPLATES = DATA_DIR / "gemma_templates.jsonl"     # LLM-generated templates + slot-fillers
 GEMMA_VERIFY = DATA_DIR / "gemma_verify.jsonl"           # self-consistency tail decisions
 EXPANDED_TRAIN = DATA_DIR / "train.parquet"              # exploded, labeled, deduped
-EXPANDED_EVAL = DATA_DIR / "eval.parquet"                # hand-checkable held-out messy set
+EXPANDED_EVAL = DATA_DIR / "eval.parquet"                # held-out NATURAL rows (no template fills)
+EXPANDED_CALIB = DATA_DIR / "calib.parquet"              # held-out calibration split (≠ eval)
 EXAMPLE_BANK = DATA_DIR / "example_bank.parquet"         # per-leaf canonical phrases (runtime)
+
+# Global RNG seed. EVERY randomized step (expand, training, sampling) seeds from
+# this so the whole build is reproducible (constraint N9).
+GLOBAL_SEED = 20260529
 
 # ----------------------------------------------------------------------------
 # Models
@@ -88,8 +93,16 @@ CROSSENCODER_CANDIDATES = 8      # top-k from the bi-encoder fed to the reranker
 # Runtime knobs (exported into manifest.json so the API stays in sync).
 # ----------------------------------------------------------------------------
 RETRIEVE_TOP_K = 8               # candidates the bi-encoder hands the reranker
-CONFORMAL_COVERAGE = 0.95        # target coverage for the abstention gate
-CONFIDENCE_FLOOR = 0.45          # below this, fall through / flag for review
+# Abstention gate: we keep predictions whose gate score clears a threshold
+# chosen so that RETAINED predictions reach at least CALIB_ACCURACY_TARGET
+# accuracy on a held-out calibration split. (This is an accuracy floor, not a
+# coverage guarantee — named precisely to avoid the earlier 'coverage'
+# misnomer.) The gate score is the BI-ENCODER cosine of the reranked winner,
+# and calibration MUST be computed on that exact quantity (not bi top-1) so
+# calibration and runtime agree.
+CALIB_ACCURACY_TARGET = 0.95     # retained-prediction accuracy floor
+CONFIDENCE_FLOOR = 0.45          # hard floor below which we always abstain
+CALIB_FRACTION = 0.5             # fraction of the held-out natural rows used for calibration (rest = eval)
 
 # ----------------------------------------------------------------------------
 # Modal

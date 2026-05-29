@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import re
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -38,7 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import config  # noqa: E402
 from taxonomy.taxonomy import load as load_taxonomy  # noqa: E402
 
-RNG = random.Random(20260529)
+RNG = random.Random(config.GLOBAL_SEED)
 
 GEMMA_TEMPLATES = config.DATA_DIR / "gemma_templates.jsonl"
 
@@ -99,6 +100,9 @@ def fill_template(tpl: str, merchants: list[str], leaf_key: str) -> str:
         out = out.replace("{noise}", RNG.choice(NOISE_TOKENS))
     if "{date}" in out:
         out = out.replace("{date}", RNG.choice(DATE_TOKENS))
+    # Strip any leftover {slot} the model invented but we don't fill, so we
+    # never train on literal "{foo}" garbage.
+    out = re.sub(r"\{[a-zA-Z_]+\}", "", out)
     return " ".join(out.split()).strip()
 
 
@@ -150,47 +154,111 @@ def load_harvest_by_leaf() -> dict[str, list[str]]:
     return out
 
 
-def synth_for_leaf(leaf_key: str, leaf_examples: list[str], pack: dict, harvested: list[str]) -> list[str]:
-    rows: set[str] = set()
+def _norm_key(text: str) -> str:
+    """Normalized key for dedup + leakage detection: lowercase, strip noise
+    tokens and punctuation/amount formatting so near-duplicates collapse
+    (e.g. 'zomato ₹450' and 'Zomato Rs.450' map to the same key)."""
+    t = text.lower()
+    t = re.sub(r"[₹$/,\.\-#@]", " ", t)
+    t = re.sub(r"\b(upi|pos|neft|imps|atm|autopay|ref|txn|inr|rs|online)\b", " ", t)
+    t = re.sub(r"\d+", " ", t)            # drop all digits (amounts/refs/ids)
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
 
-    aliases = list(pack.get("merchant_aliases", [])) + list(leaf_examples)
-    aliases = [a for a in aliases if a]
-    harvested_names = harvested[: 4000]  # cap to keep one leaf from dominating
+
+def synth_for_leaf(
+    leaf_key: str,
+    leaf_examples: list[str],
+    pack: dict,
+    harvested: list[str],
+) -> tuple[list[str], list[str]]:
+    """Return (natural_rows, synth_rows) as two DEDUPED, DETERMINISTICALLY
+    ORDERED lists.
+
+    natural_rows = the human-like phrasings/code-mixed/examples + raw harvested
+    merchant names. The eval + calibration splits are drawn ONLY from these, so
+    we never test on a template fill (which would inflate accuracy).
+
+    synth_rows = template fills + UPI-wrapped names + perturbations — the
+    high-volume material used for TRAIN only.
+
+    Determinism: we build ordered lists (no set iteration), dedup by insertion
+    order, and only ever shuffle with the seeded RNG.
+    """
+    # ---- natural rows: eval/calib are drawn ONLY from genuine natural-language
+    # descriptions (LLM phrasings + code-mixed). Merchant NAMES (examples,
+    # aliases, harvested) are NOT eval-eligible — the model SHOULD learn
+    # merchant->category from them, so they stay in train/bank. This makes eval
+    # measure understanding of new phrasings/noise, not memorised merchants,
+    # and avoids the quarantine nuking all merchant signal from train. ----
+    natural_seen: set[str] = set()
+    natural: list[str] = []
+
+    def add_natural(text: str) -> None:
+        text = " ".join(str(text).split()).strip()
+        if not text:
+            return
+        key = text.lower()
+        if key in natural_seen:
+            return
+        natural_seen.add(key)
+        natural.append(text)
+
+    for src in (pack.get("phrasings", []), pack.get("code_mixed", [])):
+        for p in src:
+            add_natural(p)
+
+    # ---- synthetic + merchant-name rows (TRAIN only) ----
+    harvested_sorted = sorted(set(harvested))
+    aliases = [a for a in (list(pack.get("merchant_aliases", [])) + list(leaf_examples)) if a]
+    harvested_names = harvested_sorted[:4000]
     merchant_pool = aliases + harvested_names
     if not merchant_pool:
         merchant_pool = ["store"]
+    merchant_pool = sorted(set(merchant_pool))  # deterministic pool
 
     templates = list(pack.get("templates", []))
-    phrasings = list(pack.get("phrasings", []))
-    code_mixed = list(pack.get("code_mixed", []))
 
-    # 1. raw phrasings + code-mixed (high signal, natural)
-    for p in phrasings + code_mixed + leaf_examples:
-        rows.add(p)
-        rows.add(apply_typos(p))
+    synth_seen: set[str] = set()
+    synth: list[str] = []
 
-    # 2. harvested merchant names, raw + UPI-wrapped
+    def add_synth(text: str) -> None:
+        text = " ".join(str(text).split()).strip()
+        if not text or text.lower() in natural_seen:
+            return
+        key = text.lower()
+        if key in synth_seen:
+            return
+        synth_seen.add(key)
+        synth.append(text)
+
+    # merchant names + examples are train signal (model learns merchant->cat)
+    for name in merchant_pool:
+        add_synth(name)
+    # raw harvested names + UPI-wrapped variants
     for name in harvested_names:
-        rows.add(name)
-        rows.add(upi_wrap(name))
+        add_synth(upi_wrap(name))
+    # typo variants of the natural phrasings go to TRAIN (not eval)
+    for ph in natural:
+        v = apply_typos(ph)
+        if v != ph:
+            add_synth(v)
 
-    # 3. template fills (the volume driver)
+    # template fills (the volume driver) — deterministic, guarded loop
     target = config.MIN_ROWS_PER_LEAF
     guard = 0
-    while len(rows) < target and (templates or merchant_pool) and guard < target * 4:
+    max_guard = target * 6
+    while len(synth) < target and guard < max_guard:
         guard += 1
         if templates and RNG.random() < 0.7:
-            tpl = RNG.choice(templates)
-            rows.add(fill_template(tpl, merchant_pool, leaf_key))
+            add_synth(fill_template(RNG.choice(templates), merchant_pool, leaf_key))
         else:
-            # plain merchant + amount
-            name = RNG.choice(merchant_pool)
-            rows.add(f"{name} {amount_sample(leaf_key)}")
+            add_synth(f"{RNG.choice(merchant_pool)} {amount_sample(leaf_key)}")
 
-    # cap
-    out = list(rows)
-    RNG.shuffle(out)
-    return out[: config.MAX_ROWS_PER_LEAF]
+    # cap synth (natural is small; keep all of it)
+    RNG.shuffle(synth)
+    synth = synth[: config.MAX_ROWS_PER_LEAF]
+    return natural, synth
 
 
 def main() -> int:
@@ -204,56 +272,96 @@ def main() -> int:
     packs = load_packs()
     harvest = load_harvest_by_leaf()
 
-    eval_per_leaf = args.eval_per_leaf or max(1, config.TARGET_EVAL_ROWS // len(tax.leaves))
+    # eval + calib are drawn from NATURAL rows only, split per leaf.
+    held_per_leaf = args.eval_per_leaf or max(2, config.TARGET_EVAL_ROWS // len(tax.leaves))
 
     train_text: list[str] = []
     train_leaf: list[str] = []
     eval_text: list[str] = []
     eval_leaf: list[str] = []
+    calib_text: list[str] = []
+    calib_leaf: list[str] = []
     bank_text: list[str] = []
     bank_leaf: list[str] = []
+
+    starved: list[str] = []
+    total_leak_blocked = 0
 
     print(f"Expanding {len(tax.leaves)} leaves...")
     for leaf in tax.leaves:
         pack = packs.get(leaf.key, {})
         harvested = harvest.get(leaf.key, [])
-        rows = synth_for_leaf(leaf.key, list(leaf.examples), pack, harvested)
-        if not rows:
+        natural, synth = synth_for_leaf(leaf.key, list(leaf.examples), pack, harvested)
+
+        if not natural and not synth:
             print(f"  WARN: no rows for {leaf.key}")
+            starved.append(leaf.key)
             continue
-        RNG.shuffle(rows)
 
-        # eval split: hold out a slice of the most natural rows (phrasings)
-        held = rows[:eval_per_leaf]
-        train = rows[eval_per_leaf:]
+        # ---- hold out eval + calib from NATURAL rows only ----
+        natural = list(natural)
+        RNG.shuffle(natural)
+        # never starve train of natural rows: cap total holdout at half of natural.
+        max_hold = max(0, len(natural) // 2)
+        n_eval = min(held_per_leaf, max_hold)
+        n_calib = min(int(held_per_leaf * config.CALIB_FRACTION), max(0, max_hold - n_eval))
+        eval_rows = natural[:n_eval]
+        calib_rows = natural[n_eval : n_eval + n_calib]
+        train_natural = natural[n_eval + n_calib :]
 
-        for t in train:
+        # ---- quarantine: normalized keys of held-out rows must NOT appear in
+        # train or bank (prevents near-duplicate leakage across the split) ----
+        quarantine = {_norm_key(t) for t in eval_rows + calib_rows}
+
+        def keep(t: str) -> bool:
+            nonlocal total_leak_blocked
+            if _norm_key(t) in quarantine:
+                total_leak_blocked += 1
+                return False
+            return True
+
+        train_rows = [t for t in (train_natural + synth) if keep(t)]
+
+        for t in train_rows:
             train_text.append(t)
             train_leaf.append(leaf.key)
-        for t in held:
+        for t in eval_rows:
             eval_text.append(t)
             eval_leaf.append(leaf.key)
+        for t in calib_rows:
+            calib_text.append(t)
+            calib_leaf.append(leaf.key)
 
-        # example bank: clean canonical phrases (aliases + phrasings + examples)
-        canon = list(dict.fromkeys(
-            list(pack.get("merchant_aliases", []))[:40]
-            + list(pack.get("phrasings", []))[:30]
-            + list(leaf.examples)
-        ))
+        # example bank: clean canonical phrases, also quarantined from eval/calib
+        canon = [
+            t for t in dict.fromkeys(
+                list(pack.get("merchant_aliases", []))[:40]
+                + list(pack.get("phrasings", []))[:30]
+                + list(leaf.examples)
+            )
+            if t and keep(t)
+        ]
         for t in canon:
             bank_text.append(t)
             bank_leaf.append(leaf.key)
 
-        print(f"  {leaf.key:24} train={len(train)} eval={len(held)} bank={len(canon)}")
+        if len(train_rows) < config.MIN_ROWS_PER_LEAF // 2:
+            starved.append(leaf.key)
+        print(f"  {leaf.key:24} train={len(train_rows)} eval={len(eval_rows)} calib={len(calib_rows)} bank={len(canon)}")
 
     config.ensure_dirs()
     pq.write_table(pa.table({"text": train_text, "leaf": train_leaf}), config.EXPANDED_TRAIN)
     pq.write_table(pa.table({"text": eval_text, "leaf": eval_leaf}), config.EXPANDED_EVAL)
+    pq.write_table(pa.table({"text": calib_text, "leaf": calib_leaf}), config.EXPANDED_CALIB)
     pq.write_table(pa.table({"leaf": bank_leaf, "text": bank_text}), config.EXAMPLE_BANK)
 
-    print(f"\nTrain rows: {len(train_text)}  →  {config.EXPANDED_TRAIN}")
-    print(f"Eval rows:  {len(eval_text)}  →  {config.EXPANDED_EVAL}")
-    print(f"Bank rows:  {len(bank_text)}  →  {config.EXAMPLE_BANK}")
+    print(f"\nTrain rows: {len(train_text)}  ->  {config.EXPANDED_TRAIN}")
+    print(f"Eval rows:  {len(eval_text)}  ->  {config.EXPANDED_EVAL}")
+    print(f"Calib rows: {len(calib_text)}  ->  {config.EXPANDED_CALIB}")
+    print(f"Bank rows:  {len(bank_text)}  ->  {config.EXAMPLE_BANK}")
+    print(f"Leakage rows blocked from train/bank: {total_leak_blocked}")
+    if starved:
+        print(f"\nWARN: {len(starved)} leaves thin on data (add harvest/Gemma): {starved}")
     print("\nNext: modal run jobs/02_train_encoders.py")
     return 0
 

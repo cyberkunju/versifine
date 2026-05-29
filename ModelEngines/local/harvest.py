@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import time
 from pathlib import Path
@@ -220,7 +221,9 @@ def harvest_wikidata(fh, limit: int | None) -> int:
         for b in bindings:
             name = b.get("itemLabel", {}).get("value")
             industry = b.get("industryLabel", {}).get("value")
-            if not name or name.startswith("Q"):  # skip unlabeled QIDs
+            # Drop only true unlabeled QIDs (entity-id placeholders like
+            # "Q12345"), not legitimate names starting with Q (Quikr, Quess).
+            if not name or re.fullmatch(r"Q\d+", name):
                 continue
             rows.append(
                 {
@@ -258,9 +261,12 @@ def main() -> int:
     config.ensure_dirs()
     sources = args.only or list(SOURCES)
 
-    print(f"Harvesting {len(sources)} source(s) → {HARVEST_RAW}")
+    # Truncate only on a FULL run; a targeted --only run appends so it doesn't
+    # wipe rows from other sources (incl. harvest_bulk.py which appends).
+    mode = "a" if args.only else "w"
+    print(f"Harvesting {len(sources)} source(s) (mode={mode}) -> {HARVEST_RAW}")
     total = 0
-    with HARVEST_RAW.open("w", encoding="utf-8") as fh:
+    with HARVEST_RAW.open(mode, encoding="utf-8") as fh:
         for name in sources:
             print(f"- {name}")
             total += SOURCES[name](fh, args.limit)

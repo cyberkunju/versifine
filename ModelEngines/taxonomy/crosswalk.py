@@ -52,18 +52,30 @@ class Crosswalk:
         return self.plaid_pfc.get(key.strip().upper())
 
     def resolve_fsq(self, family: str) -> str | None:
-        # case-insensitive exact, then substring fallback
+        # 1. case-insensitive exact match (strongest signal).
         fam = family.strip()
+        if not fam:
+            return None
         if fam in self.foursquare_families:
             return self.foursquare_families[fam]
         low = fam.lower()
         for k, v in self.foursquare_families.items():
             if k.lower() == low:
                 return v
+        # 2. substring match in the SAFE direction only: a known family KEY
+        #    appears within the candidate label (e.g. label "Fast Food
+        #    Restaurant > Burger Joint" contains key "Fast Food Restaurant").
+        #    We do NOT match the reverse (label substring of key), because that
+        #    makes a bare "Restaurant" wrongly resolve to "Fast Food
+        #    Restaurant". Longest matching key wins; no match → drop (P3).
+        best_key: str | None = None
+        best_val: str | None = None
         for k, v in self.foursquare_families.items():
-            if k.lower() in low or low in k.lower():
-                return v
-        return None
+            kl = k.lower()
+            if kl in low and (best_key is None or len(kl) > len(best_key)):
+                best_key = kl
+                best_val = v
+        return best_val
 
 
 def load(path: Path | None = None) -> Crosswalk:

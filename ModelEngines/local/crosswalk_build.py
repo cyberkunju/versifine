@@ -63,42 +63,46 @@ LEGACY_TO_LEAF = {
     "Travel": "travel_other",
 }
 
-# Wikidata industry label keywords → fsq family (then crosswalk → leaf).
+# Wikidata industry label keywords -> fsq family (then crosswalk -> leaf).
+# Order matters: more specific keys MUST come before substrings of them
+# (e.g. "hospitality" before "hospital", since matching is substring-based and
+# "hospital" is a substring of "hospitality"). _industry_to_family checks in
+# dict order and returns the first hit.
 INDUSTRY_KEYWORDS = {
     "supermarket": "Grocery Store",
     "grocery": "Grocery Store",
-    "retail": "Retail",
     "e-commerce": "Retail",
-    "restaurant": "Dining and Drinking",
     "fast food": "Fast Food Restaurant",
+    "restaurant": "Dining and Drinking",
     "coffee": "Coffee Shop",
     "beverage": "Coffee Shop",
     "brewery": "Bar",
     "pharmaceutical": "Pharmacy",
     "pharmacy": "Pharmacy",
-    "hospital": "Hospital",
+    "hospitality": "Hotel",          # MUST precede "hospital"
+    "hotel": "Hotel",
     "health care": "Hospital",
     "healthcare": "Hospital",
+    "hospital": "Hospital",
     "petroleum": "Gas Station",
     "oil and gas": "Gas Station",
     "fuel": "Gas Station",
-    "bank": "Bank",
-    "financial": "Bank",
     "insurance": "Insurance Office",
     "airline": "Airport",
-    "hotel": "Hotel",
-    "hospitality": "Hotel",
-    "telecommunications": "Travel and Transportation",
+    "telecommunication": "",          # ambiguous (telecom != transit); drop, do not mislabel
     "education": "School",
     "clothing": "Clothing Store",
     "apparel": "Clothing Store",
     "fashion": "Clothing Store",
-    "electronics": "Electronics Store",
     "consumer electronics": "Electronics Store",
+    "electronics": "Electronics Store",
     "furniture": "Furniture and Home Store",
     "entertainment": "Arts and Entertainment",
     "film": "Movie Theater",
     "automotive": "Automotive Service",
+    # NOTE: "retail", "bank", "financial" intentionally REMOVED — they are too
+    # broad / mislabel (a bank brand is not a Cash & ATM merchant; "retail"
+    # swallows everything). Unmapped industries drop, never guess (P3).
 }
 
 
@@ -138,7 +142,7 @@ def _industry_to_family(industry: str) -> str | None:
     low = industry.lower()
     for kw, fam in INDUSTRY_KEYWORDS.items():
         if kw in low:
-            return fam
+            return fam or None  # empty family = intentionally ambiguous → drop
     return None
 
 

@@ -62,10 +62,12 @@ model — not to copy rows into the shipped training set.
 
 | Source | License | How used |
 |---|---|---|
-| **Gemma 4 31B-it** (`google/gemma-4-31B-it`) | **Apache-2.0** | Generates templates, merchant aliases, phrasings, code-mixed variants per leaf (`jobs/01_gemma_generate.py`). The laptop explodes these into rows (`local/expand.py`). Self-consistency verify on the ambiguous tail. |
+| **Gemma 4 31B-it** (`google/gemma-4-31B-it`) | **Gemma Terms of Use** (not Apache-2.0) | Generates templates, merchant aliases, phrasings, code-mixed variants per leaf (`jobs/01_gemma_generate.py`). The laptop explodes these into rows (`local/expand.py`). |
 
-Gemma's Apache-2.0 terms permit using outputs to train other models. The
-synthetic rows are original generations, not copied from any dataset.
+The Gemma Terms of Use permit using model OUTPUTS to train other models, so the
+synthetic rows are usable; they are original generations, not copied from any
+dataset. (Note: an earlier draft mislabeled Gemma as Apache-2.0 — corrected
+here. The bases we FINE-TUNE, e5-small and mDeBERTa, are MIT.)
 
 ---
 

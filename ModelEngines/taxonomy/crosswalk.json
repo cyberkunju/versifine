@@ -99,7 +99,7 @@
     "INCOME_TAX_REFUND": "refunds_cashback",
     "INCOME_UNEMPLOYMENT": "other_income",
     "INCOME_OTHER_INCOME": "other_income",
-    "TRANSFER_IN_CASH_ADVANCES_AND_LOANS": "loan_emi",
+    "TRANSFER_IN_CASH_ADVANCES_AND_LOANS": "other_income",
     "TRANSFER_IN_DEPOSIT": "transfers",
     "TRANSFER_IN_INVESTMENT_AND_RETIREMENT_FUNDS": "investments",
     "TRANSFER_IN_SAVINGS": "investments",

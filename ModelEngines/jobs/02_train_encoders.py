@@ -49,6 +49,7 @@ TRAIN_TIMEOUT = 60 * 60 * 4  # 4h ceiling for both stages
 def train(smoke: bool = False) -> str:
     import random
 
+    import numpy as np
     import pandas as pd
     import pyarrow.parquet as pq
     import torch
@@ -64,7 +65,20 @@ def train(smoke: bool = False) -> str:
     sys.path.insert(0, "/root/ModelEngines")
     from taxonomy.taxonomy import load as load_taxonomy  # noqa: E402
 
-    rng = random.Random(7)
+    # ---- determinism (constraint N9): seed every RNG ----
+    SEED = config.GLOBAL_SEED
+    random.seed(SEED)
+    np.random.seed(SEED)
+    torch.manual_seed(SEED)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(SEED)
+    try:
+        from transformers import set_seed as _hf_set_seed
+
+        _hf_set_seed(SEED)
+    except Exception:  # noqa: BLE001
+        pass
+    rng = random.Random(SEED)
     tax = load_taxonomy()
     vol = Path(VOLUME_ROOT)
 
@@ -100,16 +114,50 @@ def train(smoke: bool = False) -> str:
     def p(text: str) -> str:
         return f"passage: {text}"
 
-    examples = [
-        InputExample(texts=[q(row.text), p(label_sentences[row.leaf])])
-        for row in train_df.itertuples()
-        if row.leaf in label_sentences
-    ]
-    rng.shuffle(examples)
-    loader = DataLoader(examples, shuffle=True, batch_size=config.BIENCODER_BATCH, drop_last=True)
+    # MNRL correctness: with only ~59 distinct positives (the label sentences),
+    # a 256-row batch repeats positives many times, and MNRL treats every other
+    # row's positive as a negative -> a row's TRUE label sentence appears as a
+    # "negative" for same-leaf rows (false negatives), giving contradictory
+    # gradients. Fix: a batch sampler that puts AT MOST ONE row per leaf in each
+    # batch, so no positive collides. Batch size is therefore capped at the
+    # number of leaves.
+    rows_by_leaf: dict[str, list[str]] = {}
+    for row in train_df.itertuples():
+        if row.leaf in label_sentences:
+            rows_by_leaf.setdefault(row.leaf, []).append(row.text)
+
+    leaf_keys_all = sorted(rows_by_leaf.keys())
+    batch_size = min(config.BIENCODER_BATCH, len(leaf_keys_all))
+
+    # Build batches: each batch = distinct leaves, one (text, its label) pair.
+    # We iterate epochs worth of batches by repeatedly sampling.
+    examples: list[InputExample] = []
+    # round-robin draw so every leaf contributes proportionally, distinct per batch
+    pools = {k: list(v) for k, v in rows_by_leaf.items()}
+    for v in pools.values():
+        rng.shuffle(v)
+    cursors = {k: 0 for k in leaf_keys_all}
+    max_rows = max(len(v) for v in pools.values())
+    ordered_leaves = list(leaf_keys_all)
+    for _ in range(max_rows):
+        rng.shuffle(ordered_leaves)
+        for k in ordered_leaves:
+            c = cursors[k]
+            if c < len(pools[k]):
+                text = pools[k][c]
+                cursors[k] += 1
+                examples.append(InputExample(texts=[q(text), p(label_sentences[k])]))
+
+    # NoDuplicatesDataLoader guarantees no two rows in a batch share a positive
+    # (it dedups by the texts), which combined with our per-leaf single-positive
+    # construction removes the false-negative problem.
+    from sentence_transformers.datasets import NoDuplicatesDataLoader
+
+    loader = NoDuplicatesDataLoader(examples, batch_size=batch_size)
     loss = losses.MultipleNegativesRankingLoss(bi)
     epochs = 1 if smoke else config.BIENCODER_EPOCHS
-    warmup = int(len(loader) * config.BIENCODER_WARMUP_RATIO)
+    steps_per_epoch = max(1, len(examples) // batch_size)
+    warmup = int(steps_per_epoch * epochs * config.BIENCODER_WARMUP_RATIO)
     bi.fit(
         train_objectives=[(loader, loss)],
         epochs=epochs,
@@ -120,7 +168,7 @@ def train(smoke: bool = False) -> str:
     )
     bi_dir = vol / "biencoder"
     bi.save(str(bi_dir))
-    print(f"Saved bi-encoder → {bi_dir}")
+    print(f"Saved bi-encoder -> {bi_dir}")
 
     # ========================================================================
     # STAGE B — cross-encoder reranker
@@ -187,7 +235,7 @@ def train(smoke: bool = False) -> str:
     )
     ce_dir = vol / "crossencoder"
     ce.save(str(ce_dir))
-    print(f"Saved cross-encoder → {ce_dir}")
+    print(f"Saved cross-encoder -> {ce_dir}")
 
     volume.commit()
     return f"biencoder={bi_dir} crossencoder={ce_dir}"
