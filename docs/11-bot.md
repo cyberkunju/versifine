@@ -110,6 +110,10 @@ apps/wa-bot/src/
    a. POST to apps/api /capture/text with X-Bot-Secret + X-Phone.
    b. apiClient.ts wraps the call; surfaces typed CaptureResponse.
    c. Map intent to a localized reply via getMessages(session.language).
+   d. For the `chat` intent the bot calls POST /copilot/ask (guarded,
+      non-streaming) and relays one finished finance answer inline. The
+      API screens every question for scope + prompt-injection server-side
+      (services/ai/guard.ts) and refuses anything off-topic.
 5. translate.ts (if session.language is ta/te/kn) translates the reply.
 6. tts.ts or indicSpeech.ts synthesizes voice (skipped if replyMode='text').
 7. handlers.ts two-pass send:

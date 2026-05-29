@@ -16,6 +16,7 @@ import type { Session, IncomingMessage } from '../../types.ts';
 import { LANGUAGE_META } from '@versifine/shared';
 import {
   ApiClientError,
+  askCopilot,
   captureImage,
   captureText,
   captureVoice,
@@ -79,6 +80,9 @@ function renderCaptureResponse(session: Session, response: CaptureResponseShape)
       return { text: m.queryAnswer(summary || m.unknown), speakable: summary };
     }
     if (response.intent === 'chat') {
+      // The chat intent is answered inline by the caller (handleCapture)
+      // via the guarded copilot; this branch only fires if that path was
+      // skipped, so fall back to the nudge.
       return { text: m.copilotNudge };
     }
     if (response.intent === 'unknown') {
@@ -116,6 +120,28 @@ function renderCaptureResponse(session: Session, response: CaptureResponseShape)
   return { text: m.captureFailed };
 }
 
+/**
+ * Answer a free-form finance question through the guarded copilot.
+ * Falls back to the website nudge if the answer can't be produced.
+ */
+async function answerChat(session: Session, question: string): Promise<CaptureResult> {
+  const m = getMessages(session.language);
+  if (!question.trim()) return { text: m.copilotNudge };
+  try {
+    const { answer } = await askCopilot(session.phone, question);
+    if (answer && answer.trim()) {
+      return { text: answer.trim(), speakable: answer.trim() };
+    }
+    return { text: m.copilotNudge };
+  } catch (err) {
+    log.warn('COPILOT_ASK_FAIL', {
+      phone: session.phone,
+      error: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    });
+    return { text: m.copilotNudge };
+  }
+}
+
 export async function handleCapture(
   session: Session,
   message: IncomingMessage,
@@ -131,6 +157,9 @@ export async function handleCapture(
         message.audioMimetype ?? 'audio/ogg',
         locale,
       );
+      if (response.intent === 'chat' && !response.needsConfirmation) {
+        return await answerChat(session, response.echo || '');
+      }
       return renderCaptureResponse(session, response);
     }
     if (message.hasImage && message.imageBuffer) {
@@ -144,6 +173,12 @@ export async function handleCapture(
     }
     if (message.body && message.body.trim()) {
       const response = await captureText(session.phone, message.body, locale);
+      // Free-form question → answer inline with the guarded copilot instead
+      // of nudging the user to the website. The API screens for scope +
+      // prompt-injection server-side; we just relay the finished answer.
+      if (response.intent === 'chat' && !response.needsConfirmation) {
+        return await answerChat(session, message.body);
+      }
       return renderCaptureResponse(session, response);
     }
     return { text: m.unknown };

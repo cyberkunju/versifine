@@ -210,6 +210,25 @@ export async function captureConfirm(
   });
 }
 
+export interface CopilotAskResult {
+  answer: string;
+  outcome: string;
+}
+
+/**
+ * Ask the guarded copilot a free-form finance question and get one finished
+ * answer back (the API screens for scope + prompt-injection server-side).
+ */
+export async function askCopilot(phone: string, text: string): Promise<CopilotAskResult> {
+  return await call<CopilotAskResult>({
+    method: 'POST',
+    path: '/copilot/ask',
+    phone,
+    body: { text },
+    timeoutMs: 45_000,
+  });
+}
+
 export async function phoneLinkConfirm(code: string, phone: string): Promise<{ linked: boolean; phone: string }> {
   return await call<{ linked: boolean; phone: string }>({
     method: 'POST',
