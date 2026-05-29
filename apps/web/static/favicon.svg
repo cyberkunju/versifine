@@ -1,11 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#7c3aed" />
-      <stop offset="1" stop-color="#4f46e5" />
-    </linearGradient>
-  </defs>
-  <rect width="32" height="32" rx="8" fill="url(#g)" />
-  <path d="M9 22 V10 H21 M9 16 H18" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none" />
-  <circle cx="22.5" cy="20.5" r="2.5" fill="#fff" />
+  <rect width="32" height="32" rx="7" fill="#001F77" />
+  <!-- Stylised "V" rising line — finance + the brand initial. -->
+  <path d="M7 9 L13.5 23 L16 17" stroke="#FAF7F1" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  <path d="M16 17 L20 8.5 L25 20" stroke="#C99A3F" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  <circle cx="25" cy="20" r="1.7" fill="#C99A3F" />
 </svg>

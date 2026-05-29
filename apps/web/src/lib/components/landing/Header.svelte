@@ -1,30 +1,28 @@
 <script lang="ts">
   /**
-   * Landing-page header. Sticky, glass-blurred, links to anchors and the
-   * auth pages. Becomes elevated (visible border + denser blur) once
-   * the page scrolls past the hero fold.
+   * Landing header — light, editorial. A hairline rule appears under the
+   * bar once the page scrolls; the paper ground gets a faint blur so
+   * content reads underneath without muddying the type.
    */
   import { onMount, onDestroy } from 'svelte';
   import { browser } from '$app/environment';
-  import { Sparkles, Menu, X } from 'lucide-svelte';
-  import { Button } from '$lib/components/ui';
-  import { cn } from '$lib/utils/cn';
+  import { Menu, X } from 'lucide-svelte';
+  import Logo from '$lib/components/brand/Logo.svelte';
 
   let scrolled = $state(false);
   let mobileOpen = $state(false);
 
   const links = [
-    { href: '#features', label: 'Features' },
+    { href: '#capabilities', label: 'Capabilities' },
     { href: '#whatsapp', label: 'WhatsApp' },
-    { href: '#copilot', label: 'AI Copilot' },
-    { href: '#privacy', label: 'Privacy' },
+    { href: '#copilot', label: 'Copilot' },
+    { href: '#languages', label: 'Languages' },
     { href: '#faq', label: 'FAQ' },
   ];
 
   function onScroll() {
-    scrolled = window.scrollY > 16;
+    scrolled = window.scrollY > 8;
   }
-
   onMount(() => {
     if (!browser) return;
     onScroll();
@@ -33,94 +31,78 @@
   onDestroy(() => {
     if (browser) window.removeEventListener('scroll', onScroll);
   });
-
   function close() {
     mobileOpen = false;
   }
 </script>
 
 <header
-  class={cn(
-    'fixed inset-x-0 top-0 z-40 transition-[backdrop-filter,background-color,border-color] duration-300',
-    scrolled
-      ? 'border-b border-white/10 bg-slate-950/70 backdrop-blur-xl'
-      : 'border-b border-transparent bg-transparent backdrop-blur-0',
-  )}
+  class={[
+    'fixed inset-x-0 top-0 z-40 transition-all duration-300',
+    scrolled ? 'border-b border-[hsl(var(--border))] bg-[hsl(var(--brand-paper)/0.82)] backdrop-blur-md' : 'border-b border-transparent',
+  ].join(' ')}
 >
-  <div class="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-    <a href="/" class="flex items-center gap-2 text-base font-semibold tracking-tight text-white">
-      <span class="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 shadow-lg shadow-violet-500/20">
-        <Sparkles class="h-4 w-4 text-white" />
-      </span>
-      <span>Versifine</span>
+  <div class="mx-auto flex h-[4.5rem] max-w-6xl items-center justify-between gap-4 px-5 sm:px-8">
+    <a href="/" class="transition-opacity hover:opacity-80" aria-label="Versifine home">
+      <Logo size={30} />
     </a>
 
-    <nav class="hidden items-center gap-1 lg:flex" aria-label="Primary">
+    <nav class="hidden items-center gap-8 lg:flex" aria-label="Primary">
       {#each links as link (link.href)}
         <a
           href={link.href}
-          class="rounded-md px-3 py-2 text-sm font-medium text-slate-300 transition-colors hover:text-white"
+          class="group relative text-sm font-medium text-[hsl(var(--muted-foreground))] transition-colors hover:text-[hsl(var(--brand-navy))]"
         >
           {link.label}
+          <span class="absolute -bottom-1.5 left-0 h-px w-0 bg-[hsl(var(--brand-gold))] transition-all duration-300 group-hover:w-full"></span>
         </a>
       {/each}
     </nav>
 
-    <div class="hidden items-center gap-2 lg:flex">
+    <div class="hidden items-center gap-5 lg:flex">
       <a
         href="/login"
-        class="rounded-md px-3 py-2 text-sm font-medium text-slate-300 transition-colors hover:text-white"
+        class="text-sm font-medium text-[hsl(var(--muted-foreground))] transition-colors hover:text-[hsl(var(--brand-navy))]"
       >
         Log in
       </a>
-      <Button
+      <a
         href="/register"
-        class="bg-gradient-to-br from-violet-500 to-indigo-600 text-white shadow-lg shadow-violet-500/20 hover:opacity-90"
+        class="group inline-flex items-center gap-2 rounded-full bg-[hsl(var(--brand-navy))] px-5 py-2.5 text-sm font-medium text-[hsl(var(--brand-paper))] shadow-sm transition-all hover:bg-[hsl(var(--brand-navy-deep))]"
       >
         Get started
-      </Button>
+        <span class="text-[hsl(var(--brand-gold))] transition-transform group-hover:translate-x-0.5">→</span>
+      </a>
     </div>
 
     <button
       type="button"
-      class="rounded-md p-2 text-slate-300 transition-colors hover:bg-white/5 hover:text-white lg:hidden"
+      class="rounded-md p-2 text-[hsl(var(--brand-navy))] transition-colors hover:bg-[hsl(var(--accent))] lg:hidden"
       onclick={() => (mobileOpen = !mobileOpen)}
       aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
       aria-expanded={mobileOpen}
     >
-      {#if mobileOpen}
-        <X class="h-5 w-5" />
-      {:else}
-        <Menu class="h-5 w-5" />
-      {/if}
+      {#if mobileOpen}<X class="h-5 w-5" />{:else}<Menu class="h-5 w-5" />{/if}
     </button>
   </div>
 
   {#if mobileOpen}
-    <div class="border-t border-white/10 bg-slate-950/95 px-4 py-4 backdrop-blur-xl lg:hidden">
-      <nav class="flex flex-col gap-1" aria-label="Mobile">
+    <div class="border-t border-[hsl(var(--border))] bg-[hsl(var(--brand-paper))] px-5 py-4 lg:hidden">
+      <nav class="flex flex-col" aria-label="Mobile">
         {#each links as link (link.href)}
           <a
             href={link.href}
             onclick={close}
-            class="rounded-md px-3 py-2 text-sm font-medium text-slate-300 hover:bg-white/5 hover:text-white"
+            class="border-b border-[hsl(var(--border))] py-3 text-sm font-medium text-[hsl(var(--foreground))] last:border-0"
           >
             {link.label}
           </a>
         {/each}
-        <div class="mt-2 flex flex-col gap-2 border-t border-white/10 pt-3">
-          <a
-            href="/login"
-            onclick={close}
-            class="rounded-md px-3 py-2 text-sm font-medium text-slate-300 hover:bg-white/5 hover:text-white"
-          >
+        <div class="mt-4 flex flex-col gap-2">
+          <a href="/login" onclick={close} class="rounded-full border border-[hsl(var(--border))] px-5 py-2.5 text-center text-sm font-medium text-[hsl(var(--brand-navy))]">
             Log in
           </a>
-          <a
-            href="/register"
-            onclick={close}
-            class="rounded-md bg-gradient-to-br from-violet-500 to-indigo-600 px-3 py-2 text-center text-sm font-medium text-white"
-          >
+          <a href="/register" onclick={close} class="rounded-full bg-[hsl(var(--brand-navy))] px-5 py-2.5 text-center text-sm font-medium text-[hsl(var(--brand-paper))]">
             Get started
           </a>
         </div>

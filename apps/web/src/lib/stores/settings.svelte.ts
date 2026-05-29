@@ -37,19 +37,16 @@ function writeStorage(key: string, value: string | null): void {
   }
 }
 
-function applyThemeAttribute(theme: Theme): void {
+function applyThemeAttribute(_theme: Theme): void {
   if (!browser) return;
-  const html = document.documentElement;
-  if (theme === 'system') {
-    const matches = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    html.dataset.theme = matches ? 'dark' : 'light';
-  } else {
-    html.dataset.theme = theme;
-  }
+  // Versifine ships a single light theme anchored on the brand navy.
+  // We always apply 'light' regardless of the stored preference so the
+  // editorial palette stays consistent across the app.
+  document.documentElement.dataset.theme = 'light';
 }
 
 class SettingsStore {
-  theme = $state<Theme>((readStorage(KEYS.theme) as Theme | null) ?? 'system');
+  theme = $state<Theme>('light');
   language = $state<Language>(((readStorage(KEYS.language) as Language | null) ?? 'en'));
   privacyMode = $state<boolean>(readStorage(KEYS.privacy) === '1');
   baseCurrency = $state<Currency>(

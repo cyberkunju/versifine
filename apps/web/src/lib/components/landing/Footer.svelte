@@ -1,18 +1,19 @@
 <script lang="ts">
   /**
-   * Minimal footer. Brand mark, four link columns, copyright.
-   * Stays consistent with the dark landing aesthetic.
+   * Footer — light editorial. Brand mark over a tagline, four link
+   * columns, a hairline rule, and a quiet colophon. Navy ink on paper.
    */
-  import { Sparkles, Code2, Mail, MessageCircle } from 'lucide-svelte';
+  import { Code2, Mail, MessageCircle } from 'lucide-svelte';
+  import Logo from '$lib/components/brand/Logo.svelte';
 
   const groups: Array<{ title: string; links: Array<{ label: string; href: string; external?: boolean }> }> = [
     {
       title: 'Product',
       links: [
-        { label: 'Features', href: '#features' },
+        { label: 'Capabilities', href: '#capabilities' },
         { label: 'WhatsApp', href: '#whatsapp' },
-        { label: 'AI Copilot', href: '#copilot' },
-        { label: 'Privacy', href: '#privacy' },
+        { label: 'Copilot', href: '#copilot' },
+        { label: 'Languages', href: '#languages' },
       ],
     },
     {
@@ -35,7 +36,7 @@
       title: 'Contact',
       links: [
         { label: 'WhatsApp the bot', href: '/wa-qr/' },
-        { label: 'Email', href: 'mailto:hello@versifine.com', external: true },
+        { label: 'hello@versifine.com', href: 'mailto:hello@versifine.com', external: true },
       ],
     },
   ];
@@ -43,49 +44,37 @@
   const year = new Date().getFullYear();
 </script>
 
-<footer class="border-t border-white/10 bg-slate-950 text-slate-400">
-  <div class="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-    <div class="grid grid-cols-2 gap-8 lg:grid-cols-5">
+<footer class="border-t border-[hsl(var(--border))] bg-[hsl(var(--brand-ivory))]">
+  <div class="mx-auto max-w-6xl px-5 py-16 sm:px-8">
+    <div class="grid grid-cols-2 gap-10 lg:grid-cols-6">
       <div class="col-span-2 lg:col-span-2">
-        <a href="/" class="flex items-center gap-2 text-base font-semibold tracking-tight text-white">
-          <span class="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600">
-            <Sparkles class="h-4 w-4 text-white" />
-          </span>
-          <span>Versifine</span>
-        </a>
-        <p class="mt-3 max-w-sm text-sm leading-relaxed text-slate-400">
-          Frictionless multimodal personal finance with an AI co-pilot that actually understands your money. Built India-first.
+        <Logo size={30} />
+        <p class="mt-4 max-w-xs text-sm leading-relaxed text-[hsl(var(--muted-foreground))]">
+          Frictionless multimodal personal finance, with an AI co-pilot that actually understands your money. Built India-first.
         </p>
-        <div class="mt-4 flex items-center gap-2">
-          <a
-            href="https://github.com/cyberkunju/versifine"
-            target="_blank"
-            rel="noopener"
-            class="grid h-9 w-9 place-items-center rounded-md border border-white/10 transition-colors hover:border-white/20 hover:text-white"
-            aria-label="Source on GitHub"
-          >
-            <Code2 class="h-4 w-4" />
-          </a>
-          <a
-            href="/wa-qr/"
-            class="grid h-9 w-9 place-items-center rounded-md border border-white/10 transition-colors hover:border-white/20 hover:text-white"
-            aria-label="WhatsApp pairing"
-          >
-            <MessageCircle class="h-4 w-4" />
-          </a>
-          <a
-            href="mailto:hello@versifine.com"
-            class="grid h-9 w-9 place-items-center rounded-md border border-white/10 transition-colors hover:border-white/20 hover:text-white"
-            aria-label="Email"
-          >
-            <Mail class="h-4 w-4" />
-          </a>
+        <div class="mt-5 flex items-center gap-2">
+          {#each [
+            { icon: Code2, href: 'https://github.com/cyberkunju/versifine', label: 'Source on GitHub', external: true },
+            { icon: MessageCircle, href: '/wa-qr/', label: 'WhatsApp pairing', external: false },
+            { icon: Mail, href: 'mailto:hello@versifine.com', label: 'Email', external: true },
+          ] as social (social.label)}
+            {@const Icon = social.icon}
+            <a
+              href={social.href}
+              target={social.external ? '_blank' : undefined}
+              rel={social.external ? 'noopener' : undefined}
+              class="grid h-9 w-9 place-items-center rounded-full border border-[hsl(var(--border))] bg-white text-[hsl(var(--brand-navy))] transition-colors hover:border-[hsl(var(--brand-navy)/0.3)] hover:bg-[hsl(var(--brand-navy))] hover:text-[hsl(var(--brand-paper))]"
+              aria-label={social.label}
+            >
+              <Icon class="h-4 w-4" />
+            </a>
+          {/each}
         </div>
       </div>
 
       {#each groups as group (group.title)}
         <div>
-          <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">{group.title}</h3>
+          <h3 class="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--brand-navy))]">{group.title}</h3>
           <ul class="mt-4 space-y-2.5 text-sm">
             {#each group.links as link (link.label)}
               <li>
@@ -93,7 +82,7 @@
                   href={link.href}
                   target={link.external ? '_blank' : undefined}
                   rel={link.external ? 'noopener' : undefined}
-                  class="transition-colors hover:text-white"
+                  class="text-[hsl(var(--muted-foreground))] transition-colors hover:text-[hsl(var(--brand-navy))]"
                 >
                   {link.label}
                 </a>
@@ -104,9 +93,9 @@
       {/each}
     </div>
 
-    <div class="mt-12 flex flex-col items-start justify-between gap-3 border-t border-white/10 pt-6 text-xs text-slate-500 sm:flex-row sm:items-center">
+    <div class="mt-14 flex flex-col items-start justify-between gap-2 border-t border-[hsl(var(--border))] pt-6 text-xs text-[hsl(var(--muted-foreground))] sm:flex-row sm:items-center">
       <p>© {year} Versifine. All rights reserved.</p>
-      <p>Built with Bun, Hono, SvelteKit, Drizzle, Postgres + pgvector, OpenAI.</p>
+      <p class="font-mono text-[11px]">Bun · Hono · SvelteKit · Drizzle · Postgres+pgvector · OpenAI</p>
     </div>
   </div>
 </footer>

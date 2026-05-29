@@ -12,9 +12,9 @@
     LineChart,
     BarChart3,
     Settings as SettingsIcon,
-    Sparkles,
     LogOut,
   } from 'lucide-svelte';
+  import Logo from '$lib/components/brand/Logo.svelte';
   import { auth } from '$lib/stores/auth.svelte';
   import { settings } from '$lib/stores/settings.svelte';
   import { getMessages } from '$lib/i18n';
@@ -66,11 +66,8 @@
   )}
   aria-label="Primary"
 >
-  <a href="/dashboard" class="flex items-center gap-2 px-2 pb-4 text-base font-semibold tracking-tight">
-    <span class="grid h-7 w-7 place-items-center rounded-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]">
-      <Sparkles class="h-4 w-4" />
-    </span>
-    <span>{m.app.title}</span>
+  <a href="/dashboard" class="flex items-center gap-2 px-2 pb-4">
+    <Logo size={28} />
   </a>
 
   <nav class="flex flex-1 flex-col gap-0.5">

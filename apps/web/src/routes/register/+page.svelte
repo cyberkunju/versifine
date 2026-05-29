@@ -1,17 +1,17 @@
 <script lang="ts">
   /**
-   * Register page. Bare-minimum fields: email, password, optional display
-   * name, primary language. Server validates the password policy; we surface
-   * the resulting error verbatim if it fires.
+   * Register — editorial split, mirrors the login page. Email, password,
+   * optional display name, primary language. Server enforces the password
+   * policy; we surface its error verbatim.
    */
   import { goto } from '$app/navigation';
-  import { Sparkles } from 'lucide-svelte';
+  import { ArrowRight } from 'lucide-svelte';
   import { LANGUAGE_META, LANGUAGES, type Language } from '@versifine/shared';
+  import Logo from '$lib/components/brand/Logo.svelte';
   import { auth } from '$lib/stores/auth.svelte';
   import { settings } from '$lib/stores/settings.svelte';
   import { getMessages } from '$lib/i18n';
   import { ApiError } from '$lib/api/types';
-  import { Button, Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter, Input, Label } from '$lib/components/ui';
 
   let email = $state('');
   let password = $state('');
@@ -37,64 +37,100 @@
   }
 </script>
 
-<div class="grid min-h-screen place-items-center px-4 py-10">
-  <Card class="w-full max-w-md">
-    <CardHeader>
-      <div class="flex items-center gap-2 pb-2">
-        <span class="grid h-8 w-8 place-items-center rounded-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]">
-          <Sparkles class="h-4 w-4" />
-        </span>
-        <span class="text-lg font-semibold">{m.app.title}</span>
-      </div>
-      <CardTitle>{m.auth.welcomeNew}</CardTitle>
-      <CardDescription>{m.app.tagline}</CardDescription>
-    </CardHeader>
-    <form onsubmit={submit} novalidate>
-      <CardContent>
-        <div class="space-y-4">
-          <div class="space-y-1.5">
-            <Label for="display">{m.auth.displayName}</Label>
-            <Input id="display" autocomplete="nickname" bind:value={displayName} />
-          </div>
-          <div class="space-y-1.5">
-            <Label for="email">{m.auth.email}</Label>
-            <Input id="email" type="email" autocomplete="email" required bind:value={email} />
-          </div>
-          <div class="space-y-1.5">
-            <Label for="password">{m.auth.password}</Label>
-            <Input id="password" type="password" autocomplete="new-password" required bind:value={password} />
-            <p class="text-xs text-[hsl(var(--muted-foreground))]">
-              12+ chars, mixed case, a number, and a symbol.
-            </p>
-          </div>
-          <div class="space-y-1.5">
-            <Label for="lang">{m.auth.primaryLanguage}</Label>
-            <select
-              id="lang"
-              bind:value={primaryLanguage}
-              class="h-9 w-full rounded-md border border-[hsl(var(--input))] bg-[hsl(var(--background))] px-3 text-sm"
-            >
-              {#each LANGUAGES as code (code)}
-                <option value={code}>{LANGUAGE_META[code].nativeName} — {LANGUAGE_META[code].englishName}</option>
-              {/each}
-            </select>
-          </div>
-          {#if error}
-            <p class="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300" role="alert">{error}</p>
-          {/if}
+<svelte:head><title>Create account · Versifine</title></svelte:head>
+
+<div class="grid min-h-screen bg-[hsl(var(--brand-paper))] lg:grid-cols-2">
+  <!-- Brand rail -->
+  <aside class="relative hidden flex-col justify-between overflow-hidden bg-[hsl(var(--brand-navy))] p-12 text-[hsl(var(--brand-paper))] lg:flex">
+    <div class="pointer-events-none absolute inset-0 opacity-[0.5]">
+      <svg width="700" height="700" viewBox="0 0 700 700" fill="none" class="absolute -bottom-40 -left-40" aria-hidden="true">
+        {#each [0, 1, 2, 3] as i (i)}
+          <circle cx="350" cy="350" r={140 + i * 80} stroke="hsl(var(--brand-paper))" stroke-opacity="0.06" />
+        {/each}
+      </svg>
+    </div>
+    <a href="/" class="relative z-10 w-fit"><Logo size={32} tone="paper" /></a>
+    <div class="relative z-10 max-w-md">
+      <p class="font-display text-3xl font-medium leading-snug tracking-tight">
+        “The whole point of a finance app is to disappear into a sentence. Ours does.”
+      </p>
+      <p class="mt-6 text-sm text-[hsl(var(--brand-paper)/0.6)]">Versifine — your finances, finely tuned.</p>
+    </div>
+    <div class="relative z-10 text-xs text-[hsl(var(--brand-paper)/0.5)]">Free · No card · 90 days of demo data</div>
+  </aside>
+
+  <!-- Form -->
+  <main class="flex items-center justify-center px-5 py-12 sm:px-10">
+    <div class="w-full max-w-sm">
+      <div class="mb-8 lg:hidden"><a href="/"><Logo size={30} /></a></div>
+
+      <h1 class="font-display text-3xl font-medium tracking-tight text-[hsl(var(--brand-navy))]">{m.auth.welcomeNew}</h1>
+      <p class="mt-2 text-sm text-[hsl(var(--muted-foreground))]">{m.app.tagline}</p>
+
+      <form onsubmit={submit} novalidate class="mt-8 space-y-5">
+        <div class="space-y-1.5">
+          <label for="display" class="text-sm font-medium text-[hsl(var(--foreground))]">{m.auth.displayName}</label>
+          <input
+            id="display"
+            autocomplete="nickname"
+            bind:value={displayName}
+            class="h-11 w-full rounded-xl border border-[hsl(var(--input))] bg-white px-4 text-sm text-[hsl(var(--foreground))] outline-none transition-colors focus:border-[hsl(var(--brand-navy))] focus:ring-2 focus:ring-[hsl(var(--brand-navy)/0.12)]"
+          />
         </div>
-      </CardContent>
-      <CardFooter class="flex flex-col items-stretch gap-3">
-        <Button type="submit" disabled={auth.loading}>
+        <div class="space-y-1.5">
+          <label for="email" class="text-sm font-medium text-[hsl(var(--foreground))]">{m.auth.email}</label>
+          <input
+            id="email"
+            type="email"
+            autocomplete="email"
+            required
+            bind:value={email}
+            class="h-11 w-full rounded-xl border border-[hsl(var(--input))] bg-white px-4 text-sm text-[hsl(var(--foreground))] outline-none transition-colors focus:border-[hsl(var(--brand-navy))] focus:ring-2 focus:ring-[hsl(var(--brand-navy)/0.12)]"
+          />
+        </div>
+        <div class="space-y-1.5">
+          <label for="password" class="text-sm font-medium text-[hsl(var(--foreground))]">{m.auth.password}</label>
+          <input
+            id="password"
+            type="password"
+            autocomplete="new-password"
+            required
+            bind:value={password}
+            class="h-11 w-full rounded-xl border border-[hsl(var(--input))] bg-white px-4 text-sm text-[hsl(var(--foreground))] outline-none transition-colors focus:border-[hsl(var(--brand-navy))] focus:ring-2 focus:ring-[hsl(var(--brand-navy)/0.12)]"
+          />
+          <p class="text-xs text-[hsl(var(--muted-foreground))]">12+ chars, mixed case, a number, and a symbol.</p>
+        </div>
+        <div class="space-y-1.5">
+          <label for="lang" class="text-sm font-medium text-[hsl(var(--foreground))]">{m.auth.primaryLanguage}</label>
+          <select
+            id="lang"
+            bind:value={primaryLanguage}
+            class="h-11 w-full rounded-xl border border-[hsl(var(--input))] bg-white px-4 text-sm text-[hsl(var(--foreground))] outline-none transition-colors focus:border-[hsl(var(--brand-navy))] focus:ring-2 focus:ring-[hsl(var(--brand-navy)/0.12)]"
+          >
+            {#each LANGUAGES as code (code)}
+              <option value={code}>{LANGUAGE_META[code].nativeName} — {LANGUAGE_META[code].englishName}</option>
+            {/each}
+          </select>
+        </div>
+
+        {#if error}
+          <p class="rounded-xl border border-[hsl(var(--destructive)/0.3)] bg-[hsl(var(--destructive)/0.06)] px-4 py-3 text-sm text-[hsl(var(--destructive))]" role="alert">{error}</p>
+        {/if}
+
+        <button
+          type="submit"
+          disabled={auth.loading}
+          class="group flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[hsl(var(--brand-navy))] text-sm font-medium text-[hsl(var(--brand-paper))] transition-all hover:bg-[hsl(var(--brand-navy-deep))] disabled:opacity-60"
+        >
           {auth.loading ? m.common.loading : m.auth.signUp}
-        </Button>
-        <p class="text-center text-xs text-[hsl(var(--muted-foreground))]">
-          {m.auth.haveAccount}
-          <a class="text-[hsl(var(--primary))] hover:underline" href="/login">
-            {m.auth.signIn}
-          </a>
-        </p>
-      </CardFooter>
-    </form>
-  </Card>
+          {#if !auth.loading}<ArrowRight class="h-4 w-4 text-[hsl(var(--brand-gold))] transition-transform group-hover:translate-x-0.5" />{/if}
+        </button>
+      </form>
+
+      <p class="mt-6 text-center text-sm text-[hsl(var(--muted-foreground))]">
+        {m.auth.haveAccount}
+        <a class="font-medium text-[hsl(var(--brand-navy))] underline decoration-[hsl(var(--brand-gold))] underline-offset-4 hover:opacity-80" href="/login">{m.auth.signIn}</a>
+      </p>
+    </div>
+  </main>
 </div>

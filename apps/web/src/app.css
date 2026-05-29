@@ -1,83 +1,75 @@
 @import 'tailwindcss';
 
 /*
- * Tailwind 4 design tokens. The shadcn-svelte palette compiled to plain CSS
- * variables so any component can read them with `bg-background`, `text-foreground`,
- * etc. Slate-zinc neutral with a violet accent — feels modern without
- * shouting. Both themes are defined; we flip via `data-theme`.
+ * Versifine design system — "editorial fintech".
+ *
+ * Light, warm, and quiet. The palette is anchored on the brand navy
+ * #001F77 (hsl 224 100% 23%) used as ink and primary, a warm ivory paper
+ * ground, and a single restrained brass-gold accent used sparingly like
+ * a pencil underline. Typography pairs Fraunces (display serif) with
+ * Inter (UI / body). Tokens keep their shadcn names so every existing
+ * component inherits the new look without edits.
+ *
+ * There is one theme. Light. The dark block intentionally mirrors light
+ * so any `data-theme="dark"` left in markup degrades gracefully.
  */
 
 @theme {
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
     'Helvetica Neue', Arial, 'Apple Color Emoji', 'Segoe UI Emoji';
+  --font-display: 'Fraunces', 'Iowan Old Style', 'Apple Garamond', Georgia,
+    'Times New Roman', serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco,
     Consolas, 'Liberation Mono', 'Courier New', monospace;
 
-  --radius: 0.625rem;
+  --radius: 0.75rem;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 6px);
+
+  /* Brand raw values — handy for landing-page utilities. */
+  --brand-navy: 224 100% 23%;
+  --brand-navy-deep: 224 100% 16%;
+  --brand-gold: 36 54% 50%;
+  --brand-paper: 40 40% 97%;
+  --brand-ivory: 40 33% 94%;
 }
 
 @layer base {
   :root,
-  [data-theme='light'] {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --primary: 262 83% 58%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222 47% 11%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
-    --ring: 262 83% 58%;
-    --sidebar: 220 14% 98%;
-    --sidebar-foreground: 222 47% 11%;
-    --chart-1: 262 83% 58%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 43 96% 56%;
-    --chart-4: 27 87% 67%;
-    --chart-5: 339 90% 51%;
-  }
-
+  [data-theme='light'],
   [data-theme='dark'] {
-    --background: 222 47% 6%;
-    --foreground: 210 40% 98%;
-    --muted: 217 32% 17%;
-    --muted-foreground: 215 20% 65%;
-    --popover: 222 47% 8%;
-    --popover-foreground: 210 40% 98%;
-    --card: 222 47% 8%;
-    --card-foreground: 210 40% 98%;
-    --border: 217 32% 17%;
-    --input: 217 32% 17%;
-    --primary: 262 83% 70%;
-    --primary-foreground: 222 47% 11%;
-    --secondary: 217 32% 17%;
-    --secondary-foreground: 210 40% 98%;
-    --accent: 217 32% 17%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 73% 50%;
-    --destructive-foreground: 210 40% 98%;
-    --ring: 262 83% 70%;
-    --sidebar: 222 47% 8%;
-    --sidebar-foreground: 210 40% 98%;
-    --chart-1: 262 83% 70%;
-    --chart-2: 173 58% 50%;
-    --chart-3: 43 96% 65%;
-    --chart-4: 27 87% 70%;
-    --chart-5: 339 90% 65%;
+    /* Paper, ink, primary */
+    --background: 40 40% 97%;          /* #FAF7F1 warm ivory */
+    --foreground: 224 45% 12%;         /* deep navy ink */
+    --muted: 40 24% 92%;
+    --muted-foreground: 224 12% 42%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 45% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 224 45% 12%;
+    --border: 36 22% 87%;              /* warm hairline */
+    --input: 36 22% 84%;
+    --primary: 224 100% 23%;           /* #001F77 */
+    --primary-foreground: 40 40% 98%;
+    --secondary: 40 24% 92%;
+    --secondary-foreground: 224 45% 14%;
+    --accent: 40 30% 90%;              /* hover wash */
+    --accent-foreground: 224 45% 14%;
+    --destructive: 4 66% 46%;
+    --destructive-foreground: 40 40% 98%;
+    --ring: 224 100% 23%;
+    --sidebar: 0 0% 100%;
+    --sidebar-foreground: 224 45% 12%;
+    /* Charts: navy → brass → teal → slate ramp */
+    --chart-1: 224 100% 23%;
+    --chart-2: 36 54% 50%;
+    --chart-3: 188 60% 34%;
+    --chart-4: 224 40% 55%;
+    --chart-5: 12 55% 52%;
+    /* Brand aliases consumed by landing utilities */
+    --gold: 36 54% 50%;
   }
 }
 
@@ -108,6 +100,12 @@
   --color-chart-3: hsl(var(--chart-3));
   --color-chart-4: hsl(var(--chart-4));
   --color-chart-5: hsl(var(--chart-5));
+
+  --color-navy: hsl(var(--brand-navy));
+  --color-navy-deep: hsl(var(--brand-navy-deep));
+  --color-gold: hsl(var(--brand-gold));
+  --color-paper: hsl(var(--brand-paper));
+  --color-ivory: hsl(var(--brand-ivory));
 }
 
 @layer base {
@@ -115,27 +113,49 @@
     border-color: hsl(var(--border));
   }
   html {
-    color-scheme: light dark;
+    color-scheme: light;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
     font-family: var(--font-sans);
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
   ::selection {
-    background-color: hsl(var(--primary) / 0.25);
+    background-color: hsl(var(--primary) / 0.16);
+    color: hsl(var(--primary));
+  }
+  /* Tabular figures by default on numeric elements that opt in. */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
   }
 }
 
-/*
- * Tiny utilities the shadcn primitives rely on. Keeping them here means
- * a component never has to invent its own radius / animation tokens.
- */
 @layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+  }
   .scrollbar-none {
     scrollbar-width: none;
   }
   .scrollbar-none::-webkit-scrollbar {
     display: none;
+  }
+  /* Fine grain texture for the paper ground — subtle, premium. */
+  .bg-grain {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+  }
+  /* Hairline rule with a tiny gold tick at the start — editorial marker. */
+  .rule-gold::before {
+    content: '';
+    display: inline-block;
+    width: 1.75rem;
+    height: 2px;
+    background: hsl(var(--brand-gold));
+    vertical-align: middle;
+    margin-right: 0.75rem;
   }
 }
