@@ -22,6 +22,14 @@ export interface WhatsAppLikeClient {
     options?: Record<string, unknown>,
   ): Promise<unknown>;
   getState(): Promise<string | null>;
+  /**
+   * Map a LID-addressed id (`<lid>@lid`) to the real phone JID. Present on
+   * whatsapp-web.js ≥1.34; optional here so the type survives older libs
+   * and the test/simulator transport.
+   */
+  getContactLidAndPhone?(
+    userIds: string[],
+  ): Promise<Array<{ lid?: string; pn?: string }>>;
 }
 
 export interface QrSnapshot {
