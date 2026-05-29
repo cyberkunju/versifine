@@ -18,7 +18,7 @@ import {
 } from '@versifine/shared';
 import { env } from '../../env.ts';
 import { log } from '../../utils/logger.ts';
-import { getOpenAI, isAIConfigured, withLatency } from './client.ts';
+import { getOpenAI, isAIConfigured, normalizeChatParams, withLatency } from './client.ts';
 
 const NATIVE_PACK_LANGS: ReadonlyArray<Language> = ['en', 'hi', 'ml'];
 
@@ -128,15 +128,17 @@ async function callTranslate(
   if (!client) return null;
   try {
     const completion = await withLatency(`translate.${target}`, () =>
-      client.chat.completions.create({
-        model: env.OPENAI_TRANSLATE_MODEL,
-        temperature: 0.2,
-        max_tokens: Math.max(256, Math.min(1024, text.length * 4)),
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: text },
-        ],
-      }),
+      client.chat.completions.create(
+        normalizeChatParams({
+          model: env.OPENAI_TRANSLATE_MODEL,
+          temperature: 0.2,
+          max_tokens: Math.max(256, Math.min(1024, text.length * 4)),
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: text },
+          ],
+        }),
+      ),
     );
     return completion.choices[0]?.message?.content?.trim() ?? null;
   } catch (err) {
@@ -182,15 +184,17 @@ export async function translateForUser(
   if (!retryClient) return text;
   try {
     const completion = await withLatency(`translate.${target}.retry`, () =>
-      retryClient.chat.completions.create({
-        model: env.OPENAI_TRANSLATE_MODEL,
-        temperature: 0,
-        max_tokens: Math.max(256, Math.min(1024, text.length * 4)),
-        messages: [
-          { role: 'system', content: SHARP_RETRY_PROMPTS[target] },
-          { role: 'user', content: text },
-        ],
-      }),
+      retryClient.chat.completions.create(
+        normalizeChatParams({
+          model: env.OPENAI_TRANSLATE_MODEL,
+          temperature: 0,
+          max_tokens: Math.max(256, Math.min(1024, text.length * 4)),
+          messages: [
+            { role: 'system', content: SHARP_RETRY_PROMPTS[target] },
+            { role: 'user', content: text },
+          ],
+        }),
+      ),
     );
     const second = completion.choices[0]?.message?.content?.trim() ?? '';
     if (second && passesValidation(second, target)) {

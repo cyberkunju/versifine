@@ -75,7 +75,11 @@
     wireMessages.push({ role: 'user', content: text });
 
     try {
-      const res = await fetch('/api/copilot', {
+      // Call the API's streaming endpoint directly through nginx
+      // (`/api/* -> api`, prefix stripped → `/copilot/chat`). The bearer
+      // token rides the Authorization header; fetch reads the SSE body as
+      // a stream natively, so no SvelteKit proxy is needed.
+      const res = await fetch('/api/copilot/chat', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',

@@ -18,7 +18,7 @@ import { z } from 'zod';
 import { type Currency, isCurrency } from '@versifine/shared';
 import { env } from '../../env.ts';
 import { log } from '../../utils/logger.ts';
-import { getOpenAI, isAIConfigured, withLatency } from './client.ts';
+import { getOpenAI, isAIConfigured, normalizeChatParams, withLatency } from './client.ts';
 import {
   extractAmount,
   extractCurrency,
@@ -181,19 +181,21 @@ async function callLLM(input: ParseInput): Promise<Partial<ParsedExpense> | null
   if (!client) return null;
   try {
     const completion = await withLatency('parser.expense', () =>
-      client.chat.completions.create({
-        model: env.OPENAI_PARSE_MODEL,
-        temperature: 0,
-        max_tokens: 400,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          {
-            role: 'user',
-            content: input.locale ? `[locale=${input.locale}] ${input.text}` : input.text,
-          },
-        ],
-      }),
+      client.chat.completions.create(
+        normalizeChatParams({
+          model: env.OPENAI_PARSE_MODEL,
+          temperature: 0,
+          max_tokens: 400,
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT },
+            {
+              role: 'user',
+              content: input.locale ? `[locale=${input.locale}] ${input.text}` : input.text,
+            },
+          ],
+        }),
+      ),
     );
     const raw = completion.choices[0]?.message?.content?.trim() ?? '{}';
     let payload: unknown;

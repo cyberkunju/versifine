@@ -10,7 +10,7 @@
 import { z } from 'zod';
 import { env } from '../../env.ts';
 import { log } from '../../utils/logger.ts';
-import { getOpenAI, isAIConfigured, withLatency } from './client.ts';
+import { getOpenAI, isAIConfigured, normalizeChatParams, withLatency } from './client.ts';
 
 export interface ReceiptExtraction {
   amount: number | null;
@@ -126,25 +126,27 @@ export async function extractFromReceipt(
 
   try {
     const completion = await withLatency('vision.extract', () =>
-      client.chat.completions.create({
-        model: env.OPENAI_VISION_MODEL,
-        temperature: 0.1,
-        max_tokens: 400,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: 'Extract the receipt fields. Return only JSON with the schema given.',
-              },
-              { type: 'image_url', image_url: { url: dataUrlFor(image, mimetype), detail: 'auto' } },
-            ],
-          },
-        ],
-      }),
+      client.chat.completions.create(
+        normalizeChatParams({
+          model: env.OPENAI_VISION_MODEL,
+          temperature: 0.1,
+          max_tokens: 400,
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT },
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: 'Extract the receipt fields. Return only JSON with the schema given.',
+                },
+                { type: 'image_url', image_url: { url: dataUrlFor(image, mimetype), detail: 'auto' } },
+              ],
+            },
+          ],
+        }),
+      ),
     );
 
     const raw = completion.choices[0]?.message?.content?.trim() ?? '{}';

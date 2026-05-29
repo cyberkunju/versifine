@@ -37,6 +37,40 @@ export function isAIConfigured(): boolean {
 }
 
 /**
+ * Normalise chat-completion params across model families.
+ *
+ * The GPT-5 family (gpt-5, gpt-5-mini, gpt-5-nano, o1/o3 reasoning models)
+ * renamed `max_tokens` → `max_completion_tokens` and only accepts the
+ * default temperature (1). Older models (gpt-4o, gpt-4o-mini) keep the
+ * classic params. Callers always write the classic shape; this shim
+ * rewrites it to whatever the target model expects, so we don't sprinkle
+ * model checks across every service.
+ *
+ * Typed as a transparent pass-through over the SDK param union so the
+ * `.create()` overloads still resolve at the call site.
+ */
+export function normalizeChatParams(
+  params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
+): OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming {
+  const model = String(params.model ?? '');
+  const isNextGen = /^(gpt-5|o1|o3|o4)/.test(model);
+  if (!isNextGen) return params;
+
+  const next = { ...params } as Record<string, unknown>;
+  if ('max_tokens' in next) {
+    next.max_completion_tokens = next.max_tokens;
+    delete next.max_tokens;
+  }
+  if ('temperature' in next && next.temperature !== 1) {
+    delete next.temperature;
+  }
+  if ('top_p' in next && next.top_p !== 1) {
+    delete next.top_p;
+  }
+  return next as unknown as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming;
+}
+
+/**
  * Wrap an async AI call and log its outcome with duration.
  * The label is the only field that lands in INFO logs by default; raw
  * inputs and outputs stay at DEBUG to keep PII off shared dashboards.
