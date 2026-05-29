@@ -1,57 +1,40 @@
 <script lang="ts">
   /**
-   * Versifine wordmark lockup. A small navy/gold "V" rising-line glyph
-   * beside the Fraunces wordmark. Used in the landing header/footer and
-   * the app sidebar so the brand reads identically everywhere.
+   * Versifine logo lockup — the real brand marks. A solid V-mark glyph
+   * beside the inline wordmark, themed via `currentColor`. Used in the
+   * landing header/footer, the app sidebar, and the register rail so the
+   * brand reads identically everywhere.
+   *
+   * Props are unchanged from the previous lockup so every call site keeps
+   * working:
+   *  - `size`     pixel height of the glyph square
+   *  - `showText` show the wordmark beside the glyph
+   *  - `tone`     'ink' (indigo on light) or 'paper' (white on dark)
    */
+  import VMark from './VMark.svelte';
+  import Wordmark from './Wordmark.svelte';
+
   type Props = {
-    /** Pixel size of the glyph square. */
     size?: number;
-    /** Whether to show the wordmark text beside the glyph. */
     showText?: boolean;
-    /** 'ink' (navy on light) or 'paper' (paper on dark surfaces). */
     tone?: 'ink' | 'paper';
     class?: string;
   };
   let { size = 28, showText = true, tone = 'ink', class: className = '' }: Props = $props();
 
-  const text = $derived(tone === 'paper' ? 'text-[hsl(var(--brand-paper))]' : 'text-[hsl(var(--brand-navy))]');
+  // On light surfaces the glyph carries the brand gradient; on dark
+  // surfaces it goes solid white so it reads cleanly. The wordmark follows
+  // the tone via currentColor.
+  const tint = $derived(tone === 'paper' ? 'text-white' : 'text-[hsl(var(--primary))]');
 </script>
 
 <span class="inline-flex items-center gap-2.5 {className}">
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 32 32"
-    fill="none"
-    aria-hidden="true"
-    class="shrink-0"
-  >
-    <rect
-      width="32"
-      height="32"
-      rx="7"
-      fill={tone === 'paper' ? '#FAF7F1' : '#001F77'}
-    />
-    <path
-      d="M7 9 L13.5 23 L16 17"
-      stroke={tone === 'paper' ? '#001F77' : '#FAF7F1'}
-      stroke-width="2.4"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    />
-    <path
-      d="M16 17 L20 8.5 L25 20"
-      stroke="#C99A3F"
-      stroke-width="2.4"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    />
-    <circle cx="25" cy="20" r="1.7" fill="#C99A3F" />
-  </svg>
+  {#if tone === 'paper'}
+    <VMark tight variant="solid" class="shrink-0 {tint}" style={`height:${size}px;width:auto`} />
+  {:else}
+    <VMark tight variant="brand" class="shrink-0" style={`height:${size}px;width:auto`} />
+  {/if}
   {#if showText}
-    <span class="font-display text-[1.35rem] font-medium leading-none tracking-tight {text}">
-      Versifine
-    </span>
+    <Wordmark class="w-auto {tint}" style={`height:${size * 0.62}px`} />
   {/if}
 </span>

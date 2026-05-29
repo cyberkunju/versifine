@@ -123,7 +123,7 @@
   });
 </script>
 
-<div class="overflow-hidden rounded-2xl border border-[hsl(var(--border))] bg-white shadow-[0_24px_60px_-30px_rgba(0,31,119,0.4)]">
+<div class="overflow-hidden rounded-2xl border border-[hsl(var(--border))] bg-white shadow-[0_24px_60px_-30px_rgba(18,26,140,0.4)]">
   <!-- Title bar -->
   <div class="flex items-center justify-between border-b border-[hsl(var(--border))] px-5 py-4">
     <div class="flex items-center gap-2.5">
@@ -207,12 +207,12 @@
             <svg viewBox="0 0 200 46" class="mt-3 h-12 w-full" aria-hidden="true">
               <defs>
                 <linearGradient id="fc-fill" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="0" stop-color="hsl(224 100% 23%)" stop-opacity="0.16" />
-                  <stop offset="1" stop-color="hsl(224 100% 23%)" stop-opacity="0" />
+                  <stop offset="0" stop-color="hsl(236 77% 31%)" stop-opacity="0.16" />
+                  <stop offset="1" stop-color="hsl(236 77% 31%)" stop-opacity="0" />
                 </linearGradient>
               </defs>
               <path d="M0,38 L20,30 L40,34 L60,26 L80,20 L100,28 L120,16 L140,22 L160,12 L180,15 L200,7 L200,46 L0,46 Z" fill="url(#fc-fill)" />
-              <path d="M0,38 L20,30 L40,34 L60,26 L80,20 L100,28 L120,16 L140,22 L160,12 L180,15 L200,7" fill="none" stroke="hsl(224 100% 23%)" stroke-width="1.5" stroke-linecap="round" />
+              <path d="M0,38 L20,30 L40,34 L60,26 L80,20 L100,28 L120,16 L140,22 L160,12 L180,15 L200,7" fill="none" stroke="hsl(236 77% 31%)" stroke-width="1.5" stroke-linecap="round" />
             </svg>
           {:else if tool.tool === 'compare'}
             <div class="mb-3">

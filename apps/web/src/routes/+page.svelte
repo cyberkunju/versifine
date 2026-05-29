@@ -1,8 +1,8 @@
 <script lang="ts">
   /**
-   * Landing page — editorial fintech. Light ivory paper, navy ink,
-   * Fraunces display serif, a restrained gold accent. Numbered sections
-   * read like a well-set prospectus rather than a SaaS template.
+   * Landing page — editorial fintech. White ground, indigo ink, the Outfit
+   * typeface, a restrained periwinkle accent. Numbered sections read like a
+   * well-set prospectus rather than a SaaS template.
    */
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
@@ -77,7 +77,7 @@
     <div class="pointer-events-none absolute inset-x-0 top-0 -z-10 flex justify-center opacity-[0.5]">
       <svg width="1200" height="600" viewBox="0 0 1200 600" fill="none" aria-hidden="true" class="max-w-none">
         {#each [0, 1, 2, 3, 4] as i (i)}
-          <ellipse cx="600" cy={620 + i * 4} rx={520 - i * 90} ry={300 - i * 52} stroke="hsl(224 100% 23%)" stroke-opacity="0.06" stroke-width="1" />
+          <ellipse cx="600" cy={620 + i * 4} rx={520 - i * 90} ry={300 - i * 52} stroke="hsl(236 77% 31%)" stroke-opacity="0.06" stroke-width="1" />
         {/each}
       </svg>
     </div>
@@ -95,7 +95,7 @@
           <span class="relative whitespace-nowrap italic">
             finely&nbsp;tuned
             <svg class="absolute -bottom-2 left-0 w-full" height="10" viewBox="0 0 300 10" preserveAspectRatio="none" aria-hidden="true">
-              <path d="M2 7 C 80 2, 220 2, 298 6" stroke="hsl(36 54% 50%)" stroke-width="2.5" fill="none" stroke-linecap="round" />
+              <path d="M2 7 C 80 2, 220 2, 298 6" stroke="hsl(242 87% 74%)" stroke-width="2.5" fill="none" stroke-linecap="round" />
             </svg>
           </span>.
         </h1>
@@ -109,7 +109,7 @@
         <div data-reveal class="reveal mt-10 flex flex-wrap items-center justify-center gap-3">
           <a
             href="/register"
-            class="group inline-flex items-center gap-2 rounded-full bg-[hsl(var(--brand-navy))] px-7 py-3.5 text-sm font-medium text-[hsl(var(--brand-paper))] shadow-[0_8px_24px_-10px_rgba(0,31,119,0.6)] transition-all hover:bg-[hsl(var(--brand-navy-deep))]"
+            class="group inline-flex items-center gap-2 rounded-full bg-[hsl(var(--brand-navy))] px-7 py-3.5 text-sm font-medium text-[hsl(var(--brand-paper))] shadow-[0_8px_24px_-10px_rgba(18,26,140,0.55)] transition-all hover:bg-[hsl(var(--brand-navy-deep))]"
           >
             Get started free
             <ArrowRight class="h-4 w-4 text-[hsl(var(--brand-gold))] transition-transform group-hover:translate-x-0.5" />

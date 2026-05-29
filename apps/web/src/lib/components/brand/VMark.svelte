@@ -20,17 +20,21 @@
     class: className = '',
     style = '',
     variant = 'brand',
-  }: { class?: string; style?: string; variant?: 'brand' | 'solid' } = $props();
+    tight = false,
+  }: { class?: string; style?: string; variant?: 'brand' | 'solid'; tight?: boolean } = $props();
 
   // Stable-per-instance id for the gradient def.
   const gid = `vmark-${Math.random().toString(36).slice(2, 9)}`;
   const fill = $derived(variant === 'brand' ? `url(#${gid})` : 'currentColor');
+  // 'tight' crops to the glyph bounds (logo lockups); default keeps the
+  // square padding that matches the original icon (watermarks).
+  const box = $derived(tight ? '488.5 12590.7 4692.7 3871.4' : '227.8 11809.6 5214.1 5214.1');
 </script>
 
 <svg
   class={className}
   {style}
-  viewBox="227.8 11809.6 5214.1 5214.1"
+  viewBox={box}
   fill={fill}
   aria-hidden="true"
   xmlns="http://www.w3.org/2000/svg"

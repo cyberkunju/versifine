@@ -15,61 +15,66 @@
  */
 
 @theme {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+  /* One typeface, Outfit — the login page's voice, now the whole app's.
+     Headings differ by weight, not family, so the look stays cohesive. */
+  --font-sans: 'Outfit', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
     'Helvetica Neue', Arial, 'Apple Color Emoji', 'Segoe UI Emoji';
-  --font-display: 'Fraunces', 'Iowan Old Style', 'Apple Garamond', Georgia,
-    'Times New Roman', serif;
+  --font-display: 'Outfit', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco,
     Consolas, 'Liberation Mono', 'Courier New', monospace;
 
-  --radius: 0.75rem;
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
+  --radius: 0.5rem;
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
   --radius-xl: calc(var(--radius) + 6px);
 
-  /* Brand raw values — handy for landing-page utilities. */
-  --brand-navy: 224 100% 23%;
-  --brand-navy-deep: 224 100% 16%;
-  --brand-gold: 36 54% 50%;
-  --brand-paper: 40 40% 97%;
-  --brand-ivory: 40 33% 94%;
+  /* Brand raw values (HSL channels). The login palette, promoted to the
+     whole app: indigo primary oklch(0.32 0.18 268), a deep indigo, a soft
+     periwinkle accent, white ground, faint cool-gray surface. */
+  --brand-navy: 236 77% 31%;        /* indigo primary  ≈ #121a8c */
+  --brand-navy-deep: 245 100% 21%;  /* deep indigo     ≈ #090069 */
+  --brand-gold: 242 87% 74%;        /* periwinkle accent ≈ #8481f6 */
+  --brand-paper: 0 0% 100%;         /* white ground */
+  --brand-ivory: 217 13% 97%;       /* faint cool gray ≈ #f6f7f8 */
 }
 
 @layer base {
   :root,
   [data-theme='light'],
   [data-theme='dark'] {
-    /* Paper, ink, primary */
-    --background: 40 40% 97%;          /* #FAF7F1 warm ivory */
-    --foreground: 224 45% 12%;         /* deep navy ink */
-    --muted: 40 24% 92%;
-    --muted-foreground: 224 12% 42%;
+    /* White ground, near-black cool ink, indigo primary. Mirrors the
+       login page palette (oklch promoted to HSL channels). */
+    --background: 0 0% 100%;           /* #ffffff */
+    --foreground: 217 10% 7%;          /* #101214 cool near-black */
+    --muted: 217 11% 96%;              /* #f4f5f6 */
+    --muted-foreground: 217 3% 45%;    /* #6f7276 */
     --popover: 0 0% 100%;
-    --popover-foreground: 224 45% 12%;
+    --popover-foreground: 217 10% 7%;
     --card: 0 0% 100%;
-    --card-foreground: 224 45% 12%;
-    --border: 36 22% 87%;              /* warm hairline */
-    --input: 36 22% 84%;
-    --primary: 224 100% 23%;           /* #001F77 */
-    --primary-foreground: 40 40% 98%;
-    --secondary: 40 24% 92%;
-    --secondary-foreground: 224 45% 14%;
-    --accent: 40 30% 90%;              /* hover wash */
-    --accent-foreground: 224 45% 14%;
-    --destructive: 4 66% 46%;
-    --destructive-foreground: 40 40% 98%;
-    --ring: 224 100% 23%;
+    --card-foreground: 217 10% 7%;
+    --border: 217 8% 90%;              /* #e3e5e7 cool hairline */
+    --input: 217 8% 90%;
+    --primary: 236 77% 31%;            /* indigo #121a8c */
+    --primary-foreground: 0 0% 98%;
+    --secondary: 217 13% 97%;          /* #f6f7f8 */
+    --secondary-foreground: 227 59% 24%;
+    --accent: 217 13% 95%;             /* hover wash #f0f2f4 */
+    --accent-foreground: 227 59% 24%;
+    --destructive: 3 62% 48%;          /* #c5372f */
+    --destructive-foreground: 0 0% 98%;
+    --ring: 236 77% 31%;
     --sidebar: 0 0% 100%;
-    --sidebar-foreground: 224 45% 12%;
-    /* Charts: navy → brass → teal → slate ramp */
-    --chart-1: 224 100% 23%;
-    --chart-2: 36 54% 50%;
-    --chart-3: 188 60% 34%;
-    --chart-4: 224 40% 55%;
-    --chart-5: 12 55% 52%;
-    /* Brand aliases consumed by landing utilities */
-    --gold: 36 54% 50%;
+    --sidebar-foreground: 217 10% 7%;
+    /* Charts: indigo → periwinkle → sky → slate-indigo → teal ramp */
+    --chart-1: 236 77% 31%;
+    --chart-2: 257 46% 44%;
+    --chart-3: 202 70% 47%;
+    --chart-4: 224 35% 45%;
+    --chart-5: 183 84% 32%;
+    /* Brand alias consumed by a few utilities */
+    --gold: 242 87% 74%;
   }
 }
 
@@ -121,7 +126,7 @@
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
     font-family: var(--font-sans);
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    font-feature-settings: 'ss01', 'cv11';
   }
   ::selection {
     background-color: hsl(var(--primary) / 0.16);
@@ -144,17 +149,17 @@
   .scrollbar-none::-webkit-scrollbar {
     display: none;
   }
-  /* Fine grain texture for the paper ground — subtle, premium. */
+  /* Fine grain texture — kept subtle for any premium surface. */
   .bg-grain {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
   }
-  /* Hairline rule with a tiny gold tick at the start — editorial marker. */
+  /* Hairline rule with a tiny accent tick at the start — editorial marker. */
   .rule-gold::before {
     content: '';
     display: inline-block;
     width: 1.75rem;
     height: 2px;
-    background: hsl(var(--brand-gold));
+    background: hsl(var(--primary));
     vertical-align: middle;
     margin-right: 0.75rem;
   }
