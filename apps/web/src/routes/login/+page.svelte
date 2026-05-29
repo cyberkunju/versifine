@@ -89,12 +89,13 @@
       style="background: radial-gradient(closest-side, oklch(0.6 0.2 230 / 0.45), transparent 70%); filter: blur(50px); animation-delay: -7s;"
     ></div>
 
-    <!-- Background mark — large faded V (drifts slowly) -->
+    <!-- Background mark — large faded V (drifts slowly). Brand-blue glyph
+         at 7% — exactly as the source icon renders on the navy gradient. -->
     <div
       aria-hidden="true"
       class="animate-drift pointer-events-none absolute -bottom-32 -right-32 w-[640px] select-none opacity-[0.07]"
     >
-      <VMark class="w-full text-white" />
+      <VMark class="w-full text-[#0227A6]" />
     </div>
 
     <!-- Brand -->
@@ -139,9 +140,10 @@
         mask-image: radial-gradient(ellipse at 70% 40%, black 0%, transparent 75%);
       "
     ></div>
-    <!-- Huge V bleeding off the top-right edge — static watermark -->
+    <!-- Huge V bleeding off the top-right edge — static watermark.
+         Same brand-blue glyph as the source, at 5% on the white panel. -->
     <VMark
-      class="pointer-events-none absolute -right-40 -top-32 w-[460px] select-none text-[oklch(0.18_0.005_260)]"
+      class="pointer-events-none absolute -right-40 -top-32 w-[460px] select-none text-[#0227A6]"
       style="opacity: 0.05;"
     />
 
