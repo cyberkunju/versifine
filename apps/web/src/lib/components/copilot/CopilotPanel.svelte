@@ -202,7 +202,7 @@
       <div class="flex flex-col items-center gap-3 py-10 text-center">
         <Sparkles class="h-8 w-8 text-[hsl(var(--primary))]" />
         <p class="text-sm text-[hsl(var(--muted-foreground))]">
-          Ask Vivien anything about your money. Math always goes through tools — every number is real.
+          Ask Vivien anything about your money — or just say "log 1,200 for groceries" and it's recorded. Every number runs through real tools.
         </p>
         <div class="grid w-full grid-cols-1 gap-2 pt-2 sm:grid-cols-2">
           <button

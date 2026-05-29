@@ -94,6 +94,12 @@ describe('screenInput — legitimate finance questions pass', () => {
     'how much money did I get as salary last month',
     // finance question that contains a number resembling math
     'if I save 5000 every month how long to reach 1 lakh',
+    // transaction-logging actions must always pass
+    'log 1000 for the cab',
+    'add my 85000 salary',
+    'record 250 spent on coffee',
+    'note down 4500 groceries from dmart',
+    'log that 1000 man',
   ];
   for (const text of allowed) {
     test(`allows: ${text.slice(0, 48)}`, () => {

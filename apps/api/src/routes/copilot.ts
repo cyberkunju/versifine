@@ -205,7 +205,11 @@ app.post('/chat', requireUser, copilotLimit, async (c) => {
 
               for (const tc of toolCalls) {
                 send({ type: 'tool_call', name: tc.name, args: tc.args });
-                const result = await dispatchTool(user.activeSpaceId, tc.name, tc.args);
+                const result = await dispatchTool(
+                  { spaceId: user.activeSpaceId, userId: user.id, source: 'manual_web' },
+                  tc.name,
+                  tc.args,
+                );
                 send({ type: 'tool_result', name: tc.name, result });
                 conversation.push({
                   role: 'tool',

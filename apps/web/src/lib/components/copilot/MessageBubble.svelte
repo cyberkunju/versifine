@@ -51,6 +51,16 @@
     if (name === 'compare_periods') {
       return 'Comparison ready';
     }
+    if (name === 'log_transaction') {
+      const tx = r.transaction as
+        | { amount: number; currency: string; description: string; wallet?: string }
+        | undefined;
+      if (r.ok && tx) {
+        const amount = formatCurrency(tx.amount, (tx.currency as never) ?? 'INR');
+        return `Logged ${amount} — ${tx.description}${tx.wallet ? ` (${tx.wallet})` : ''}`;
+      }
+      if (typeof r.message === 'string') return String(r.message);
+    }
     return JSON.stringify(r).slice(0, 140);
   }
 </script>

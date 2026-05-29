@@ -121,7 +121,7 @@ export async function answerFinanceQuestion(
         for (const tc of toolCalls) {
           if (tc.type !== 'function') continue;
           const result = await dispatchTool(
-            user.activeSpaceId,
+            { spaceId: user.activeSpaceId, userId: user.id, source: 'whatsapp_text' },
             tc.function.name,
             tc.function.arguments || '{}',
           );

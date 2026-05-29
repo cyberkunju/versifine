@@ -15,12 +15,25 @@
  */
 import { and, between, desc, eq, gte, isNull, lte, sql as drizzleSql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
+import { CATEGORIES, type TransactionSource } from '@versifine/shared';
 import { db } from '../../db/client.ts';
 import { recurringItems } from '../../db/schema/recurring.ts';
 import { transactions } from '../../db/schema/transactions.ts';
 import { log } from '../../utils/logger.ts';
+import { listLiveWallets, pickWallet } from '../capture/wallet.ts';
 
 type Range = { from: string; to: string };
+
+/**
+ * Context every tool dispatch carries. Read tools only need the space id;
+ * the write tool (`log_transaction`) also needs the acting user id (for the
+ * WS event + audit) and the surface it came from (web vs WhatsApp).
+ */
+export interface ToolContext {
+  spaceId: string;
+  userId: string;
+  source?: TransactionSource;
+}
 
 function isoRange(range: Range): { from: string; to: string } {
   const safe = (v: string) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '');
@@ -345,6 +358,142 @@ export async function compare_periods(
   };
 }
 
+/* ------------------------------------------------------------------ *
+ * Write tool — log a transaction.
+ *
+ * The copilot is otherwise read-only; this is the single mutation it can
+ * perform, and it routes through the SAME createTransaction pipeline the
+ * omnibar and bot use (FX, categorisation, budget recompute, WS events).
+ * It is space-scoped and validates input, so the model cannot fabricate a
+ * cross-tenant write or a malformed row.
+ * ------------------------------------------------------------------ */
+interface LogTransactionArgs {
+  type?: 'expense' | 'income';
+  amount?: number;
+  description?: string;
+  category?: string | null;
+  currency?: string | null;
+  date?: string | null;
+  walletHint?: string | null;
+}
+
+export interface LogTransactionResult {
+  tool: 'log_transaction';
+  ok: true;
+  transaction: {
+    id: string;
+    type: 'income' | 'expense' | 'transfer';
+    amount: number;
+    currency: string;
+    description: string;
+    category: string | null;
+    date: string;
+    wallet: string;
+  };
+}
+
+function todayIso(): string {
+  const d = new Date();
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+}
+
+export async function log_transaction(
+  ctx: ToolContext,
+  args: LogTransactionArgs,
+): Promise<LogTransactionResult | ReturnType<typeof unavailable>> {
+  const amount = typeof args.amount === 'number' ? args.amount : Number(args.amount);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return unavailable('log_transaction', 'a positive amount is required');
+  }
+  const description = (args.description ?? '').toString().trim().slice(0, 280);
+  if (!description) {
+    return unavailable('log_transaction', 'a short description is required');
+  }
+  const type: 'expense' | 'income' = args.type === 'income' ? 'income' : 'expense';
+  const date = typeof args.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(args.date)
+    ? args.date
+    : todayIso();
+  const currency =
+    typeof args.currency === 'string' && args.currency.trim()
+      ? args.currency.trim().toUpperCase().slice(0, 3)
+      : undefined;
+  const category =
+    typeof args.category === 'string' && (CATEGORIES as readonly string[]).includes(args.category)
+      ? args.category
+      : undefined;
+
+  // Resolve a wallet in this space (hint → exact/word/type → first wallet).
+  const live = await listLiveWallets(ctx.spaceId);
+  const pick = pickWallet(live, args.walletHint ?? null);
+  if (!pick.wallet) {
+    return unavailable('log_transaction', 'no wallet is set up yet — add one first');
+  }
+
+  try {
+    // Lazy import keeps copilotTools cycle-free with the transactions module.
+    const path = '../transactions/' + 'create.ts';
+    const mod = (await import(path)) as {
+      createTransaction?: (opts: {
+        userId: string;
+        spaceId: string;
+        source: TransactionSource;
+        input: Record<string, unknown>;
+      }) => Promise<{
+        id: string;
+        type: string;
+        amount: string;
+        currency: string;
+        description: string;
+        category: string | null;
+        date: string;
+      }>;
+    };
+    if (typeof mod.createTransaction !== 'function') {
+      return unavailable('log_transaction', 'transaction service not ready');
+    }
+    const input: Record<string, unknown> = {
+      type,
+      amount,
+      date,
+      description,
+      walletId: pick.wallet.id,
+      tags: [],
+    };
+    if (currency) input.currency = currency;
+    if (category) input.category = category;
+
+    const row = await mod.createTransaction({
+      userId: ctx.userId,
+      spaceId: ctx.spaceId,
+      source: ctx.source ?? 'manual_web',
+      input,
+    });
+
+    return {
+      tool: 'log_transaction',
+      ok: true,
+      transaction: {
+        id: row.id,
+        type: (row.type === 'opening_balance' ? 'expense' : row.type) as
+          | 'income'
+          | 'expense'
+          | 'transfer',
+        amount: Number(row.amount),
+        currency: row.currency,
+        description: row.description,
+        category: row.category,
+        date: row.date,
+        wallet: pick.wallet.name,
+      },
+    };
+  } catch (err) {
+    log.warn('TOOL_LOG_TRANSACTION_FAIL', {
+      error: err instanceof Error ? err.message.slice(0, 240) : String(err),
+    });
+    return unavailable('log_transaction', 'could not save the transaction');
+  }
+}
+
 /**
  * The OpenAI tool descriptors the model sees. Kept in one place so the
  * route handler can pass them straight to the chat completions API.
@@ -444,15 +593,52 @@ export const COPILOT_TOOL_SPECS = [
       },
     },
   },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'log_transaction',
+      description:
+        'Record a new expense or income for the user. Use this when the user asks to log/add/record a spend or income (e.g. "log 1000 for taxi", "add my 85000 salary"). Only call when you have at least an amount and a short description; if the amount or what it was for is unclear, ask first instead of guessing.',
+      parameters: {
+        type: 'object',
+        properties: {
+          type: {
+            type: 'string',
+            enum: ['expense', 'income'],
+            description: 'expense (money out) or income (money in). Default expense.',
+          },
+          amount: { type: 'number', description: 'positive amount in the wallet currency' },
+          description: {
+            type: 'string',
+            description: 'short noun phrase of what it was for, e.g. "taxi", "salary", "groceries"',
+          },
+          category: {
+            type: 'string',
+            description: 'optional category name; omit to let the server categorise',
+          },
+          currency: { type: 'string', description: 'optional ISO code like INR/USD; omit for default' },
+          date: { type: 'string', description: 'optional YYYY-MM-DD; omit for today' },
+          walletHint: {
+            type: 'string',
+            description: 'optional wallet name/type the user named (e.g. "cash", "hdfc")',
+          },
+        },
+        required: ['amount', 'description'],
+      },
+    },
+  },
 ];
 
 /**
  * Dispatch a model-issued tool call to the matching server function.
  * Always returns a JSON-serializable object so the route can stuff it
  * straight back into the chat history as a `tool` message.
+ *
+ * Read tools only need `ctx.spaceId`; `log_transaction` also uses
+ * `ctx.userId` + `ctx.source` for the write + WS event.
  */
 export async function dispatchTool(
-  spaceId: string,
+  ctx: ToolContext,
   name: string,
   rawArgs: string,
 ): Promise<unknown> {
@@ -464,15 +650,17 @@ export async function dispatchTool(
   }
   switch (name) {
     case 'compute_total':
-      return compute_total(spaceId, args as unknown as ComputeTotalArgs);
+      return compute_total(ctx.spaceId, args as unknown as ComputeTotalArgs);
     case 'compute_category_breakdown':
-      return compute_category_breakdown(spaceId, args as unknown as BreakdownArgs);
+      return compute_category_breakdown(ctx.spaceId, args as unknown as BreakdownArgs);
     case 'compute_forecast':
-      return compute_forecast(spaceId, args as unknown as { days: number });
+      return compute_forecast(ctx.spaceId, args as unknown as { days: number });
     case 'find_recurring':
-      return find_recurring(spaceId);
+      return find_recurring(ctx.spaceId);
     case 'compare_periods':
-      return compare_periods(spaceId, args as unknown as { a: Range; b: Range });
+      return compare_periods(ctx.spaceId, args as unknown as { a: Range; b: Range });
+    case 'log_transaction':
+      return log_transaction(ctx, args as unknown as LogTransactionArgs);
     default:
       return unavailable(name, 'unknown tool');
   }
