@@ -58,12 +58,44 @@ const MATCH_PRIORITY: Record<MatchKind, number> = {
 
 const COMPILED: ReadonlyArray<CompiledMerchant> = compile();
 
+/**
+ * Read merchants.json, tolerating both the dev layout (source files run
+ * directly, dirname = src/services/categorize) and the bundled layout
+ * (dist/index.js, dirname = apps/api/dist). We try a few candidate paths
+ * and use the first that exists.
+ */
+function readMerchantsRaw(): string | null {
+  const candidates = [
+    MERCHANTS_PATH, // src/services/categorize → src/data (dev)
+    resolve(import.meta.dirname, '../data/merchants.json'), // dist → src? unlikely but cheap
+    resolve(import.meta.dirname, 'data/merchants.json'),
+    resolve(import.meta.dirname, '../src/data/merchants.json'), // dist → src/data (bundle)
+    resolve(import.meta.dirname, '../../src/data/merchants.json'),
+    resolve(process.cwd(), 'src/data/merchants.json'),
+    resolve(process.cwd(), 'apps/api/src/data/merchants.json'),
+  ];
+  for (const path of candidates) {
+    try {
+      return readFileSync(path, 'utf8');
+    } catch {
+      // try the next candidate
+    }
+  }
+  return null;
+}
+
 function compile(): CompiledMerchant[] {
   let raw: { merchants?: RawMerchantEntry[] } | null = null;
+  const text = readMerchantsRaw();
+  if (text === null) {
+    log.warn('CATEGORIZE_MERCHANTS_LOAD_FAIL', {
+      path: MERCHANTS_PATH,
+      error: 'merchants.json not found in any candidate path',
+    });
+    return [];
+  }
   try {
-    raw = JSON.parse(readFileSync(MERCHANTS_PATH, 'utf8')) as {
-      merchants?: RawMerchantEntry[];
-    };
+    raw = JSON.parse(text) as { merchants?: RawMerchantEntry[] };
   } catch (err) {
     log.warn('CATEGORIZE_MERCHANTS_LOAD_FAIL', {
       path: MERCHANTS_PATH,

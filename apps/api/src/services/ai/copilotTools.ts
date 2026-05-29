@@ -20,6 +20,7 @@ import { db } from '../../db/client.ts';
 import { recurringItems } from '../../db/schema/recurring.ts';
 import { transactions } from '../../db/schema/transactions.ts';
 import { log } from '../../utils/logger.ts';
+import { createTransaction } from '../transactions/create.ts';
 import { listLiveWallets, pickWallet } from '../capture/wallet.ts';
 
 type Range = { from: string; to: string };
@@ -430,27 +431,6 @@ export async function log_transaction(
   }
 
   try {
-    // Lazy import keeps copilotTools cycle-free with the transactions module.
-    const path = '../transactions/' + 'create.ts';
-    const mod = (await import(path)) as {
-      createTransaction?: (opts: {
-        userId: string;
-        spaceId: string;
-        source: TransactionSource;
-        input: Record<string, unknown>;
-      }) => Promise<{
-        id: string;
-        type: string;
-        amount: string;
-        currency: string;
-        description: string;
-        category: string | null;
-        date: string;
-      }>;
-    };
-    if (typeof mod.createTransaction !== 'function') {
-      return unavailable('log_transaction', 'transaction service not ready');
-    }
     const input: Record<string, unknown> = {
       type,
       amount,
@@ -462,7 +442,7 @@ export async function log_transaction(
     if (currency) input.currency = currency;
     if (category) input.category = category;
 
-    const row = await mod.createTransaction({
+    const row = await createTransaction({
       userId: ctx.userId,
       spaceId: ctx.spaceId,
       source: ctx.source ?? 'manual_web',
