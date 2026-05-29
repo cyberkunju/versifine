@@ -94,11 +94,11 @@
   let slideIdx = $state(0);
   const slide = $derived(SLIDES[slideIdx]!);
 
-  // Honest reading pace: a short base plus time per word, clamped so even
-  // one-liners breathe and long lines never overstay.
+  // Honest reading pace, a touch quicker now: a short base plus time per
+  // word, clamped so even one-liners breathe and long lines never overstay.
   function readingMs(text: string): number {
     const words = text.trim().split(/\s+/).length;
-    return Math.min(12000, Math.max(5200, 2600 + words * 360));
+    return Math.min(8500, Math.max(4000, 1800 + words * 260));
   }
 
   // Advance after the current slide's reading time. Re-runs whenever the
@@ -122,31 +122,25 @@
     typeof window !== 'undefined' &&
     window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-  // Incoming: a soft upward wipe — sharpen from blur, settle into place, and
-  // reveal from the baseline up. Subtle, editorial, never flashy.
-  function revealIn(_node: Element, { duration = 900 } = {}) {
-    if (prefersReduced) return { duration: 200, css: (t: number) => `opacity:${t}` };
-    return {
-      duration,
-      easing: cubicOut,
-      css: (t: number) => {
-        const u = 1 - t;
-        return `opacity:${t}; filter:blur(${u * 5}px); transform:translateY(${u * 16}px); clip-path: inset(0% 0% ${u * 100}% 0%);`;
-      },
-    };
-  }
-
-  // Outgoing: lift away and dissolve. Shorter than the entrance so the new
-  // line leads. The two overlap briefly for a gentle cross-fade.
-  function concealOut(_node: Element, { duration = 520 } = {}) {
+  // Incoming: a quiet fade with a small settle from below. No blur, no
+  // wipe — just a calm cross-fade that lets the words arrive cleanly.
+  function revealIn(_node: Element, { duration = 620 } = {}) {
     if (prefersReduced) return { duration: 160, css: (t: number) => `opacity:${t}` };
     return {
       duration,
+      easing: cubicOut,
+      css: (t: number) => `opacity:${t}; transform:translateY(${(1 - t) * 8}px);`,
+    };
+  }
+
+  // Outgoing: fade out with a hair of upward lift. Shorter than the
+  // entrance so the two overlap into a soft cross-fade.
+  function concealOut(_node: Element, { duration = 380 } = {}) {
+    if (prefersReduced) return { duration: 120, css: (t: number) => `opacity:${t}` };
+    return {
+      duration,
       easing: cubicInOut,
-      css: (t: number) => {
-        const u = 1 - t;
-        return `opacity:${t}; filter:blur(${u * 4}px); transform:translateY(${-u * 12}px);`;
-      },
+      css: (t: number) => `opacity:${t}; transform:translateY(${-(1 - t) * 6}px);`,
     };
   }
 
@@ -243,19 +237,6 @@
             {/if}
           </figure>
         {/key}
-      </div>
-
-      <!-- Progress — a single hairline that fills over the slide's reading
-           time, with a quiet count. Subtle, no clutter. -->
-      <div class="mt-8 flex items-center gap-4">
-        <div class="h-px flex-1 overflow-hidden bg-white/15">
-          {#key slide.id}
-            <div class="progress-fill h-full bg-white/70" style="--read:{readingMs(slide.text)}ms"></div>
-          {/key}
-        </div>
-        <span class="text-[11px] tabular-nums tracking-wide text-white/40">
-          {String(slideIdx + 1).padStart(2, '0')} / {SLIDES.length}
-        </span>
       </div>
     </div>
 
@@ -479,17 +460,6 @@
   .animate-livedot { animation: livedot 2.2s ease-in-out infinite; }
   .word-rise { animation: rise 0.5s ease-out; }
 
-  /* Progress hairline: fills left→right across the active slide's reading
-     time. Keyed remount restarts it for each slide. */
-  @keyframes progressFill {
-    from { transform: scaleX(0); }
-    to { transform: scaleX(1); }
-  }
-  .progress-fill {
-    transform-origin: left center;
-    animation: progressFill var(--read, 6000ms) linear forwards;
-  }
-
   .rise-1 { opacity: 0; animation: rise 0.7s ease-out 0.05s forwards; }
   .rise-2 { opacity: 0; animation: rise 0.7s ease-out 0.18s forwards; }
   .rise-3 { opacity: 0; animation: rise 0.7s ease-out 0.32s forwards; }
@@ -497,11 +467,9 @@
 
   @media (prefers-reduced-motion: reduce) {
     .animate-drift, .animate-aurora, .animate-livedot, .word-rise,
-    .progress-fill,
     .rise-1, .rise-2, .rise-3, .rise-4 {
       animation: none;
       opacity: 1;
     }
-    .progress-fill { transform: scaleX(1); }
   }
 </style>
