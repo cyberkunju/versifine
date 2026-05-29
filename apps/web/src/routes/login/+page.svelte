@@ -14,6 +14,8 @@
   import { auth } from '$lib/stores/auth.svelte';
   import { toast } from '$lib/stores/toast.svelte';
   import { ApiError } from '$lib/api/types';
+  import VMark from '$lib/components/brand/VMark.svelte';
+  import Wordmark from '$lib/components/brand/Wordmark.svelte';
 
   const ROTATING_WORDS = ['workspace', 'dashboard', 'account', 'studio'];
 
@@ -88,16 +90,16 @@
     ></div>
 
     <!-- Background mark — large faded V (drifts slowly) -->
-    <img
-      src="/brand/versifine-icon.png"
-      alt=""
+    <div
       aria-hidden="true"
       class="animate-drift pointer-events-none absolute -bottom-32 -right-32 w-[640px] select-none opacity-[0.07]"
-    />
+    >
+      <VMark class="w-full text-white" />
+    </div>
 
     <!-- Brand -->
     <a href="/" class="rise-1 relative z-10 inline-flex items-center self-start" aria-label="Versifine home">
-      <img src="/brand/versifine-logo.svg" alt="Versifine" class="h-[22px] w-auto" style="filter: brightness(0) invert(1);" />
+      <Wordmark class="h-[22px] w-auto text-white" />
     </a>
 
     <!-- Quote -->
@@ -138,17 +140,14 @@
       "
     ></div>
     <!-- Huge V bleeding off the top-right edge — static watermark -->
-    <img
-      src="/brand/versifine-icon.png"
-      alt=""
-      aria-hidden="true"
-      class="pointer-events-none absolute -right-40 -top-32 w-[460px] select-none"
+    <VMark
+      class="pointer-events-none absolute -right-40 -top-32 w-[460px] select-none text-[oklch(0.18_0.005_260)]"
       style="opacity: 0.05; transform: rotate(8deg);"
     />
 
     <header class="rise-1 relative z-10 flex items-center justify-between px-6 py-6 sm:px-10">
       <a href="/" class="flex items-center gap-2 lg:hidden" aria-label="Versifine home">
-        <img src="/brand/versifine-icon.png" alt="" class="h-7 w-7" />
+        <VMark class="h-7 w-auto text-[var(--brand)]" />
         <span class="text-[16px] font-semibold tracking-[-0.02em]">Versifine</span>
       </a>
 
