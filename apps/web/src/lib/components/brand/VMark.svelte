@@ -2,24 +2,51 @@
   /**
    * Versifine "V" mark as inline SVG. The viewBox is a square that
    * reproduces the original icon's padding (the V sits centered with ~8%
-   * side padding and ~19%/15% top/bottom), so it's a true drop-in for the
-   * old square PNG at any size. Inlined (not an <img>) so it paints with
-   * the page on a cold/hard refresh — no network round-trip or decode lag.
+   * side padding), so it's a true drop-in for the old square PNG at any
+   * size. Inlined (not an <img>) so it paints with the page on a cold/hard
+   * refresh — no network round-trip or decode lag.
    *
-   * Uses `currentColor` so the parent themes it: white on the navy rail,
-   * ink on the paper panel. Pass `class`/`style` for sizing and placement.
+   * `variant`:
+   *  - 'brand' (default): the source's left→right blue gradient (dark/faded
+   *    left stroke → bright glossy right stroke). Pixel-matches the original
+   *    icon's shading; used for the faded background watermarks.
+   *  - 'solid': a flat `currentColor` fill for places that need a single
+   *    tone (themed by the parent).
+   *
+   * Each instance gets a unique gradient id so multiple marks on one page
+   * never collide.
    */
-  let { class: className = '', style = '' }: { class?: string; style?: string } = $props();
+  let {
+    class: className = '',
+    style = '',
+    variant = 'brand',
+  }: { class?: string; style?: string; variant?: 'brand' | 'solid' } = $props();
+
+  // Stable-per-instance id for the gradient def.
+  const gid = `vmark-${Math.random().toString(36).slice(2, 9)}`;
+  const fill = $derived(variant === 'brand' ? `url(#${gid})` : 'currentColor');
 </script>
 
 <svg
   class={className}
   {style}
   viewBox="227.8 11809.6 5214.1 5214.1"
-  fill="currentColor"
+  fill={fill}
   aria-hidden="true"
   xmlns="http://www.w3.org/2000/svg"
 >
+  {#if variant === 'brand'}
+    <defs>
+      <!-- Horizontal gradient sampled from the source icon: the V's left
+           stroke is deep navy, brightening to a glossy blue on the right. -->
+      <linearGradient id={gid} gradientUnits="userSpaceOnUse" x1="662" y1="0" x2="5007" y2="0">
+        <stop offset="0" stop-color="#00105E" />
+        <stop offset="0.45" stop-color="#011D87" />
+        <stop offset="0.72" stop-color="#0134C8" />
+        <stop offset="1" stop-color="#0142FF" />
+      </linearGradient>
+    </defs>
+  {/if}
   <path d="M670.63 12958.43c4.08,28.99 52.29,97.33 68.26,121.41 76.64,115.56 143.79,232.47 218.25,348.92 49.06,76.7 97.01,154.1 144.98,231.79 336.25,544.56 676.4,1086.7 1009.56,1636.29 133.96,220.98 290.27,485.27 430.58,703.96 54.92,85.59 79.23,165.64 171,205.75 110.18,48.14 214.52,8.8 273.23,-55.06 46.41,-50.49 173.02,-273.13 219.89,-347.39 85.29,-135.12 117.71,-294.07 72.88,-455.53 -24.23,-87.24 -80.07,-182.1 -121.57,-255.26l-273.27 -484.52c-45.47,-78.88 -92.54,-159.94 -136.33,-240.47 -43.58,-80.12 -90.59,-158.67 -136.05,-240.65l-610.99 -1090.77c-80.82,-147.11 -122.46,-221.47 -344.93,-221.78l-753.53 -0.18c-58.11,0.19 -123.1,-3.2 -169.74,20.22 -37.49,18.84 -70.55,64.1 -62.22,123.27z" />
   <path d="M3416.57 15518.42c13.45,-6.91 22.5,-28.78 31.6,-44.02l82.53 -137.57c89.53,-162.34 231.67,-388.6 334.59,-554.53 148.46,-239.37 301.47,-500.06 450.36,-734.9 190.33,-300.2 378.97,-611.23 568.5,-913.17 19.94,-31.77 37.68,-59.83 57.77,-90.39 14.7,-22.35 43.43,-66.74 50.15,-98.65 15.33,-72.75 -52.79,-141.26 -152.3,-142.42l-588.61 -0.13c-90.72,-0.22 -205.37,-4.53 -292.29,3.16 -198.16,17.54 -238.89,140.02 -318.61,274.1 -73.16,123.06 -144.08,253.21 -218.86,373.77 -37.28,60.08 -74.42,124.38 -110.23,186.12l-219.67 372.99c-33.66,58.01 -78.54,125.98 -98.24,198.01 -52.05,190.34 22.3,328.24 98.75,461.35 86.13,149.96 264.14,428.78 306.77,582.23 41.17,148.18 9.49,173.31 17.79,264.05z" />
 </svg>
