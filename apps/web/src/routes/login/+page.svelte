@@ -11,6 +11,7 @@
    * their backends land.
    */
   import { goto } from '$app/navigation';
+  import { cubicOut, cubicInOut } from 'svelte/easing';
   import { auth } from '$lib/stores/auth.svelte';
   import { toast } from '$lib/stores/toast.svelte';
   import { ApiError } from '$lib/api/types';
@@ -31,6 +32,123 @@
     }, 2600);
     return () => clearInterval(id);
   });
+
+  /**
+   * The brand-rail story. Every line here is true and specific — drawn from
+   * the project docs: real features, real engineering calls, real fixes. No
+   * marketing filler. Each slide stays on screen for its own reading time,
+   * then hands off with a soft reveal.
+   */
+  type SlideKind = 'feature' | 'tip' | 'craft' | 'honest' | 'voice';
+  interface Slide {
+    id: number;
+    kind: SlideKind;
+    text: string;
+    by?: string;
+  }
+
+  const KIND_LABEL: Record<SlideKind, string> = {
+    feature: 'What it does',
+    tip: 'Tip',
+    craft: 'Under the hood',
+    honest: 'Straight talk',
+    voice: 'In their words',
+  };
+
+  const SLIDES: Slide[] = [
+    { id: 1, kind: 'feature', text: 'Capture a spend the way you’d say it — type it, speak it, or snap the receipt. Web, WhatsApp, and CSV all flow through one pipeline.' },
+    { id: 2, kind: 'tip', text: '“spent 450 on auto” is all the bar needs. Write it the way you’d say it out loud.' },
+    { id: 3, kind: 'feature', text: 'Ask the co-pilot where your money went. It reads your own transactions, in plain language — never the open internet.' },
+    { id: 4, kind: 'craft', text: 'The co-pilot can only quote a number that came back from a real query. That’s how we structurally stop it from inventing figures.' },
+    { id: 5, kind: 'feature', text: 'Privacy Mode runs categorization inside your browser. Your transaction text never leaves the device.' },
+    { id: 6, kind: 'feature', text: 'Built INR-first: UPI handles, rupee shorthand, and six languages — the way money actually moves in India.' },
+    { id: 7, kind: 'craft', text: 'A fine-tuned model sorts roughly 6,600 expenses a second at about 96% accuracy — and it runs on a plain CPU.' },
+    { id: 8, kind: 'feature', text: 'Correct a category once. The next time that merchant appears it’s labelled instantly — free, and for good.' },
+    { id: 9, kind: 'craft', text: 'Categorization is a four-tier waterfall: your own corrections first, then a 300-merchant India catalogue, then the model, then a safe default.' },
+    { id: 10, kind: 'feature', text: 'Recurring detection finds your subscriptions, rent, and EMIs on its own — and tells you when each one is due next.' },
+    { id: 11, kind: 'feature', text: 'The 30-day forecast separates what’s locked in, like rent and Netflix, from what’s only estimated, like groceries and transport.' },
+    { id: 12, kind: 'craft', text: 'We wrote the ARIMA forecaster by hand — about 120 lines — because honest math you can explain beats a black box you can’t.' },
+    { id: 13, kind: 'feature', text: 'Anomaly detection flags the day your spend jumped, and shows how far past normal it ran.' },
+    { id: 14, kind: 'tip', text: 'Press ⌘K to jump anywhere. ⌘L opens the capture bar from any screen.' },
+    { id: 15, kind: 'feature', text: 'Voice notes work in English, Hindi, Malayalam, Tamil, Telugu, and Kannada — and come back spoken in the same language.' },
+    { id: 16, kind: 'craft', text: 'Tamil and Malayalam share no Unicode block, so we check every translation’s script and retry rather than ship confident nonsense.' },
+    { id: 17, kind: 'tip', text: 'Snap a receipt. If the photo isn’t clear, you get one quick confirmation instead of a wrong guess saved silently.' },
+    { id: 18, kind: 'honest', text: 'Single-user today — but every record already carries a space, so shared household and business books arrive without a migration.' },
+    { id: 19, kind: 'craft', text: 'Three apps, one database: a Hono API, this SvelteKit dashboard, and a WhatsApp bot. One source of truth behind all of it.' },
+    { id: 20, kind: 'craft', text: 'Embeddings run in a background queue, so saving a transaction never waits on a network call.' },
+    { id: 21, kind: 'honest', text: 'We log how long every AI call takes, and never log what you spent it on. Observability without surveillance.' },
+    { id: 22, kind: 'craft', text: 'Every AI service has a fallback. No single upstream failure can lock you out of your own money.' },
+    { id: 23, kind: 'tip', text: 'Link WhatsApp once and capture spends by message — text, voice, or a photo of the bill — without opening the app.' },
+    { id: 24, kind: 'craft', text: '“Day before yesterday” used to match “yesterday.” We reordered the parser so the longer phrase wins. Small bug, real fix.' },
+    { id: 25, kind: 'feature', text: 'Set a goal and the co-pilot tracks whether you’re on pace — and flags it early when you’re drifting off.' },
+    { id: 26, kind: 'feature', text: 'Budgets warn before you breach them, not after. The alert lands while you can still do something about it.' },
+    { id: 27, kind: 'craft', text: 'The merchant key strips UPI prefixes, handles, reference codes, and city tags down to just “swiggy.” Lossy on purpose, stable forever.' },
+    { id: 28, kind: 'feature', text: 'Real-time by default: a spend captured on WhatsApp shows up on this dashboard a moment later, no refresh needed.' },
+    { id: 29, kind: 'tip', text: 'Numbers render with tabular figures, so columns line up and your eye can scan a ledger fast.' },
+    { id: 30, kind: 'honest', text: 'This is an MVP, and the docs say so out loud — every shipped feature, every open issue, every fix, kept in one place.' },
+    { id: 31, kind: 'craft', text: 'Receipts vary wildly — faded thermal prints, angled photos — so vision runs on the larger model and asks when it isn’t sure.' },
+    { id: 32, kind: 'feature', text: 'One pipeline, three doors in: the web omnibar, a WhatsApp message, or a CSV import. Parse, categorize, save, broadcast.' },
+    { id: 33, kind: 'voice', text: 'Versifine has become the quiet backbone of how our team thinks about numbers. It stays out of the way, and that is the highest praise we can give a tool.', by: 'Elena Marchetti · Head of Design, Cinder' },
+  ];
+
+  let slideIdx = $state(0);
+  const slide = $derived(SLIDES[slideIdx]!);
+
+  // Honest reading pace: a short base plus time per word, clamped so even
+  // one-liners breathe and long lines never overstay.
+  function readingMs(text: string): number {
+    const words = text.trim().split(/\s+/).length;
+    return Math.min(12000, Math.max(5200, 2600 + words * 360));
+  }
+
+  // Advance after the current slide's reading time. Re-runs whenever the
+  // index changes (so each gap matches that slide). Pauses while the tab is
+  // hidden — nothing should scroll past unseen.
+  $effect(() => {
+    const current = SLIDES[slideIdx]!;
+    let timer: ReturnType<typeof setTimeout>;
+    const advance = () => {
+      if (typeof document !== 'undefined' && document.hidden) {
+        timer = setTimeout(advance, 1500);
+        return;
+      }
+      slideIdx = (slideIdx + 1) % SLIDES.length;
+    };
+    timer = setTimeout(advance, readingMs(current.text));
+    return () => clearTimeout(timer);
+  });
+
+  const prefersReduced =
+    typeof window !== 'undefined' &&
+    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+  // Incoming: a soft upward wipe — sharpen from blur, settle into place, and
+  // reveal from the baseline up. Subtle, editorial, never flashy.
+  function revealIn(_node: Element, { duration = 900 } = {}) {
+    if (prefersReduced) return { duration: 200, css: (t: number) => `opacity:${t}` };
+    return {
+      duration,
+      easing: cubicOut,
+      css: (t: number) => {
+        const u = 1 - t;
+        return `opacity:${t}; filter:blur(${u * 5}px); transform:translateY(${u * 16}px); clip-path: inset(0% 0% ${u * 100}% 0%);`;
+      },
+    };
+  }
+
+  // Outgoing: lift away and dissolve. Shorter than the entrance so the new
+  // line leads. The two overlap briefly for a gentle cross-fade.
+  function concealOut(_node: Element, { duration = 520 } = {}) {
+    if (prefersReduced) return { duration: 160, css: (t: number) => `opacity:${t}` };
+    return {
+      duration,
+      easing: cubicInOut,
+      css: (t: number) => {
+        const u = 1 - t;
+        return `opacity:${t}; filter:blur(${u * 4}px); transform:translateY(${-u * 12}px);`;
+      },
+    };
+  }
 
   async function submit(e: SubmitEvent) {
     e.preventDefault();
@@ -103,19 +221,43 @@
       <Wordmark class="h-[22px] w-auto text-white" />
     </a>
 
-    <!-- Quote -->
-    <blockquote class="rise-2 relative z-10 max-w-md">
-      <p class="text-[22px] font-light leading-[1.5] tracking-[-0.01em] text-white/95">
-        Versifine has become the quiet backbone of how our team thinks about numbers. It stays out of the
-        way, and that is the highest praise we can give a tool.
-      </p>
-      <footer class="mt-6 flex items-center gap-2 text-[13px] text-white/55">
-        <span aria-hidden="true" class="animate-livedot inline-block h-1.5 w-1.5 rounded-full bg-green-400"></span>
-        <span class="font-medium text-white/85">Elena Marchetti</span>
-        <span class="opacity-50">·</span>
-        <span>Head of Design, Cinder</span>
-      </footer>
-    </blockquote>
+    <!-- Rotating story — features, tips, craft notes, honest takes. Each
+         line is true and specific (sourced from the project docs). One
+         stays for its reading time, then hands off with a soft reveal. -->
+    <div class="rise-2 relative z-10 max-w-md">
+      <div class="relative min-h-[264px]">
+        {#key slide.id}
+          <figure class="absolute inset-0" in:revealIn out:concealOut>
+            <figcaption class="mb-5 flex items-center gap-2.5 text-[11px] font-medium uppercase tracking-[0.18em] text-white/45">
+              <span aria-hidden="true" class="h-px w-7 bg-gradient-to-r from-white/50 to-transparent"></span>
+              {KIND_LABEL[slide.kind]}
+            </figcaption>
+            <p class="font-light tracking-[-0.01em] text-white/95 {slide.kind === 'voice' ? 'text-[22px] leading-[1.5]' : 'text-[20px] leading-[1.55]'}">
+              {slide.text}
+            </p>
+            {#if slide.by}
+              <footer class="mt-6 flex items-center gap-2 text-[13px] text-white/55">
+                <span aria-hidden="true" class="animate-livedot inline-block h-1.5 w-1.5 rounded-full bg-green-400"></span>
+                <span>{slide.by}</span>
+              </footer>
+            {/if}
+          </figure>
+        {/key}
+      </div>
+
+      <!-- Progress — a single hairline that fills over the slide's reading
+           time, with a quiet count. Subtle, no clutter. -->
+      <div class="mt-8 flex items-center gap-4">
+        <div class="h-px flex-1 overflow-hidden bg-white/15">
+          {#key slide.id}
+            <div class="progress-fill h-full bg-white/70" style="--read:{readingMs(slide.text)}ms"></div>
+          {/key}
+        </div>
+        <span class="text-[11px] tabular-nums tracking-wide text-white/40">
+          {String(slideIdx + 1).padStart(2, '0')} / {SLIDES.length}
+        </span>
+      </div>
+    </div>
 
     <!-- Footer -->
     <div class="rise-3 relative z-10 flex items-center justify-between text-[12px] text-white/45">
@@ -337,6 +479,17 @@
   .animate-livedot { animation: livedot 2.2s ease-in-out infinite; }
   .word-rise { animation: rise 0.5s ease-out; }
 
+  /* Progress hairline: fills left→right across the active slide's reading
+     time. Keyed remount restarts it for each slide. */
+  @keyframes progressFill {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+  }
+  .progress-fill {
+    transform-origin: left center;
+    animation: progressFill var(--read, 6000ms) linear forwards;
+  }
+
   .rise-1 { opacity: 0; animation: rise 0.7s ease-out 0.05s forwards; }
   .rise-2 { opacity: 0; animation: rise 0.7s ease-out 0.18s forwards; }
   .rise-3 { opacity: 0; animation: rise 0.7s ease-out 0.32s forwards; }
@@ -344,9 +497,11 @@
 
   @media (prefers-reduced-motion: reduce) {
     .animate-drift, .animate-aurora, .animate-livedot, .word-rise,
+    .progress-fill,
     .rise-1, .rise-2, .rise-3, .rise-4 {
       animation: none;
       opacity: 1;
     }
+    .progress-fill { transform: scaleX(1); }
   }
 </style>
