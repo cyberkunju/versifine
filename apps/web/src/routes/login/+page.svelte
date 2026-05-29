@@ -137,13 +137,13 @@
         mask-image: radial-gradient(ellipse at 70% 40%, black 0%, transparent 75%);
       "
     ></div>
-    <!-- Huge V bleeding off the top-right edge -->
+    <!-- Huge V bleeding off the top-right edge — static watermark -->
     <img
       src="/brand/versifine-icon.png"
       alt=""
       aria-hidden="true"
-      class="animate-drift pointer-events-none absolute -right-40 -top-32 w-[460px] select-none"
-      style="opacity: 0.05; transform: rotate(8deg); animation-delay: -9s;"
+      class="pointer-events-none absolute -right-40 -top-32 w-[460px] select-none"
+      style="opacity: 0.05; transform: rotate(8deg);"
     />
 
     <header class="rise-1 relative z-10 flex items-center justify-between px-6 py-6 sm:px-10">
@@ -181,12 +181,6 @@
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z" />
             </svg>
             <span>Continue with Google</span>
-          </button>
-          <button type="button" onclick={() => comingSoon('Continue with Apple')} class="social-btn">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-2.987 1.49-.12-1.17.44-2.34 1.118-3.08.762-.83 2.05-1.44 3.046-1.49zM21.5 17.36c-.36.84-.53 1.21-.99 1.95-.64 1.03-1.54 2.31-2.66 2.32-1 .01-1.26-.65-2.61-.64-1.35.01-1.64.65-2.64.64-1.12-.01-1.97-1.17-2.61-2.2-1.79-2.87-1.98-6.24-.87-8.03.78-1.27 2.02-2.02 3.18-2.02 1.18 0 1.92.65 2.9.65.95 0 1.53-.65 2.9-.65 1.04 0 2.13.57 2.91 1.55-2.56 1.4-2.14 5.05.49 6.43z" />
-            </svg>
-            <span>Continue with Apple</span>
           </button>
         </div>
 
@@ -347,9 +341,6 @@
   .rise-3 { opacity: 0; animation: rise 0.7s ease-out 0.32s forwards; }
   .rise-4 { opacity: 0; animation: rise 0.7s ease-out 0.46s forwards; }
 
-  /* The drifting V also carries an inline rotate on the form side; the
-     drift keyframe starts/ends at rotate(0) so the inline transform is
-     overridden during animation — same behaviour as the React original. */
   @media (prefers-reduced-motion: reduce) {
     .animate-drift, .animate-aurora, .animate-livedot, .word-rise,
     .rise-1, .rise-2, .rise-3, .rise-4 {
