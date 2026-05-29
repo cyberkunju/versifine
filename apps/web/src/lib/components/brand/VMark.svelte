@@ -1,12 +1,13 @@
 <script lang="ts">
   /**
-   * Versifine "V" mark as inline SVG, cropped tight to the glyph from the
-   * brand vector. Inlined (not an <img>) so it paints with the page on a
-   * cold/hard refresh — no network round-trip or image-decode lag.
+   * Versifine "V" mark as inline SVG. The viewBox is a square that
+   * reproduces the original icon's padding (the V sits centered with ~8%
+   * side padding and ~19%/15% top/bottom), so it's a true drop-in for the
+   * old square PNG at any size. Inlined (not an <img>) so it paints with
+   * the page on a cold/hard refresh — no network round-trip or decode lag.
    *
    * Uses `currentColor` so the parent themes it: white on the navy rail,
-   * ink on the paper panel. Pass `class`/`style` for sizing, placement,
-   * opacity, and any animation.
+   * ink on the paper panel. Pass `class`/`style` for sizing and placement.
    */
   let { class: className = '', style = '' }: { class?: string; style?: string } = $props();
 </script>
@@ -14,7 +15,7 @@
 <svg
   class={className}
   {style}
-  viewBox="488.5 12590.7 4692.7 3871.4"
+  viewBox="227.8 11809.6 5214.1 5214.1"
   fill="currentColor"
   aria-hidden="true"
   xmlns="http://www.w3.org/2000/svg"

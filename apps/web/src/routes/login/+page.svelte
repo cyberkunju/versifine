@@ -142,7 +142,7 @@
     <!-- Huge V bleeding off the top-right edge — static watermark -->
     <VMark
       class="pointer-events-none absolute -right-40 -top-32 w-[460px] select-none text-[oklch(0.18_0.005_260)]"
-      style="opacity: 0.05; transform: rotate(8deg);"
+      style="opacity: 0.05;"
     />
 
     <header class="rise-1 relative z-10 flex items-center justify-between px-6 py-6 sm:px-10">
