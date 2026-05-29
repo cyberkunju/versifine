@@ -94,11 +94,11 @@
   let slideIdx = $state(0);
   const slide = $derived(SLIDES[slideIdx]!);
 
-  // Honest reading pace, a touch quicker now: a short base plus time per
-  // word, clamped so even one-liners breathe and long lines never overstay.
+  // Honest reading pace: a short base plus time per word, clamped so even
+  // one-liners breathe and long lines never overstay.
   function readingMs(text: string): number {
     const words = text.trim().split(/\s+/).length;
-    return Math.min(8500, Math.max(4000, 1800 + words * 260));
+    return Math.min(10500, Math.max(6000, 3800 + words * 260));
   }
 
   // Advance after the current slide's reading time. Re-runs whenever the
@@ -217,16 +217,17 @@
 
     <!-- Rotating story — features, tips, craft notes, honest takes. Each
          line is true and specific (sourced from the project docs). One
-         stays for its reading time, then hands off with a soft reveal. -->
-    <div class="rise-2 relative z-10 max-w-md">
-      <div class="relative min-h-[264px]">
+         stays for its reading time, then hands off with a soft reveal.
+         Fills the space between brand and footer and centers vertically. -->
+    <div class="rise-2 relative z-10 flex flex-1 items-center">
+      <div class="relative min-h-[280px] w-full max-w-md">
         {#key slide.id}
-          <figure class="absolute inset-0" in:revealIn out:concealOut>
+          <figure class="absolute inset-0 flex flex-col justify-center" in:revealIn out:concealOut>
             <figcaption class="mb-5 flex items-center gap-2.5 text-[11px] font-medium uppercase tracking-[0.18em] text-white/45">
               <span aria-hidden="true" class="h-px w-7 bg-gradient-to-r from-white/50 to-transparent"></span>
               {KIND_LABEL[slide.kind]}
             </figcaption>
-            <p class="font-light tracking-[-0.01em] text-white/95 {slide.kind === 'voice' ? 'text-[22px] leading-[1.5]' : 'text-[20px] leading-[1.55]'}">
+            <p class="font-light tracking-[-0.01em] text-white/95 {slide.kind === 'voice' ? 'text-[24px] leading-[1.5]' : 'text-[22px] leading-[1.55]'}">
               {slide.text}
             </p>
             {#if slide.by}
