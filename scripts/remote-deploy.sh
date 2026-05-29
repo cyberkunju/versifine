@@ -70,7 +70,11 @@ log "Building wa-bot bundle"
 [ -f apps/wa-bot/dist/index.js ] || { echo "ERROR: apps/wa-bot/dist/index.js missing"; exit 1; }
 
 log "Building web (SvelteKit + adapter-node)"
-( cd apps/web && /usr/local/bin/bun x vite build )
+# `svelte-kit sync` regenerates `.svelte-kit/tsconfig.json` and the
+# generated route types. The deploy clones a fresh checkout so this dir
+# doesn't exist yet — without sync the build fails on the tsconfig
+# extends path.
+( cd apps/web && /usr/local/bin/bun x svelte-kit sync && /usr/local/bin/bun x vite build )
 [ -f apps/web/build/index.js ] || { echo "ERROR: apps/web/build/index.js missing"; exit 1; }
 
 # ---- 3. Hash existing dist trees BEFORE we overwrite them ---------------

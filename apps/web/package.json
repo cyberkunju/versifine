@@ -12,6 +12,7 @@
   "dependencies": {
     "@versifine/shared": "workspace:*",
     "@huggingface/transformers": "3.3.3",
+    "@internationalized/date": "^3.5.6",
     "@sveltejs/kit": "^2.15.1",
     "bits-ui": "^1.0.0",
     "class-variance-authority": "^0.7.1",
