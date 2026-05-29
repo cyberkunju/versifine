@@ -1,23 +1,34 @@
 <script lang="ts">
   /**
-   * Login — editorial split, pixel-matched to the approved design.
+   * Login — "Login Redefined", ported 1:1 from the approved React/Lovable
+   * design into our SvelteKit + Svelte 5 stack. Same editorial split, same
+   * motion: aurora glow blobs, a slowly drifting background "V", staggered
+   * rise-in reveals, a rotating headline word, the live status dot, and the
+   * gradient Sign-in button with a sweeping shimmer.
    *
-   * Left: a deep brand-navy (#001F77) rail carrying the Versifine wordmark,
-   * a customer pull-quote, and a quiet legal footer. Right: the sign-in card
-   * on paper-white with SSO options, an email/password form, and fine print.
-   *
-   * On success the auth store updates and we route to the dashboard. The SSO
-   * buttons and "forgot password" are presentational entry points today and
-   * surface a toast until their backends land.
+   * The email/password form is wired to our auth store; SSO + "forgot
+   * password" are presentational entry points that surface a toast until
+   * their backends land.
    */
   import { goto } from '$app/navigation';
   import { auth } from '$lib/stores/auth.svelte';
   import { toast } from '$lib/stores/toast.svelte';
   import { ApiError } from '$lib/api/types';
 
+  const ROTATING_WORDS = ['workspace', 'dashboard', 'account', 'studio'];
+
   let email = $state('');
   let password = $state('');
   let error = $state<string | null>(null);
+  let wordIdx = $state(0);
+
+  // Rotate the headline word every 2.6s, retriggering the rise animation.
+  $effect(() => {
+    const id = setInterval(() => {
+      wordIdx = (wordIdx + 1) % ROTATING_WORDS.length;
+    }, 2600);
+    return () => clearInterval(id);
+  });
 
   async function submit(e: SubmitEvent) {
     e.preventDefault();
@@ -35,159 +46,315 @@
   }
 </script>
 
-<svelte:head><title>Sign in · Versifine</title></svelte:head>
+<svelte:head>
+  <title>Log in · Versifine</title>
+  <meta name="description" content="Sign in to your Versifine account." />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+</svelte:head>
 
-<div class="grid min-h-screen w-full bg-white lg:grid-cols-2">
-  <!-- ───────────────────────── Brand rail ───────────────────────── -->
+<div
+  class="login grid min-h-screen w-full lg:grid-cols-2"
+  style="
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.18 0.005 260);
+    --muted-foreground: oklch(0.55 0.008 260);
+    --border: oklch(0.92 0.004 260);
+    --secondary: oklch(0.975 0.002 260);
+    --brand: oklch(0.32 0.18 268);
+    --brand-deep: oklch(0.24 0.16 268);
+    background: var(--background);
+    color: var(--foreground);
+    font-family: 'Outfit', ui-sans-serif, system-ui, sans-serif;
+  "
+>
+  <!-- ───────── Left brand panel ───────── -->
   <aside
-    class="relative hidden flex-col justify-between overflow-hidden px-14 py-12 text-white lg:flex"
-    style="background:
-      radial-gradient(135% 135% at 0% 0%, rgba(255,255,255,0.12), transparent 52%),
-      linear-gradient(152deg, #0A2A8E 0%, #001F77 46%, #001451 100%);"
+    class="relative hidden flex-col justify-between overflow-hidden p-10 text-white lg:flex xl:p-14"
+    style="background: linear-gradient(160deg, oklch(0.32 0.18 268) 0%, oklch(0.22 0.16 268) 60%, oklch(0.16 0.12 268) 100%);"
   >
-    <!-- faint geometric facet, lower-right -->
-    <div class="pointer-events-none absolute inset-0" aria-hidden="true">
-      <svg class="absolute -bottom-10 right-0 h-[78%] w-auto opacity-[0.07]" viewBox="0 0 520 520" fill="none">
-        <path d="M520 60 L520 520 L120 520 Z" fill="white" />
-        <path d="M520 220 L520 520 L300 520 Z" fill="white" fill-opacity="0.6" />
-      </svg>
-    </div>
+    <!-- Aurora glow blobs -->
+    <div
+      aria-hidden="true"
+      class="animate-aurora pointer-events-none absolute -left-32 -top-40 h-[520px] w-[520px] rounded-full"
+      style="background: radial-gradient(closest-side, oklch(0.55 0.22 290 / 0.55), transparent 70%); filter: blur(40px);"
+    ></div>
+    <div
+      aria-hidden="true"
+      class="animate-aurora pointer-events-none absolute -right-24 top-1/3 h-[420px] w-[420px] rounded-full"
+      style="background: radial-gradient(closest-side, oklch(0.6 0.2 230 / 0.45), transparent 70%); filter: blur(50px); animation-delay: -7s;"
+    ></div>
 
-    <!-- top: wordmark -->
-    <a href="/" class="relative z-10 w-fit">
-      <img src="/brand/versifine-wordmark-white.svg" alt="Versifine" class="h-[22px] w-auto" />
+    <!-- Background mark — large faded V (drifts slowly) -->
+    <img
+      src="/brand/versifine-icon.png"
+      alt=""
+      aria-hidden="true"
+      class="animate-drift pointer-events-none absolute -bottom-32 -right-32 w-[640px] select-none opacity-[0.07]"
+    />
+
+    <!-- Brand -->
+    <a href="/" class="rise-1 relative z-10 inline-flex items-center self-start" aria-label="Versifine home">
+      <img src="/brand/versifine-logo.svg" alt="Versifine" class="h-[22px] w-auto" style="filter: brightness(0) invert(1);" />
     </a>
 
-    <!-- middle: testimonial -->
-    <figure class="relative z-10 max-w-md">
-      <blockquote class="text-[1.75rem] font-normal leading-[1.45] tracking-[-0.01em] text-white/95">
+    <!-- Quote -->
+    <blockquote class="rise-2 relative z-10 max-w-md">
+      <p class="text-[22px] font-light leading-[1.5] tracking-[-0.01em] text-white/95">
         Versifine has become the quiet backbone of how our team thinks about numbers. It stays out of the
         way, and that is the highest praise we can give a tool.
-      </blockquote>
-      <figcaption class="mt-6 text-sm">
-        <span class="font-semibold text-white">Elena Marchetti</span>
-        <span class="text-white/55">&nbsp;·&nbsp; Head of Design, Cinder</span>
-      </figcaption>
-    </figure>
+      </p>
+      <footer class="mt-6 flex items-center gap-2 text-[13px] text-white/55">
+        <span aria-hidden="true" class="animate-livedot inline-block h-1.5 w-1.5 rounded-full bg-green-400"></span>
+        <span class="font-medium text-white/85">Elena Marchetti</span>
+        <span class="opacity-50">·</span>
+        <span>Head of Design, Cinder</span>
+      </footer>
+    </blockquote>
 
-    <!-- bottom: legal -->
-    <div class="relative z-10 flex items-center justify-between text-xs text-white/50">
-      <span>© 2026 Versifine, Inc.</span>
-      <nav class="flex items-center gap-6">
+    <!-- Footer -->
+    <div class="rise-3 relative z-10 flex items-center justify-between text-[12px] text-white/45">
+      <span>© {new Date().getFullYear()} Versifine, Inc.</span>
+      <div class="flex gap-5">
         <a href="/" class="transition-colors hover:text-white/80">Privacy</a>
         <a href="/" class="transition-colors hover:text-white/80">Terms</a>
-      </nav>
+      </div>
     </div>
   </aside>
 
-  <!-- ───────────────────────── Sign-in card ───────────────────────── -->
-  <main class="relative flex items-center justify-center px-6 py-12 sm:px-10">
-    <!-- top-right: create account -->
-    <p class="absolute right-6 top-6 text-sm text-[#6B7280] sm:right-10 sm:top-8">
-      New to Versifine?
-      <a href="/register" class="font-semibold text-[#001F77] transition-opacity hover:opacity-80">Create an account</a>
-    </p>
+  <!-- ───────── Right form panel ───────── -->
+  <main class="relative flex flex-col overflow-hidden">
+    <!-- Faint dot grid background -->
+    <div
+      aria-hidden="true"
+      class="pointer-events-none absolute inset-0 opacity-60"
+      style="
+        background-image: radial-gradient(oklch(0.18 0.005 260 / 0.06) 1px, transparent 1px);
+        background-size: 22px 22px;
+        -webkit-mask-image: radial-gradient(ellipse at 70% 40%, black 0%, transparent 75%);
+        mask-image: radial-gradient(ellipse at 70% 40%, black 0%, transparent 75%);
+      "
+    ></div>
+    <!-- Huge V bleeding off the top-right edge -->
+    <img
+      src="/brand/versifine-icon.png"
+      alt=""
+      aria-hidden="true"
+      class="animate-drift pointer-events-none absolute -right-40 -top-32 w-[460px] select-none"
+      style="opacity: 0.05; transform: rotate(8deg); animation-delay: -9s;"
+    />
 
-    <div class="w-full max-w-sm">
-      <!-- mobile wordmark -->
-      <a href="/" class="mb-10 block w-fit lg:hidden">
-        <img src="/brand/versifine-wordmark-navy.svg" alt="Versifine" class="h-6 w-auto" />
+    <header class="rise-1 relative z-10 flex items-center justify-between px-6 py-6 sm:px-10">
+      <a href="/" class="flex items-center gap-2 lg:hidden" aria-label="Versifine home">
+        <img src="/brand/versifine-icon.png" alt="" class="h-7 w-7" />
+        <span class="text-[16px] font-semibold tracking-[-0.02em]">Versifine</span>
       </a>
 
-      <h1 class="text-[1.75rem] font-bold leading-tight tracking-[-0.02em] text-[#0B1220]">
-        Sign in to your account
-      </h1>
-      <p class="mt-2 text-[0.95rem] text-[#6B7280]">Welcome back. Please enter your details.</p>
-
-      <!-- SSO -->
-      <div class="mt-7 space-y-3">
-        <button
-          type="button"
-          onclick={() => comingSoon('Continue with Google')}
-          class="flex h-12 w-full items-center justify-center gap-3 rounded-lg border border-[#E5E7EB] bg-white text-[0.95rem] font-medium text-[#1F2937] transition-colors hover:bg-[#F9FAFB]"
-        >
-          <svg class="h-[18px] w-[18px]" viewBox="0 0 18 18" aria-hidden="true">
-            <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.71-1.57 2.68-3.89 2.68-6.62z"/>
-            <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/>
-            <path fill="#FBBC05" d="M3.97 10.72a5.41 5.41 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/>
-            <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.47.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/>
-          </svg>
-          Continue with Google
-        </button>
-
-        <button
-          type="button"
-          onclick={() => comingSoon('Continue with Apple')}
-          class="flex h-12 w-full items-center justify-center gap-3 rounded-lg border border-[#E5E7EB] bg-white text-[0.95rem] font-medium text-[#1F2937] transition-colors hover:bg-[#F9FAFB]"
-        >
-          <svg class="h-[18px] w-[18px]" viewBox="0 0 384 512" fill="#000" aria-hidden="true">
-            <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C71.5 141.5 0 184.7 0 272.4c0 25.8 4.7 52.4 14.1 79.9 12.6 36.3 58 125.3 105.4 123.9 24.8-.6 42.3-17.6 74.5-17.6 31.2 0 47.4 17.6 76.4 17.6 47.8-.7 88.9-81.6 100.9-118 -64-30.2-60.9-88.5-60.9-91.5zM256.5 86.3c30-35.6 27.3-68 26.4-79.7 -26.5 1.5-57.2 18-74.7 38.3 -19.3 21.8-30.6 48.8-28.2 79.1 28.6 2.2 54.8-12.5 76.5-37.7z"/>
-          </svg>
-          Continue with Apple
-        </button>
+      <div class="ml-auto text-[13px] text-[var(--muted-foreground)]">
+        New to Versifine?
+        <a href="/register" class="font-medium underline-offset-4 hover:underline" style="color: var(--brand);">
+          Create an account
+        </a>
       </div>
+    </header>
 
-      <!-- divider -->
-      <div class="my-6 flex items-center gap-4">
-        <span class="h-px flex-1 bg-[#E5E7EB]"></span>
-        <span class="text-xs text-[#9CA3AF]">or</span>
-        <span class="h-px flex-1 bg-[#E5E7EB]"></span>
-      </div>
-
-      <!-- email / password -->
-      <form onsubmit={submit} novalidate class="space-y-5">
-        <div class="space-y-1.5">
-          <label for="email" class="block text-sm font-semibold text-[#374151]">Email</label>
-          <input
-            id="email"
-            type="email"
-            autocomplete="email"
-            required
-            placeholder="name@company.com"
-            bind:value={email}
-            class="h-11 w-full rounded-lg border border-[#D1D5DB] bg-white px-3.5 text-[0.95rem] text-[#111827] placeholder:text-[#9CA3AF] outline-none transition-shadow focus:border-[#001F77] focus:ring-2 focus:ring-[#001F77]/15"
-          />
+    <div class="relative z-10 flex flex-1 items-center justify-center px-6 pb-16">
+      <div class="w-full max-w-[380px]">
+        <div class="rise-2">
+          <h1 class="flex flex-wrap items-baseline gap-x-1.5 text-[24px] font-semibold tracking-[-0.02em]">
+            <span>Sign in to your</span>
+            {#key wordIdx}
+              <span class="word-rise inline-block" style="color: var(--brand);">{ROTATING_WORDS[wordIdx]}</span>
+            {/key}
+          </h1>
+          <p class="mt-1.5 text-[14px] text-[var(--muted-foreground)]">Welcome back. Please enter your details.</p>
         </div>
 
-        <div class="space-y-1.5">
-          <div class="flex items-center justify-between">
-            <label for="password" class="block text-sm font-semibold text-[#374151]">Password</label>
-            <button
-              type="button"
-              onclick={() => comingSoon('Password reset')}
-              class="text-sm text-[#6B7280] transition-colors hover:text-[#001F77]"
-            >Forgot password?</button>
+        <div class="rise-3 mt-8 space-y-2.5">
+          <button type="button" onclick={() => comingSoon('Continue with Google')} class="social-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.99.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z" />
+            </svg>
+            <span>Continue with Google</span>
+          </button>
+          <button type="button" onclick={() => comingSoon('Continue with Apple')} class="social-btn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-2.987 1.49-.12-1.17.44-2.34 1.118-3.08.762-.83 2.05-1.44 3.046-1.49zM21.5 17.36c-.36.84-.53 1.21-.99 1.95-.64 1.03-1.54 2.31-2.66 2.32-1 .01-1.26-.65-2.61-.64-1.35.01-1.64.65-2.64.64-1.12-.01-1.97-1.17-2.61-2.2-1.79-2.87-1.98-6.24-.87-8.03.78-1.27 2.02-2.02 3.18-2.02 1.18 0 1.92.65 2.9.65.95 0 1.53-.65 2.9-.65 1.04 0 2.13.57 2.91 1.55-2.56 1.4-2.14 5.05.49 6.43z" />
+            </svg>
+            <span>Continue with Apple</span>
+          </button>
+        </div>
+
+        <div class="relative my-6">
+          <div class="absolute inset-0 flex items-center">
+            <div class="w-full border-t border-[var(--border)]"></div>
           </div>
-          <input
-            id="password"
-            type="password"
-            autocomplete="current-password"
-            required
-            placeholder="Enter your password"
-            bind:value={password}
-            class="h-11 w-full rounded-lg border border-[#D1D5DB] bg-white px-3.5 text-[0.95rem] text-[#111827] placeholder:text-[#9CA3AF] outline-none transition-shadow focus:border-[#001F77] focus:ring-2 focus:ring-[#001F77]/15"
-          />
+          <div class="relative flex justify-center">
+            <span class="bg-[var(--background)] px-3 text-[12px] text-[var(--muted-foreground)]">or</span>
+          </div>
         </div>
 
-        {#if error}
-          <p class="rounded-lg border border-[#DC2626]/30 bg-[#DC2626]/[0.06] px-3.5 py-2.5 text-sm text-[#B91C1C]" role="alert">{error}</p>
-        {/if}
+        <form onsubmit={submit} novalidate class="rise-4 space-y-4">
+          <label class="block">
+            <div class="mb-1.5 flex items-center justify-between">
+              <span class="text-[13px] font-medium">Email</span>
+            </div>
+            <input
+              type="email"
+              bind:value={email}
+              placeholder="name@company.com"
+              autocomplete="email"
+              required
+              class="field-input"
+            />
+          </label>
 
-        <button
-          type="submit"
-          disabled={auth.loading}
-          class="h-12 w-full rounded-lg bg-[#001F77] text-[0.95rem] font-semibold text-white transition-colors hover:bg-[#001451] disabled:opacity-60"
-        >
-          {auth.loading ? 'Signing in…' : 'Sign in'}
-        </button>
-      </form>
+          <label class="block">
+            <div class="mb-1.5 flex items-center justify-between">
+              <span class="text-[13px] font-medium">Password</span>
+              <button
+                type="button"
+                onclick={() => comingSoon('Password reset')}
+                class="text-[12px] text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
+              >Forgot password?</button>
+            </div>
+            <input
+              type="password"
+              bind:value={password}
+              placeholder="Enter your password"
+              autocomplete="current-password"
+              required
+              class="field-input"
+            />
+          </label>
 
-      <p class="mt-6 text-center text-[0.8rem] leading-relaxed text-[#9CA3AF]">
-        By continuing, you agree to our
-        <a href="/" class="font-medium text-[#4B5563] underline-offset-2 hover:underline">Terms</a>
-        and
-        <a href="/" class="font-medium text-[#4B5563] underline-offset-2 hover:underline">Privacy Policy</a>.
-      </p>
+          {#if error}
+            <p class="text-[13px] text-[oklch(0.55_0.18_28)]" role="alert">{error}</p>
+          {/if}
+
+          <button
+            type="submit"
+            disabled={auth.loading}
+            class="group relative mt-1 w-full overflow-hidden rounded-md py-2.5 text-[14px] font-medium text-white transition-transform active:scale-[0.99] disabled:opacity-70"
+            style="
+              background: linear-gradient(120deg, var(--brand-deep), var(--brand) 50%, var(--brand-deep));
+              background-size: 200% 100%;
+              box-shadow: 0 8px 24px -10px color-mix(in oklab, var(--brand) 60%, transparent);
+            "
+          >
+            <span class="relative z-10 inline-flex items-center justify-center gap-2">
+              {auth.loading ? 'Signing in…' : 'Sign in'}
+              {#if !auth.loading}
+                <span aria-hidden="true" class="transition-transform group-hover:translate-x-0.5">→</span>
+              {/if}
+            </span>
+            <span
+              aria-hidden="true"
+              class="absolute inset-0 -translate-x-full transition-transform duration-[1100ms] ease-out group-hover:translate-x-full"
+              style="background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);"
+            ></span>
+          </button>
+
+          <div class="flex items-center justify-center gap-1.5 pt-1 text-[11px] text-[var(--muted-foreground)]">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="11" width="18" height="11" rx="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+            <span>Protected by end-to-end encryption</span>
+          </div>
+        </form>
+
+        <p class="mt-8 text-center text-[12px] text-[var(--muted-foreground)]">
+          By continuing, you agree to our
+          <a href="/" class="underline-offset-4 hover:underline" style="color: color-mix(in oklab, var(--foreground) 80%, transparent);">Terms</a>
+          and
+          <a href="/" class="underline-offset-4 hover:underline" style="color: color-mix(in oklab, var(--foreground) 80%, transparent);">Privacy Policy</a>.
+        </p>
+      </div>
     </div>
   </main>
 </div>
+
+<style>
+  /* ───── Inputs (matches the design's themed Field exactly) ───── */
+  .field-input {
+    width: 100%;
+    background: var(--background);
+    border: 1px solid var(--border);
+    border-radius: 0.375rem;
+    padding: 0.625rem 0.75rem;
+    font-size: 14px;
+    transition: all 0.15s ease;
+  }
+  .field-input::placeholder {
+    color: color-mix(in oklab, var(--muted-foreground) 70%, transparent);
+  }
+  .field-input:focus {
+    outline: none;
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand) 18%, transparent);
+  }
+
+  /* ───── Social buttons ───── */
+  .social-btn {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    gap: 0.625rem;
+    border: 1px solid var(--border);
+    background: var(--background);
+    border-radius: 0.375rem;
+    padding: 0.625rem 0;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background-color 0.15s ease;
+  }
+  .social-btn:hover {
+    background: var(--secondary);
+  }
+
+  /* ───── Custom keyframes (ported from styles.css) ───── */
+  @keyframes drift {
+    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+    50% { transform: translate(-18px, -22px) rotate(-3deg); }
+  }
+  @keyframes aurora {
+    0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.55; }
+    50% { transform: translate(40px, -30px) scale(1.15); opacity: 0.8; }
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes livedot {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 color-mix(in oklab, #4ade80 60%, transparent); }
+    50% { opacity: 0.7; box-shadow: 0 0 0 6px transparent; }
+  }
+
+  .animate-drift { animation: drift 18s ease-in-out infinite; }
+  .animate-aurora { animation: aurora 14s ease-in-out infinite; }
+  .animate-livedot { animation: livedot 2.2s ease-in-out infinite; }
+  .word-rise { animation: rise 0.5s ease-out; }
+
+  .rise-1 { opacity: 0; animation: rise 0.7s ease-out 0.05s forwards; }
+  .rise-2 { opacity: 0; animation: rise 0.7s ease-out 0.18s forwards; }
+  .rise-3 { opacity: 0; animation: rise 0.7s ease-out 0.32s forwards; }
+  .rise-4 { opacity: 0; animation: rise 0.7s ease-out 0.46s forwards; }
+
+  /* The drifting V also carries an inline rotate on the form side; the
+     drift keyframe starts/ends at rotate(0) so the inline transform is
+     overridden during animation — same behaviour as the React original. */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-drift, .animate-aurora, .animate-livedot, .word-rise,
+    .rise-1, .rise-2, .rise-3, .rise-4 {
+      animation: none;
+      opacity: 1;
+    }
+  }
+</style>
