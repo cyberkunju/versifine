@@ -9,9 +9,9 @@
  * The library is CommonJS. We `import waPkg from 'whatsapp-web.js'`
  * and destructure to keep TS happy across the verbatimModuleSyntax flag.
  */
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { writeFile, rename } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import qrcodeTerminal from 'qrcode-terminal';
 import qrcodeImage from 'qrcode';
 import waPkg from 'whatsapp-web.js';
@@ -68,9 +68,47 @@ const BOT_ROOT = resolveBotRoot();
 const QR_PNG_PATH = resolve(BOT_ROOT, '.qr.png');
 const SESSION_DIR = resolve(BOT_ROOT, '.wwebjs_auth');
 
+/**
+ * Remove stale Chromium Singleton lock files left behind by an unclean
+ * shutdown.
+ *
+ * systemd stops the bot with SIGINT (KillSignal=SIGINT → exit 130), and a
+ * crash/restart can leave `SingletonLock`, `SingletonSocket`, and
+ * `SingletonCookie` in the session profile. On the next boot Chromium sees
+ * those, assumes another instance owns the profile, and the WhatsApp client
+ * authenticates but then hangs forever before `ready` — the bot looks alive
+ * (`/health` ok) but silently receives nothing. whatsapp-web.js stores the
+ * profile under `<dataPath>/session-<clientId>`. We sweep the lock files in
+ * that tree (auth tokens live in other files and are untouched).
+ */
+function clearStaleChromeLocks(): void {
+  const names = ['SingletonLock', 'SingletonSocket', 'SingletonCookie'];
+  const profile = join(SESSION_DIR, `session-${env.SESSION_ID}`);
+  let cleared = 0;
+  for (const base of [SESSION_DIR, profile]) {
+    for (const name of names) {
+      const p = join(base, name);
+      try {
+        if (existsSync(p)) {
+          rmSync(p, { force: true });
+          cleared += 1;
+        }
+      } catch {
+        // best-effort; a leftover lock we can't remove will surface as the
+        // usual hang and is recoverable by a manual restart.
+      }
+    }
+  }
+  if (cleared > 0) log.info('CHROME_LOCKS_CLEARED', { count: cleared });
+}
+
 let qrSnapshot: QrSnapshot | null = null;
 let isReady = false;
 let watchdogFails = 0;
+let readyTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** How long to wait for `ready` after `authenticated` before self-restarting. */
+const READY_TIMEOUT_MS = 75_000;
 
 const BROWSER_CANDIDATES_WIN = [
   'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
@@ -90,6 +128,10 @@ function detectBrowser(): string | undefined {
 
 export async function createClient(): Promise<WhatsAppLikeClient> {
   if (!existsSync(SESSION_DIR)) mkdirSync(SESSION_DIR, { recursive: true });
+
+  // Sweep stale Chromium locks before launch so an unclean prior shutdown
+  // doesn't leave the client stuck "authenticated but never ready".
+  clearStaleChromeLocks();
 
   const executablePath = detectBrowser();
   if (executablePath) {
@@ -171,12 +213,27 @@ export async function createClient(): Promise<WhatsAppLikeClient> {
 
   client.on('ready', () => {
     isReady = true;
+    if (readyTimer) {
+      clearTimeout(readyTimer);
+      readyTimer = null;
+    }
     qrSnapshot = null;
     log.info('CLIENT_READY', {});
   });
 
   client.on('authenticated', () => {
     log.info('CLIENT_AUTH_OK', {});
+    // Safety net: on LID-era accounts the client sometimes authenticates but
+    // never fires `ready` (stuck loading), leaving the bot unable to receive
+    // anything. If `ready` hasn't fired within the window, exit so systemd
+    // restarts us — and the on-boot lock sweep clears whatever wedged it.
+    if (readyTimer) clearTimeout(readyTimer);
+    readyTimer = setTimeout(() => {
+      if (!isReady) {
+        log.error('READY_TIMEOUT', { afterMs: READY_TIMEOUT_MS });
+        process.exit(2);
+      }
+    }, READY_TIMEOUT_MS);
   });
 
   client.on('auth_failure', (msg) => {
