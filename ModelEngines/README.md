@@ -5,6 +5,11 @@ transaction categorizer. This is a **standalone Python project** (the rest of
 the monorepo is TypeScript/Bun); it produces a small, fast, multilingual ONNX
 model bundle that the API and the web app load at runtime.
 
+> **Full A-to-Z documentation lives in [`docs/`](docs/README.md)** — read that
+> first. It is self-contained: someone with only the `docs/` folder + these
+> scripts can rebuild the entire model to extreme accuracy. This README is the
+> quick orientation; the docs are the specification.
+
 ---
 
 ## Why this exists
