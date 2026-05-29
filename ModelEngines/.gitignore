@@ -1,0 +1,23 @@
+# Intermediate datasets + trained artifacts — large, regenerable, never committed.
+data/
+artifacts/
+*.parquet
+*.jsonl
+*.onnx
+*.safetensors
+*.bin
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.ipynb_checkpoints/
+
+# Modal
+.modal.toml
+
+# OS
+.DS_Store
+Thumbs.db

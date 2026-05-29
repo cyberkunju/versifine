@@ -1,0 +1,143 @@
+{
+  "version": "2.0.0",
+  "description": "Versifine categorization taxonomy v2. Hierarchical: groups -> leaves. The model predicts a leaf; the UI may roll up to a group. India-first, anchored on Plaid Personal Finance Categories + ISO 18245 MCC groups so coverage is exhaustive. 'kind' marks expense/income/transfer/neutral so downstream flows can filter. 'legacy' maps each leaf back to the v1 23-category set for backward compatibility.",
+  "groups": [
+    {
+      "key": "food_drink",
+      "name": "Food & Drink",
+      "leaves": [
+        { "key": "groceries", "name": "Groceries", "kind": "expense", "legacy": "Groceries", "examples": ["dmart", "big bazaar", "reliance fresh", "vegetables", "sabzi", "kirana", "supermarket", "bigbasket", "blinkit groceries"] },
+        { "key": "restaurants", "name": "Restaurants", "kind": "expense", "legacy": "Restaurants", "examples": ["dinner", "lunch buffet", "barbeque nation", "cafe", "thali", "biryani restaurant"] },
+        { "key": "fast_food", "name": "Fast Food", "kind": "expense", "legacy": "Fast Food", "examples": ["mcdonalds", "kfc", "burger", "dominos", "pizza", "vada pav", "street food"] },
+        { "key": "food_delivery", "name": "Food Delivery", "kind": "expense", "legacy": "Food Delivery", "examples": ["swiggy", "zomato", "food delivery", "online order khana"] },
+        { "key": "coffee_beverages", "name": "Coffee & Beverages", "kind": "expense", "legacy": "Coffee & Beverages", "examples": ["starbucks", "chai", "tea", "ccd", "cafe coffee day", "juice", "tapri"] },
+        { "key": "alcohol_bars", "name": "Alcohol & Bars", "kind": "expense", "legacy": "Restaurants", "examples": ["bar", "pub", "wine shop", "liquor", "beer", "brewery", "tasmac"] }
+      ]
+    },
+    {
+      "key": "transport",
+      "name": "Transport",
+      "leaves": [
+        { "key": "ride_hailing_taxi", "name": "Ride-hailing & Taxi", "kind": "expense", "legacy": "Transportation", "examples": ["uber", "ola", "rapido", "auto", "cab", "taxi", "rickshaw"] },
+        { "key": "public_transit", "name": "Public Transit", "kind": "expense", "legacy": "Transportation", "examples": ["metro", "bus", "local train", "irctc", "dtc", "bmtc", "namma metro"] },
+        { "key": "fuel", "name": "Gas & Fuel", "kind": "expense", "legacy": "Gas & Fuel", "examples": ["petrol", "diesel", "indian oil", "hp petrol", "bharat petroleum", "fuel pump"] },
+        { "key": "parking_tolls", "name": "Parking & Tolls", "kind": "expense", "legacy": "Transportation", "examples": ["fastag", "toll", "parking", "parking fee"] },
+        { "key": "vehicle_maintenance", "name": "Vehicle Maintenance", "kind": "expense", "legacy": "Transportation", "examples": ["car service", "bike service", "puncture", "tyre", "garage", "spare parts"] }
+      ]
+    },
+    {
+      "key": "shopping",
+      "name": "Shopping",
+      "leaves": [
+        { "key": "shopping_retail", "name": "Shopping & Retail", "kind": "expense", "legacy": "Shopping & Retail", "examples": ["amazon", "flipkart", "myntra", "mall", "shopping"] },
+        { "key": "clothing", "name": "Clothing & Apparel", "kind": "expense", "legacy": "Shopping & Retail", "examples": ["zara", "h&m", "shirt", "saree", "kurta", "shoes", "footwear"] },
+        { "key": "electronics", "name": "Electronics & Gadgets", "kind": "expense", "legacy": "Shopping & Retail", "examples": ["croma", "reliance digital", "mobile", "laptop", "headphones", "charger"] },
+        { "key": "convenience", "name": "Convenience", "kind": "expense", "legacy": "Convenience", "examples": ["general store", "stationery", "xerox", "convenience store", "kirana small"] },
+        { "key": "home_goods", "name": "Home & Furniture", "kind": "expense", "legacy": "Shopping & Retail", "examples": ["ikea", "pepperfry", "furniture", "home decor", "utensils", "kitchenware"] },
+        { "key": "gifts", "name": "Gifts", "kind": "expense", "legacy": "Shopping & Retail", "examples": ["gift", "present", "birthday gift", "wedding gift", "shagun"] }
+      ]
+    },
+    {
+      "key": "bills_utilities",
+      "name": "Bills & Utilities",
+      "leaves": [
+        { "key": "electricity", "name": "Electricity", "kind": "expense", "legacy": "Bills & Utilities", "examples": ["electricity bill", "power bill", "bescom", "adani electricity", "tata power"] },
+        { "key": "water", "name": "Water", "kind": "expense", "legacy": "Bills & Utilities", "examples": ["water bill", "water tanker", "jal board"] },
+        { "key": "gas_lpg", "name": "Gas & LPG", "kind": "expense", "legacy": "Bills & Utilities", "examples": ["gas cylinder", "lpg", "indane", "piped gas", "gas bill"] },
+        { "key": "mobile_recharge", "name": "Mobile & Recharge", "kind": "expense", "legacy": "Bills & Utilities", "examples": ["jio recharge", "airtel recharge", "vi recharge", "mobile bill", "prepaid"] },
+        { "key": "internet_broadband", "name": "Internet & Broadband", "kind": "expense", "legacy": "Bills & Utilities", "examples": ["broadband", "wifi bill", "act fibernet", "jio fiber", "airtel broadband"] },
+        { "key": "dth_cable", "name": "DTH & Cable", "kind": "expense", "legacy": "Bills & Utilities", "examples": ["tata sky", "dish tv", "cable tv", "dth recharge"] }
+      ]
+    },
+    {
+      "key": "housing",
+      "name": "Housing",
+      "leaves": [
+        { "key": "rent", "name": "Rent", "kind": "expense", "legacy": "Housing", "examples": ["house rent", "flat rent", "pg rent", "room rent", "rent paid"] },
+        { "key": "mortgage_home_loan", "name": "Home Loan / Mortgage", "kind": "expense", "legacy": "Housing", "examples": ["home loan emi", "housing loan", "mortgage payment"] },
+        { "key": "maintenance_society", "name": "Society & Maintenance", "kind": "expense", "legacy": "Housing", "examples": ["society maintenance", "flat maintenance", "apartment fees", "association fee"] },
+        { "key": "domestic_help", "name": "Domestic Help", "kind": "expense", "legacy": "Housing", "examples": ["maid salary", "cook salary", "house help", "bai", "driver salary", "gardener"] },
+        { "key": "home_services", "name": "Home Services & Repairs", "kind": "expense", "legacy": "Housing", "examples": ["plumber", "electrician", "carpenter", "urban company", "pest control", "ac repair"] }
+      ]
+    },
+    {
+      "key": "health",
+      "name": "Health & Wellness",
+      "leaves": [
+        { "key": "healthcare_medical", "name": "Healthcare & Medical", "kind": "expense", "legacy": "Healthcare", "examples": ["hospital", "doctor", "clinic", "consultation", "diagnostic", "lab test", "apollo"] },
+        { "key": "pharmacy", "name": "Pharmacy", "kind": "expense", "legacy": "Healthcare", "examples": ["pharmacy", "medical store", "medicines", "apollo pharmacy", "1mg", "tablets"] },
+        { "key": "personal_care", "name": "Personal Care & Salon", "kind": "expense", "legacy": "Other", "examples": ["salon", "haircut", "spa", "parlour", "grooming", "cosmetics", "beauty"] },
+        { "key": "fitness_sports", "name": "Fitness & Sports", "kind": "expense", "legacy": "Other", "examples": ["gym", "cult.fit", "yoga", "sports club", "swimming", "fitness membership"] }
+      ]
+    },
+    {
+      "key": "entertainment",
+      "name": "Entertainment & Leisure",
+      "leaves": [
+        { "key": "entertainment", "name": "Entertainment & Events", "kind": "expense", "legacy": "Entertainment", "examples": ["movie", "pvr", "inox", "bookmyshow", "concert", "amusement park", "event"] },
+        { "key": "subscriptions", "name": "Subscriptions", "kind": "expense", "legacy": "Subscriptions", "examples": ["netflix", "spotify", "prime", "hotstar", "youtube premium", "saas subscription"] },
+        { "key": "gaming", "name": "Gaming", "kind": "expense", "legacy": "Entertainment", "examples": ["steam", "playstation", "game purchase", "in-app game", "xbox"] },
+        { "key": "hobbies", "name": "Hobbies & Recreation", "kind": "expense", "legacy": "Entertainment", "examples": ["books", "music class", "art supplies", "photography", "hobby"] }
+      ]
+    },
+    {
+      "key": "travel",
+      "name": "Travel",
+      "leaves": [
+        { "key": "flights", "name": "Flights", "kind": "expense", "legacy": "Travel", "examples": ["indigo", "air india", "vistara", "flight booking", "makemytrip flight"] },
+        { "key": "hotels_lodging", "name": "Hotels & Lodging", "kind": "expense", "legacy": "Travel", "examples": ["hotel", "oyo", "airbnb", "resort", "lodge", "homestay"] },
+        { "key": "trains_intercity", "name": "Trains & Intercity", "kind": "expense", "legacy": "Travel", "examples": ["irctc booking", "train ticket", "redbus", "intercity bus", "volvo"] },
+        { "key": "travel_other", "name": "Travel - Other", "kind": "expense", "legacy": "Travel", "examples": ["visa fee", "travel insurance", "tour package", "forex card", "holiday"] }
+      ]
+    },
+    {
+      "key": "finance",
+      "name": "Finance & Obligations",
+      "leaves": [
+        { "key": "loan_emi", "name": "Loans & EMI", "kind": "expense", "legacy": "Bills & Utilities", "examples": ["personal loan emi", "loan repayment", "bajaj finserv emi", "credit card emi", "no cost emi"] },
+        { "key": "insurance", "name": "Insurance", "kind": "expense", "legacy": "Insurance", "examples": ["lic premium", "health insurance", "car insurance", "term insurance", "policy premium"] },
+        { "key": "investments", "name": "Investments & Savings", "kind": "expense", "legacy": "Transfers", "examples": ["sip", "mutual fund", "zerodha", "groww", "stocks", "fd", "ppf", "gold investment", "nps"] },
+        { "key": "bank_fees", "name": "Bank Fees & Charges", "kind": "expense", "legacy": "Other", "examples": ["bank charges", "atm fee", "late fee", "penalty", "annual fee", "gst charge", "convenience fee"] },
+        { "key": "taxes", "name": "Taxes & Government", "kind": "expense", "legacy": "Other", "examples": ["income tax", "gst payment", "property tax", "advance tax", "challan", "passport fee"] },
+        { "key": "credit_card_payment", "name": "Credit Card Payment", "kind": "transfer", "legacy": "Transfers", "examples": ["credit card bill payment", "cred payment", "card bill paid"] }
+      ]
+    },
+    {
+      "key": "education_family",
+      "name": "Education & Family",
+      "leaves": [
+        { "key": "education", "name": "Education & Tuition", "kind": "expense", "legacy": "Education", "examples": ["school fees", "college fees", "tuition", "coaching", "udemy", "byjus", "online course"] },
+        { "key": "childcare", "name": "Childcare & Kids", "kind": "expense", "legacy": "Childcare", "examples": ["daycare", "creche", "baby products", "diapers", "kids toys", "babysitter"] },
+        { "key": "pets", "name": "Pets", "kind": "expense", "legacy": "Other", "examples": ["pet food", "vet", "pedigree", "dog grooming", "aquarium", "pet supplies"] }
+      ]
+    },
+    {
+      "key": "giving",
+      "name": "Giving & Transfers",
+      "leaves": [
+        { "key": "charity_donations", "name": "Charity & Donations", "kind": "expense", "legacy": "Giving", "examples": ["donation", "temple", "ngo", "charity", "daan", "religious offering", "zakat"] },
+        { "key": "transfers", "name": "Transfers & Self", "kind": "transfer", "legacy": "Transfers", "examples": ["self transfer", "to savings", "moved to wallet", "fund transfer", "neft self"] },
+        { "key": "people_payments", "name": "People & P2P", "kind": "transfer", "legacy": "Transfers", "examples": ["sent to friend", "paid back", "split payment", "lent", "borrowed", "upi to person"] },
+        { "key": "cash_atm", "name": "Cash & ATM", "kind": "neutral", "legacy": "Cash & ATM", "examples": ["atm withdrawal", "cash withdrawal", "cash deposit", "atm"] }
+      ]
+    },
+    {
+      "key": "income",
+      "name": "Income",
+      "leaves": [
+        { "key": "salary", "name": "Salary & Wages", "kind": "income", "legacy": "Income", "examples": ["salary", "salary credited", "payroll", "wages", "monthly salary"] },
+        { "key": "business_income", "name": "Business & Freelance", "kind": "income", "legacy": "Income", "examples": ["client payment", "freelance", "invoice paid", "business income", "consulting fee"] },
+        { "key": "investment_income", "name": "Interest & Dividends", "kind": "income", "legacy": "Income", "examples": ["interest credited", "dividend", "fd interest", "savings interest", "capital gain"] },
+        { "key": "refunds_cashback", "name": "Refunds & Cashback", "kind": "income", "legacy": "Income", "examples": ["refund", "cashback", "reversal", "amazon refund", "reward credited"] },
+        { "key": "other_income", "name": "Other Income", "kind": "income", "legacy": "Income", "examples": ["gift received", "rent received", "prize", "scholarship", "reimbursement"] }
+      ]
+    },
+    {
+      "key": "misc",
+      "name": "Miscellaneous",
+      "leaves": [
+        { "key": "other", "name": "Other", "kind": "expense", "legacy": "Other", "examples": ["miscellaneous", "unknown", "uncategorized"] }
+      ]
+    }
+  ]
+}

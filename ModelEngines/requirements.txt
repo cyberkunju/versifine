@@ -1,0 +1,35 @@
+# ModelEngines — pinned Python dependencies.
+#
+# Split by where they run. The laptop needs the data + (optional) local-train
+# stack; Modal images install their own pins inside modal_app.py, but we keep
+# the versions here as the source of truth.
+
+# --- core data plumbing (laptop + modal) ---
+duckdb==1.1.3
+pyarrow==18.1.0
+pandas==2.2.3
+polars==1.17.1
+datasets==3.2.0
+huggingface-hub==0.27.0
+requests==2.32.3
+tqdm==4.67.1
+orjson==3.10.12
+
+# --- knowledge-graph harvest (laptop) ---
+SPARQLWrapper==2.0.0
+
+# --- training + export (modal; optional on laptop) ---
+torch==2.5.1
+sentence-transformers==3.3.1
+transformers==4.47.1
+accelerate==1.2.1
+scikit-learn==1.6.0
+optimum[onnxruntime]==1.23.3
+onnx==1.17.0
+onnxruntime==1.20.1
+
+# --- serving the teacher (modal only; also pinned in the image) ---
+# vllm is installed in the Modal image, not here, to avoid a heavy local dep.
+
+# --- orchestration ---
+modal==0.68.45
