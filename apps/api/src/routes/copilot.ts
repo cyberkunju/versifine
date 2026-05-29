@@ -355,8 +355,24 @@ app.post('/chat', copilotLimit, async (c) => {
     new ReadableStream<Uint8Array>({
       async start(controller) {
         const encoder = new TextEncoder();
+        let closed = false;
         const send = (payload: Record<string, unknown>) => {
-          controller.enqueue(encoder.encode(buildSseChunk(payload)));
+          if (closed) return;
+          try {
+            controller.enqueue(encoder.encode(buildSseChunk(payload)));
+          } catch {
+            // Client went away mid-stream; stop trying to write.
+            closed = true;
+          }
+        };
+        const finish = () => {
+          if (closed) return;
+          closed = true;
+          try {
+            controller.close();
+          } catch {
+            // already closed by the platform — fine.
+          }
         };
 
         try {
@@ -447,7 +463,7 @@ app.post('/chat', copilotLimit, async (c) => {
               tokens: assistantContent.length,
             });
             send({ type: 'done', messageId });
-            controller.close();
+            finish();
             return;
           }
 
@@ -456,16 +472,16 @@ app.post('/chat', copilotLimit, async (c) => {
             type: 'error',
             message: 'Tool-call loop exceeded the per-turn budget.',
           });
-          controller.close();
+          finish();
         } catch (err) {
-          log.warn('COPILOT_STREAM_FAIL', {
-            error: err instanceof Error ? err.message.slice(0, 240) : String(err),
-          });
-          send({
-            type: 'error',
-            message: 'Copilot ran into a problem; try again.',
-          });
-          controller.close();
+          // A client disconnect surfaces as a closed-controller error; that's
+          // not a real failure, so only log genuine problems.
+          const msg = err instanceof Error ? err.message : String(err);
+          if (!closed && !/closed|aborted/i.test(msg)) {
+            log.warn('COPILOT_STREAM_FAIL', { error: msg.slice(0, 240) });
+            send({ type: 'error', message: 'Copilot ran into a problem; try again.' });
+          }
+          finish();
         }
       },
     }),
