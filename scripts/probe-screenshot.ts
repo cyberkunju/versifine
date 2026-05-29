@@ -67,6 +67,7 @@ function send(method: string, params: Record<string, unknown> = {}): Promise<unk
 const consoleLines: string[] = [];
 const exceptions: string[] = [];
 const failed: string[] = [];
+const requestUrls = new Map<string, string>();
 
 ws.addEventListener('message', (e) => {
   const data = JSON.parse(e.data as string) as { id?: number; result?: unknown; method?: string; params?: Record<string, unknown> };
@@ -85,8 +86,14 @@ ws.addEventListener('message', (e) => {
     exceptions.push(`${d.text ?? ''} ${d.exception?.description ?? ''}`.trim() + (d.url ? ` @ ${d.url}:${d.lineNumber}` : ''));
   }
   if (data.method === 'Network.loadingFailed' && data.params) {
-    const p = data.params as { errorText?: string; requestId?: string };
-    failed.push(p.errorText ?? '');
+    const p = data.params as { errorText?: string; requestId?: string; type?: string };
+    failed.push(`${p.errorText ?? ''} (${p.type ?? '?'}) reqId=${p.requestId ?? '?'}`);
+  }
+  if (data.method === 'Network.requestWillBeSent' && data.params) {
+    const p = data.params as { requestId?: string; request?: { url?: string; method?: string } };
+    if (p.request?.url) {
+      requestUrls.set(p.requestId ?? '', `${p.request.method ?? 'GET'} ${p.request.url}`);
+    }
   }
 });
 
@@ -118,7 +125,12 @@ if (exceptions.length) {
 }
 if (failed.length) {
   console.log('--- network failures ---');
-  for (const l of failed.slice(0, 10)) console.log(l);
+  for (const l of failed.slice(0, 15)) {
+    // Extract requestId from the failure line and resolve to the original URL.
+    const m = l.match(/reqId=([^\s]+)/);
+    const url = m ? requestUrls.get(m[1]!) : undefined;
+    console.log(`${l}${url ? `  ::  ${url}` : ''}`);
+  }
 }
 
 ws.close();
