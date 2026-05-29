@@ -6,6 +6,7 @@
  * mistyped key fails loudly at startup — never at request time.
  */
 import { z } from 'zod';
+import { normalizePhone } from './utils/phone.ts';
 
 const csvList = z
   .string()
@@ -16,6 +17,16 @@ const csvList = z
       .map((v) => v.trim())
       .filter(Boolean),
   );
+
+/**
+ * Allowlist of phone numbers, normalised to the same canonical digits-only
+ * form that inbound WhatsApp ids are reduced to (see utils/phone.ts). This
+ * means an operator can write `9037931435`, `919037931435`, or
+ * `+91 90379 31435` in the env and they all match the same sender.
+ */
+const phoneAllowlist = csvList.transform((list) =>
+  list.map((v) => normalizePhone(v)).filter(Boolean),
+);
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -30,7 +41,7 @@ const schema = z.object({
   SESSION_ID: z.string().default('VERSIFINE_DEV'),
 
   DEMO_MODE: z.coerce.boolean().default(true),
-  ALLOWED_TEST_NUMBERS: csvList,
+  ALLOWED_TEST_NUMBERS: phoneAllowlist,
   HEADLESS: z.coerce.boolean().default(true),
 
   OPENAI_API_KEY: z
