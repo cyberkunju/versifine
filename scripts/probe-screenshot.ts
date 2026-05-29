@@ -33,6 +33,11 @@ const chrome = spawn(findChrome(), [
   '--window-size=1280,900',
   '--no-first-run',
   '--no-default-browser-check',
+  '--ignore-certificate-errors',
+  // Override DNS so Chrome sends versifine.com straight to the origin IP.
+  // We also point any *.versifine.com requests at the same target.
+  // Format docs: https://www.chromium.org/developers/design-documents/network-stack/socks-proxy
+  '--host-resolver-rules=MAP versifine.com 40.192.113.52, MAP www.versifine.com 40.192.113.52',
   'about:blank',
 ], { stdio: 'pipe' });
 
