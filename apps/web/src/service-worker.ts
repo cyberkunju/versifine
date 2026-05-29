@@ -64,10 +64,12 @@ function isModelAsset(url: URL): boolean {
 function isShellAsset(url: URL): boolean {
   return (
     url.origin === self.location.origin &&
+    // Note: the favicon is intentionally NOT cache-first. Tab icons are
+    // sticky in browsers, so we let it go through stale-while-revalidate
+    // (with a `?v=` bust in app.html) to guarantee it refreshes on deploy.
     (PRECACHE.includes(url.pathname) ||
       url.pathname.startsWith('/_app/') ||
-      url.pathname === '/manifest.webmanifest' ||
-      url.pathname === '/favicon.svg')
+      url.pathname === '/manifest.webmanifest')
   );
 }
 
@@ -81,6 +83,13 @@ self.addEventListener('fetch', (event) => {
 
   if (isModelAsset(url)) {
     event.respondWith(cacheFirst(request, MODELS_CACHE));
+    return;
+  }
+  // Favicon: always network-first so a new tab icon ships on deploy.
+  // Browsers cache tab icons very aggressively; cache-first here would
+  // pin a stale icon for returning visitors indefinitely.
+  if (url.pathname === '/favicon.svg') {
+    event.respondWith(staleWhileRevalidate(request, RUNTIME_CACHE));
     return;
   }
   if (isShellAsset(url)) {
