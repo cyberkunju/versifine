@@ -10,8 +10,8 @@
  * and destructure to keep TS happy across the verbatimModuleSyntax flag.
  */
 import { existsSync, mkdirSync } from 'node:fs';
-import { writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { writeFile, rename } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
 import qrcodeTerminal from 'qrcode-terminal';
 import qrcodeImage from 'qrcode';
 import waPkg from 'whatsapp-web.js';
@@ -27,8 +27,46 @@ const { Client, LocalAuth, MessageMedia } = waPkg as unknown as {
   MessageMedia: new (mimetype: string, data: string) => unknown;
 };
 
-const QR_PNG_PATH = resolve(import.meta.dirname, '..', '..', '.qr.png');
-const SESSION_DIR = resolve(import.meta.dirname, '..', '..', '.wwebjs_auth');
+/**
+ * Resolve the wa-bot package root robustly.
+ *
+ * Why not `resolve(import.meta.dirname, '..', '..')`? That breaks once the
+ * deploy bundles `src/index.ts` → `dist/index.js`: the bundled file sits at
+ * `apps/wa-bot/dist`, only ONE level deep, so the two-up math lands on
+ * `apps/` instead of `apps/wa-bot/`. The session would then be written
+ * outside the persistent `.wwebjs_auth` symlink and wiped by the deploy's
+ * `rsync --delete`, forcing a re-pair on every release.
+ *
+ * The bot is always launched with cwd = the package root (dev runs
+ * `--cwd apps/wa-bot`; the `--env-file=../../.env` flag and the systemd
+ * unit's `WorkingDirectory=/opt/versifine/repo/apps/wa-bot` both confirm
+ * it). So we anchor on cwd when it looks like the package root, and
+ * otherwise walk up from this module's dir to find the package.json.
+ */
+function resolveBotRoot(): string {
+  const cwd = process.cwd();
+  if (existsSync(resolve(cwd, 'package.json')) && existsSync(resolve(cwd, 'src'))) {
+    return cwd;
+  }
+  let dir = import.meta.dirname;
+  for (let i = 0; i < 6; i += 1) {
+    // The package root is the first ancestor that has a package.json but is
+    // not the `src` or `dist` build dir.
+    const base = dir.split(/[\\/]/).pop();
+    if (base !== 'src' && base !== 'dist' && existsSync(resolve(dir, 'package.json'))) {
+      return dir;
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return cwd;
+}
+
+const BOT_ROOT = resolveBotRoot();
+
+const QR_PNG_PATH = resolve(BOT_ROOT, '.qr.png');
+const SESSION_DIR = resolve(BOT_ROOT, '.wwebjs_auth');
 
 let qrSnapshot: QrSnapshot | null = null;
 let isReady = false;
@@ -90,20 +128,45 @@ export async function createClient(): Promise<WhatsAppLikeClient> {
       process.stdout.write(`\n${rendered}\n`);
     });
     let pngPath: string | null = null;
+    let pngBuffer: Buffer | null = null;
+    let dataUri: string | null = null;
+    let svg: string | null = null;
     try {
-      const buffer = await qrcodeImage.toBuffer(qr, { type: 'png', width: 360 });
+      const buffer = await qrcodeImage.toBuffer(qr, { type: 'png', width: 360, margin: 2 });
+      pngBuffer = buffer;
+      dataUri = `data:image/png;base64,${buffer.toString('base64')}`;
       // node:fs/promises writeFile expects a Uint8Array; Buffer is a
       // subclass but TS lib mismatches between bun and @types/node trip
       // the structural check on Windows. Cast through a Uint8Array view.
-      await writeFile(QR_PNG_PATH, new Uint8Array(buffer));
+      // Write to a temp file and rename so /qr.png never serves a
+      // half-written PNG (the QR rotates every ~20s).
+      const tmp = `${QR_PNG_PATH}.tmp`;
+      await writeFile(tmp, new Uint8Array(buffer));
+      await rename(tmp, QR_PNG_PATH);
       pngPath = QR_PNG_PATH;
     } catch (err) {
       log.warn('QR_PNG_FAIL', {
         error: err instanceof Error ? err.message.slice(0, 200) : String(err),
       });
     }
-    qrSnapshot = { raw: qr, pngPath, asciiPreview, generatedAt: Date.now() };
-    log.info('QR_REFRESHED', { hasPng: pngPath !== null });
+    try {
+      // A crisp, scannable vector fallback that renders correctly in a
+      // browser (unlike the qrcode-terminal half-block ASCII, which a
+      // phone camera can't lock onto through a <pre> block).
+      svg = await qrcodeImage.toString(qr, { type: 'svg', margin: 2 });
+    } catch {
+      svg = null;
+    }
+    qrSnapshot = {
+      raw: qr,
+      png: pngBuffer,
+      dataUri,
+      svg,
+      pngPath,
+      asciiPreview,
+      generatedAt: Date.now(),
+    };
+    log.info('QR_REFRESHED', { hasPng: pngBuffer !== null });
   });
 
   client.on('ready', () => {

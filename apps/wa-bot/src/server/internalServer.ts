@@ -47,13 +47,26 @@ app.get('/qr', (c) => {
 <p>The bot is connected and ready to receive messages from your allowlisted numbers.</p>
 <p>Health: <code>GET /health</code></p>
 </body></html>`,
+      200,
+      { 'cache-control': 'no-store' },
     );
   }
   const snap = getQrSnapshot();
   const status = snap ? 'Scan this QR with WhatsApp on your phone.' : 'Waiting for QR…';
-  // Use a relative href so the same page works both directly on the bot
-  // (`/qr` → `qr.png`) and behind the nginx proxy at `/wa-qr/` → `/wa-qr/qr.png`.
-  const png = snap?.pngPath ? '<img src="qr.png" alt="WhatsApp pairing QR" style="width:320px;height:320px;border:1px solid #e2e8f0;border-radius:12px"/>' : '<p>QR not ready yet. Refreshing…</p>';
+  // Inline the QR straight into the HTML as a base64 data URI. This is the
+  // key robustness fix: the browser makes NO second request for the image,
+  // so there's nothing for nginx to misroute or Cloudflare to cache/404.
+  // The whole page is `no-store`, so every 5s refresh pulls a fresh QR.
+  const png = snap?.dataUri
+    ? `<img src="${snap.dataUri}" alt="WhatsApp pairing QR" width="320" height="320" style="width:320px;height:320px;background:#fff;padding:8px;border:1px solid #e2e8f0;border-radius:12px"/>`
+    : '<p>QR not ready yet. Refreshing…</p>';
+  // Scannable vector fallback (crisp, correct aspect ratio) for when images
+  // are blocked — replaces the old ASCII block, which a phone camera can't
+  // read through a <pre> element's line spacing.
+  const svgFallback = snap?.svg
+    ? `<details><summary>Can't see the image? Tap for a scannable QR</summary>
+<div style="width:280px;margin:12px auto;background:#fff;padding:12px;border-radius:12px">${snap.svg}</div></details>`
+    : '';
   return c.html(
     `<!doctype html><html><head><meta charset="utf-8"><title>${env.BOT_NAME} bot — pair</title>
 <meta http-equiv="refresh" content="5">
@@ -66,16 +79,28 @@ app.get('/qr', (c) => {
 <p>${status}</p>
 ${png}
 <p style="color:#64748b">Open WhatsApp → Settings → Linked Devices → Link a Device.</p>
-${snap?.asciiPreview ? `<details><summary>Terminal QR (text)</summary><pre>${snap.asciiPreview.replace(/[<&>]/g, (m) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[m] ?? m))}</pre></details>` : ''}
+${svgFallback}
 </body></html>`,
+    200,
+    { 'cache-control': 'no-store' },
   );
 });
 
 app.get('/qr.png', (c) => {
   const snap = getQrSnapshot();
+  // Prefer the in-memory PNG: it's always complete (never a half-written
+  // file) and doesn't depend on the filesystem path being correct.
+  if (snap?.png) {
+    return new Response(new Uint8Array(snap.png), {
+      headers: {
+        'content-type': 'image/png',
+        'cache-control': 'no-store',
+      },
+    });
+  }
   const path = snap?.pngPath ?? QR_FILE;
   if (!existsSync(path)) {
-    return c.text('QR not ready', 404);
+    return c.text('QR not ready', 404, { 'cache-control': 'no-store' });
   }
   const buf = readFileSync(path);
   return new Response(new Uint8Array(buf), {

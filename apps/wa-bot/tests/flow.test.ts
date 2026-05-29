@@ -61,6 +61,7 @@ mock.module('../src/services/apiClient.ts', () => {
     captureConfirm: async () => {
       throw new Error('captureConfirm not exercised in this test');
     },
+    askCopilot: async () => ({ answer: 'mock copilot answer', outcome: 'answered' }),
     phoneLinkConfirm: async (code: string, phone: string) => {
       calls.push({ method: 'POST', path: '/auth/phone-link/confirm', body: { code, phone } });
       if (code === '482917') return { linked: true, phone };
@@ -196,6 +197,7 @@ test('CANCEL on a draft routes through draft pending state', async () => {
       queryResult: { transaction: { id: 't', amount: 100, currency: 'INR', category: null } },
       echo: '',
     }),
+    askCopilot: async () => ({ answer: 'mock copilot answer', outcome: 'answered' }),
     phoneLinkConfirm: async () => ({ linked: true, phone: PHONE }),
     createBudget: async () => ({ budget: { id: 'b', name: 'b' } }),
     patchTransactionCategory: async () => ({ transaction: { id: 't', category: null } }),

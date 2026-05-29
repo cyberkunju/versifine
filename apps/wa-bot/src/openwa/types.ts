@@ -26,6 +26,16 @@ export interface WhatsAppLikeClient {
 
 export interface QrSnapshot {
   raw: string;
+  /** The rendered PNG bytes, kept in memory so /qr.png never races a
+   * half-written file on disk and doesn't depend on filesystem paths. */
+  png: Buffer | null;
+  /** `data:image/png;base64,…` form of the PNG, inlined straight into the
+   * /qr HTML so the browser never makes a second request that a proxy or
+   * CDN (Cloudflare) could cache, 404, or misroute. */
+  dataUri: string | null;
+  /** SVG markup of the QR — crisp at any size and used as the scannable
+   * fallback when images are blocked. */
+  svg: string | null;
   pngPath: string | null;
   asciiPreview: string;
   generatedAt: number;
