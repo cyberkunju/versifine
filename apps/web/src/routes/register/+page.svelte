@@ -30,7 +30,7 @@
         ...(displayName ? { displayName } : {}),
         primaryLanguage,
       });
-      void goto('/');
+      void goto('/dashboard');
     } catch (err) {
       error = err instanceof ApiError ? err.message : 'Registration failed';
     }

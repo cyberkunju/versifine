@@ -33,12 +33,34 @@
 
   let mobileSidebarOpen = $state(false);
 
-  const isAuthRoute = $derived($page.url.pathname.startsWith('/login') || $page.url.pathname.startsWith('/register'));
+  // Routes that are publicly accessible (no auth required) and must NOT
+  // render the app shell. The landing page lives at `/`, auth pages
+  // under `/login` and `/register`. Everything else is the app.
+  const PUBLIC_ROUTES = ['/', '/login', '/register'];
+  const APP_ROUTES = [
+    '/dashboard',
+    '/transactions',
+    '/budgets',
+    '/goals',
+    '/forecast',
+    '/reports',
+    '/settings',
+  ];
+
+  const path = $derived($page.url.pathname);
+  const isAuthRoute = $derived(path.startsWith('/login') || path.startsWith('/register'));
+  const isLandingRoute = $derived(path === '/');
+  const isAppRoute = $derived(APP_ROUTES.some((r) => path === r || path.startsWith(`${r}/`)));
+  const isPublicRoute = $derived(PUBLIC_ROUTES.some((r) => r === '/' ? path === '/' : path.startsWith(r)));
+
   const m = $derived(getMessages(settings.language));
 
   $effect(() => {
     if (!browser || !auth.ready) return;
-    if (!auth.isAuthenticated && !isAuthRoute) {
+    // Send unauthenticated users into /login when they hit a protected
+    // app route. Public routes (`/`, `/login`, `/register`) render
+    // unconditionally so the landing page works for everyone.
+    if (!auth.isAuthenticated && isAppRoute) {
       void goto('/login');
     }
   });
@@ -129,7 +151,7 @@
   <div class="grid min-h-screen place-items-center text-sm text-[hsl(var(--muted-foreground))]">
     {m.common.loading}
   </div>
-{:else if isAuthRoute || !auth.isAuthenticated}
+{:else if isLandingRoute || isAuthRoute || !auth.isAuthenticated}
   {@render children?.()}
 {:else}
   <div class="flex min-h-screen w-full">

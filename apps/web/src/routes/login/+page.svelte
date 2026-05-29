@@ -21,7 +21,7 @@
     error = null;
     try {
       await auth.login({ email, password });
-      void goto('/');
+      void goto('/dashboard');
     } catch (err) {
       error = err instanceof ApiError ? err.message : m.auth.invalidCredentials;
     }

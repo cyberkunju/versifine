@@ -29,7 +29,7 @@
   const m = $derived(getMessages(settings.language));
 
   const items = $derived([
-    { href: '/', label: m.nav.dashboard, icon: LayoutDashboard },
+    { href: '/dashboard', label: m.nav.dashboard, icon: LayoutDashboard },
     { href: '/transactions', label: m.nav.transactions, icon: Receipt },
     { href: '/budgets', label: m.nav.budgets, icon: Wallet },
     { href: '/goals', label: m.nav.goals, icon: Target },
@@ -40,7 +40,7 @@
 
   const path = $derived($page.url.pathname);
   function isActive(href: string): boolean {
-    if (href === '/') return path === '/';
+    if (href === '/dashboard') return path === '/dashboard';
     return path === href || path.startsWith(`${href}/`);
   }
 
@@ -66,7 +66,7 @@
   )}
   aria-label="Primary"
 >
-  <a href="/" class="flex items-center gap-2 px-2 pb-4 text-base font-semibold tracking-tight">
+  <a href="/dashboard" class="flex items-center gap-2 px-2 pb-4 text-base font-semibold tracking-tight">
     <span class="grid h-7 w-7 place-items-center rounded-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]">
       <Sparkles class="h-4 w-4" />
     </span>
