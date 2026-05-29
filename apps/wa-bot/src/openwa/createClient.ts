@@ -195,19 +195,49 @@ export async function createClient(): Promise<WhatsAppLikeClient> {
     process.exit(2);
   });
 
-  client.on('message', (msg: unknown) => {
+  // Inbound message handling.
+  //
+  // We listen on BOTH `message` and `message_create`. On modern (LID-era)
+  // WhatsApp accounts the `message` event frequently stops firing for
+  // inbound messages while `message_create` keeps firing for every message
+  // in both directions. Relying on `message` alone makes the bot look dead.
+  // We dedupe by message id so a message that triggers both events is only
+  // processed once.
+  const processedIds = new Set<string>();
+  const markProcessed = (id: string): boolean => {
+    if (!id) return true; // no id → can't dedupe, allow once
+    if (processedIds.has(id)) return false;
+    processedIds.add(id);
+    // Cap memory: keep the set bounded on a long-running process.
+    if (processedIds.size > 500) {
+      const first = processedIds.values().next().value;
+      if (first !== undefined) processedIds.delete(first);
+    }
+    return true;
+  };
+
+  const handleInbound = (msg: unknown, via: string) => {
+    const cast = msg as { id?: { _serialized?: string }; fromMe?: boolean };
+    if (cast.fromMe) return;
+    const id = cast.id?._serialized ?? '';
+    if (!markProcessed(id)) return;
+    log.debug('MESSAGE_EVENT', { via });
     void onMessage(msg as Parameters<typeof onMessage>[0]).catch((err) => {
       log.error('ON_MESSAGE_FAIL', {
         error: err instanceof Error ? err.message.slice(0, 200) : String(err),
       });
     });
-  });
+  };
 
-  // Optional debug observation of message_create for outbound logging.
+  client.on('message', (msg: unknown) => handleInbound(msg, 'message'));
+
   client.on('message_create', (msg: unknown) => {
     const cast = msg as { fromMe?: boolean; to?: string };
-    if (!cast.fromMe || !cast.to) return;
-    log.debug('MESSAGE_OUTBOUND', { to: maskPhone(cast.to.split('@')[0] ?? '') });
+    if (cast.fromMe) {
+      if (cast.to) log.debug('MESSAGE_OUTBOUND', { to: maskPhone(cast.to.split('@')[0] ?? '') });
+      return;
+    }
+    handleInbound(msg, 'message_create');
   });
 
   return client;
