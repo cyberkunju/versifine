@@ -91,8 +91,22 @@
     { id: 33, kind: 'voice', text: 'Versifine has become the quiet backbone of how our team thinks about numbers. It stays out of the way, and that is the highest praise we can give a tool.', by: 'Elena Marchetti · Head of Design, Cinder' },
   ];
 
+  // Randomized order, fresh per visit. A Fisher-Yates shuffle produces a
+  // "deck" so two people landing on the login see different lines, and no
+  // slide repeats until the whole set has been shown. When the deck runs
+  // out we reshuffle (avoiding an immediate back-to-back repeat at the seam).
+  function shuffle<T>(arr: readonly T[]): T[] {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j]!, a[i]!];
+    }
+    return a;
+  }
+
+  let order = $state<Slide[]>(shuffle(SLIDES));
   let slideIdx = $state(0);
-  const slide = $derived(SLIDES[slideIdx]!);
+  const slide = $derived(order[slideIdx]!);
 
   // Fixed cadence: every slide stays exactly 4 seconds, regardless of
   // length. Predictable, calm rhythm.
@@ -100,18 +114,28 @@
     return 4000;
   }
 
-  // Advance after the current slide's reading time. Re-runs whenever the
-  // index changes (so each gap matches that slide). Pauses while the tab is
-  // hidden — nothing should scroll past unseen.
+  // Advance every 4s. Walks the shuffled deck; at the end it reshuffles for
+  // a fresh random pass (keeping the seam from repeating the same slide).
+  // Pauses while the tab is hidden — nothing should scroll past unseen.
   $effect(() => {
-    const current = SLIDES[slideIdx]!;
+    const current = order[slideIdx]!;
     let timer: ReturnType<typeof setTimeout>;
     const advance = () => {
       if (typeof document !== 'undefined' && document.hidden) {
         timer = setTimeout(advance, 1500);
         return;
       }
-      slideIdx = (slideIdx + 1) % SLIDES.length;
+      if (slideIdx + 1 >= order.length) {
+        const last = order[slideIdx];
+        let next = shuffle(SLIDES);
+        if (next[0]?.id === last?.id && next.length > 1) {
+          [next[0], next[1]] = [next[1]!, next[0]!];
+        }
+        order = next;
+        slideIdx = 0;
+      } else {
+        slideIdx = slideIdx + 1;
+      }
     };
     timer = setTimeout(advance, readingMs(current.text));
     return () => clearTimeout(timer);
