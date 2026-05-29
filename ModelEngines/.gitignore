@@ -7,6 +7,12 @@ artifacts/
 *.safetensors
 *.bin
 
+# EXCEPTION: the teacher packs ARE the committed artifact (subagent-generated,
+# frozen for reproducibility — see teacher/README.md). Keep them in git.
+!teacher/packs/
+!teacher/packs/*.jsonl
+!teacher/teacher_packs.jsonl
+
 # Python
 __pycache__/
 *.py[cod]

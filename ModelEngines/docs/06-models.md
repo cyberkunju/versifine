@@ -5,7 +5,28 @@ Apache-2.0 or MIT, so the shipped derivatives are clean.
 
 ---
 
-## Teacher (build-time only) — Gemma 4 31B-it
+## Teacher (build-time only) — Opus 4.8 subagents (replaces Gemma)
+
+**Decision update:** the teacher was originally Gemma 4 31B-it on Modal. We
+switched to **Opus 4.8 subagents** for generation (see `teacher/README.md`):
+$0, no GPU, no vLLM/Gemma load risk, and equal-or-better Indic code-mix
+quality. The teacher's only job is text generation — exactly what subagents do
+natively. Output is frozen to `teacher/teacher_packs.jsonl`, so the dataset is
+reproducible even though LLM generation isn't bit-deterministic.
+
+`jobs/01_gemma_generate.py` is retained for reference / as a fallback teacher,
+but the subagent path is the supported one. Everything below about the teacher's
+*role* (generate building blocks, distill into encoders, never serve at runtime)
+is unchanged.
+
+### What the teacher produced (verified)
+59 packs, all leaves covered: 2,618 templates, 3,794 merchant aliases, 1,978
+phrasings, 1,587 code-mixed variants. `teacher/merge.py --check` validates
+coverage + counts.
+
+---
+
+## (Legacy reference) Gemma 4 31B-it
 
 | Field | Value |
 |---|---|

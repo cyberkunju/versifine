@@ -21,7 +21,9 @@ TAXONOMY_DIR = ROOT / "taxonomy"
 
 # Intermediate dataset files (parquet/jsonl) produced along the pipeline.
 HARVEST_PAIRS = DATA_DIR / "harvest_pairs.parquet"       # merchant/POI → leaf (deterministic)
-GEMMA_TEMPLATES = DATA_DIR / "gemma_templates.jsonl"     # LLM-generated templates + slot-fillers
+GEMMA_TEMPLATES = Path(
+    os.environ.get("VERSIFINE_TEACHER_PACKS", str(ROOT / "teacher" / "teacher_packs.jsonl"))
+)  # teacher building-block packs (subagent-generated; see teacher/README.md)
 GEMMA_VERIFY = DATA_DIR / "gemma_verify.jsonl"           # self-consistency tail decisions
 EXPANDED_TRAIN = DATA_DIR / "train.parquet"              # exploded, labeled, deduped
 EXPANDED_EVAL = DATA_DIR / "eval.parquet"                # held-out NATURAL rows (no template fills)

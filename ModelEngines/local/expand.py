@@ -41,7 +41,7 @@ from taxonomy.taxonomy import load as load_taxonomy  # noqa: E402
 
 RNG = random.Random(config.GLOBAL_SEED)
 
-GEMMA_TEMPLATES = config.DATA_DIR / "gemma_templates.jsonl"
+GEMMA_TEMPLATES = config.GEMMA_TEMPLATES  # teacher packs (see config / teacher/README.md)
 
 # --- realistic slot-fillers (India-first) ---------------------------------
 AMOUNT_FORMATS = [
@@ -301,10 +301,12 @@ def main() -> int:
         # ---- hold out eval + calib from NATURAL rows only ----
         natural = list(natural)
         RNG.shuffle(natural)
-        # never starve train of natural rows: cap total holdout at half of natural.
+        # Reserve up to half the natural rows for holdout, split evenly between
+        # eval and calib; the rest stays in train. Never starve train.
         max_hold = max(0, len(natural) // 2)
-        n_eval = min(held_per_leaf, max_hold)
-        n_calib = min(int(held_per_leaf * config.CALIB_FRACTION), max(0, max_hold - n_eval))
+        want_hold = min(max_hold, held_per_leaf * 2)
+        n_eval = want_hold // 2
+        n_calib = want_hold - n_eval
         eval_rows = natural[:n_eval]
         calib_rows = natural[n_eval : n_eval + n_calib]
         train_natural = natural[n_eval + n_calib :]

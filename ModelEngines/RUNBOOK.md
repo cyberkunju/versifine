@@ -7,13 +7,13 @@ whole build lands **under $30** (likely $0 after Modal's $30/mo free credits).
 
 | Work | Where | Why | Cost |
 |---|---|---|---|
+| Teacher pack generation | **Opus subagents** | text-gen; replaces Gemma; no GPU | $0 |
 | Harvest + crosswalk + expand + package | **Laptop** (RTX 4060 8 GB, Ryzen 7 7840HS, 16 GB) | network/CPU-bound, time-insensitive | $0 |
-| Gemma generation + verify | **Modal H200 (FP8)** | only an LLM can make the diversity | ~$7.5 |
 | Train bi + cross encoder | **Modal A100-80GB** (one fn) | short jobs, frees the laptop | ~$8 |
 | ONNX export + INT8 + calibrate + publish | **Modal L4** | minutes | ~$1 |
 | Eval | **Modal L4** | minutes | ~$0.5 |
 | Volume storage | Modal | — | ~$1 |
-| **Total** | | | **≈ $18** |
+| **Total** | | | **≈ $10** |
 
 ## One-time setup
 
@@ -40,13 +40,19 @@ python local/harvest_bulk.py --source foursquare --country IN --limit 200000   #
 python local/crosswalk_build.py                          # → data/harvest_pairs.parquet
 ```
 
-## Phase 1 — MODAL: Gemma makes the building blocks (~1.5 h, ~$7.5)
+## Phase 1 — TEACHER: generate building-block packs (subagents, $0)
+
+The teacher (Opus 4.8 subagents, not Gemma) generates per-leaf packs into
+`teacher/packs/*.jsonl`. This is already done and committed. To validate/merge:
 
 ```sh
-modal run jobs/01_gemma_generate.py --smoke    # 3 leaves, sanity check first
-modal run jobs/01_gemma_generate.py            # all 59 leaves → gemma_templates.jsonl (Volume)
-modal volume get versifine-categorizer-vol gemma_templates.jsonl data/   # pull to laptop
+python teacher/merge.py --check     # validate coverage + counts (must pass)
+python teacher/merge.py             # merge packs/ -> teacher/teacher_packs.jsonl
 ```
+
+`config.GEMMA_TEMPLATES` points at `teacher/teacher_packs.jsonl`, so `expand.py`
+consumes it automatically. (Legacy GPU path `modal run jobs/01_gemma_generate.py`
+still exists as a fallback but is not used.)
 
 ## Phase 2 — LAPTOP: explode to millions of rows (minutes, free)
 
