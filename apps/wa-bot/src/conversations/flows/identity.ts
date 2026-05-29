@@ -9,8 +9,8 @@
  * which `engine.ts` interprets as "everything except `LINK <code>` gets
  * the link prompt".
  */
-import type { Language } from '@finehance/shared';
-import { isLanguage, LANGUAGE_META, LANGUAGES } from '@finehance/shared';
+import type { Language } from '@versifine/shared';
+import { isLanguage, LANGUAGE_META, LANGUAGES } from '@versifine/shared';
 import type { Session } from '../../types.ts';
 import { getMessages } from '../messages/index.ts';
 import { setLanguage, setState } from '../state.ts';

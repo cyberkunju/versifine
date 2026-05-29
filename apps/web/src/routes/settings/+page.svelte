@@ -19,8 +19,8 @@
     LogOut,
     Copy,
   } from 'lucide-svelte';
-  import { LANGUAGES, LANGUAGE_META, type Language } from '@finehance/shared';
-  import { CURRENCIES } from '@finehance/shared';
+  import { LANGUAGES, LANGUAGE_META, type Language } from '@versifine/shared';
+  import { CURRENCIES } from '@versifine/shared';
   import { api } from '$lib/api/client';
   import { useQuery, invalidate } from '$lib/api/queries.svelte';
   import { auth } from '$lib/stores/auth.svelte';
@@ -160,7 +160,7 @@
     <div class="space-y-1">
       <h1 class="text-2xl font-semibold tracking-tight">{m.settings.title}</h1>
       <p class="text-sm text-[hsl(var(--muted-foreground))]">
-        Tune Finehance to match how you work.
+        Tune Versifine to match how you work.
       </p>
     </div>
     <Button variant="outline" onclick={() => auth.logout()}>
@@ -289,7 +289,7 @@
                 </Button>
               </div>
               <p class="mt-2 text-xs text-[hsl(var(--muted-foreground))]">
-                Send <span class="font-mono">LINK {linkInfo.code}</span> to the Finehance bot. Code expires {new Date(linkInfo.expiresAt).toLocaleString()}.
+                Send <span class="font-mono">LINK {linkInfo.code}</span> to the Versifine bot. Code expires {new Date(linkInfo.expiresAt).toLocaleString()}.
               </p>
             {:else}
               <p class="text-sm">Open the bot and send the LINK command from your WhatsApp.</p>

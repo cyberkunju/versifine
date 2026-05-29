@@ -1,5 +1,5 @@
 /**
- * Typed fetch wrapper around the Finehance API.
+ * Typed fetch wrapper around the Versifine API.
  *
  * Every call here goes server-to-server with the bot's shared secret and
  * the user's WhatsApp phone in the headers. The API's `requireBot` /
@@ -93,7 +93,7 @@ async function call<T>(req: InternalRequest): Promise<T> {
       path: req.path,
       error: err instanceof Error ? err.message.slice(0, 200) : String(err),
     });
-    throw new ApiClientError('NETWORK', 'Could not reach Finehance API', 0);
+    throw new ApiClientError('NETWORK', 'Could not reach Versifine API', 0);
   }
   clearTimeout(timer);
 

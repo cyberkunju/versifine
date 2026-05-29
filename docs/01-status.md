@@ -35,7 +35,7 @@ apps/wa-bot/src/       28 .ts files (config, supervisor, openwa/, server/, servi
 apps/web/src/          70+ .ts/.svelte files (routes, lib/{api,ai,components,i18n,stores,utils})
 packages/shared/src/   13 .ts files (categories, currencies, languages, intents, events, schemas/*)
 scripts/                3 .ts files (db-init, check-db, smoke-web)
-.kiro/specs/finehance/  3 .md files (requirements, design, tasks)
+.kiro/specs/versifine/  3 .md files (requirements, design, tasks)
 docs/                  16 .md files
 ```
 
@@ -69,10 +69,10 @@ All of this runs on a clean clone after `bun install && bun run db:init && bun r
 
 | Check | Command | Result |
 | --- | --- | --- |
-| Workspace typecheck | `bun run typecheck` | 0 errors across `@finehance/shared`, `@finehance/api`, `@finehance/wa-bot`, `@finehance/web` |
+| Workspace typecheck | `bun run typecheck` | 0 errors across `@versifine/shared`, `@versifine/api`, `@versifine/wa-bot`, `@versifine/web` |
 | API tests | `bun run --cwd apps/api test` | 47 pass / 0 fail (categorize, parser-regex, forecast) |
 | Bot tests | `bun run --cwd apps/wa-bot test` | 2 pass / 0 fail (engine flow + cancel-on-draft) |
-| API live boot | `curl http://127.0.0.1:5000/health` | `{ "success": true, "data": { "service": "finehance-api" ... } }` |
+| API live boot | `curl http://127.0.0.1:5000/health` | `{ "success": true, "data": { "service": "versifine-api" ... } }` |
 | Smoke: auth | `bun --env-file=../../.env scripts/smoke-auth.ts` | OK |
 | Smoke: transaction | `scripts/smoke-transaction.ts` | OK (FX, soft-delete, balance) |
 | Smoke: budget | `scripts/smoke-budget.ts` | OK (warn + exceeded events emit) |
@@ -87,7 +87,7 @@ All of this runs on a clean clone after `bun install && bun run db:init && bun r
 1. **MiniLM ONNX artefact not yet checked in.** The fine-tuned MiniLM ships as SafeTensors only on HuggingFace; converting needs the Python `optimum-cli` toolchain run once. The categorizer detects the absence and degrades cleanly to merchant DB + default tiers (`categorized_by` becomes `merchants` or `default` instead of `minilm`). To enable the ML tier:
    ```sh
    pip install --upgrade "optimum[exporters,onnxruntime]" transformers
-   optimum-cli export onnx --model CyberKunju/finehance-categorizer-minilm apps/api/src/ml/model/onnx
+   optimum-cli export onnx --model CyberKunju/versifine-categorizer-minilm apps/api/src/ml/model/onnx
    bun run --cwd apps/api convert:minilm   # mirrors into apps/web/static/models/
    ```
 2. **`compute_total` defaults to "this month" when `from`/`to` are missing.** The tool spec already requires both, so the LLM is prompted to compute dates. The defensive fallback is still in place. Acceptable.
@@ -98,9 +98,9 @@ All of this runs on a clean clone after `bun install && bun run db:init && bun r
 
 ```sh
 bun install
-bun run db:init                    # creates finehance_dev + finehance_test, enables extensions
+bun run db:init                    # creates versifine_dev + versifine_test, enables extensions
 bun run db:migrate                 # applies the three Drizzle migrations
-bun run db:seed                    # 90 days of realistic Indian transactions, demo@finehance.app
+bun run db:seed                    # 90 days of realistic Indian transactions, demo@versifine.com
 
 bun run typecheck                  # 0 errors in every workspace
 bun run --cwd apps/api test        # 47 pass / 0 fail
@@ -109,7 +109,7 @@ bun run --cwd apps/wa-bot test     # 2 pass / 0 fail
 bun run dev                        # api 5000, web 5173, bot 5001
 ```
 
-Demo credentials: `demo@finehance.app` / `Finehance#2026!`.
+Demo credentials: `demo@versifine.com` / `Versifine#2026!`.
 
 ## What's next
 

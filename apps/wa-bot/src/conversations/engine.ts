@@ -30,7 +30,7 @@ import type {
   OutgoingVoice,
   Session,
 } from '../types.ts';
-import { LANGUAGE_META, type Language } from '@finehance/shared';
+import { LANGUAGE_META, type Language } from '@versifine/shared';
 import { synthesizeIndicSpeech } from '../services/ai/indicSpeech.ts';
 import { synthesizeSpeech } from '../services/ai/tts.ts';
 import { transcribe } from '../services/ai/transcribe.ts';

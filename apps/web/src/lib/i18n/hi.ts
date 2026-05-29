@@ -41,7 +41,7 @@ const overrides: Partial<MessagePack> = {
     needAccount: 'खाता नहीं है?',
     haveAccount: 'खाता पहले से है?',
     welcomeBack: 'वापसी पर स्वागत है',
-    welcomeNew: 'Finehance में स्वागत है',
+    welcomeNew: 'Versifine में स्वागत है',
     invalidCredentials: 'ईमेल या पासवर्ड मेल नहीं खाता।',
   },
   dashboard: {

@@ -1,4 +1,4 @@
-import { CURRENCY_SYMBOL, type Currency } from '@finehance/shared';
+import { CURRENCY_SYMBOL, type Currency } from '@versifine/shared';
 
 /**
  * Currency formatting helpers — the omnibar, transaction list, and

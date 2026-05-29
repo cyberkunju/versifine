@@ -22,7 +22,7 @@ import {
   type GoalSummary,
   type GoalUpdateInput,
   isCategory,
-} from '@finehance/shared';
+} from '@versifine/shared';
 import { db } from '../../db/client.ts';
 import { goals, type Goal } from '../../db/schema/goals.ts';
 import { transactions } from '../../db/schema/transactions.ts';

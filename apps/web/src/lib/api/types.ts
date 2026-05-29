@@ -40,7 +40,7 @@ export type {
   Intent,
   WsEvent,
   WsEventType,
-} from '@finehance/shared';
+} from '@versifine/shared';
 
 /** Standard envelope returned by every JSON endpoint. */
 export interface ApiSuccessEnvelope<T> {

@@ -6,7 +6,7 @@ export default {
   dialect: 'postgresql',
   casing: 'snake_case',
   dbCredentials: {
-    url: process.env.DATABASE_URL ?? 'postgres://finehance:finehance@localhost:5432/finehance_dev',
+    url: process.env.DATABASE_URL ?? 'postgres://versifine:versifine@localhost:5432/versifine_dev',
   },
   strict: true,
   verbose: true,

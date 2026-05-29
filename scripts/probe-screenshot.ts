@@ -19,7 +19,7 @@ function findChrome(): string {
 
 const TARGET = process.argv[2] ?? 'http://localhost:5173';
 const PORT = 9300 + Math.floor(Math.random() * 100);
-const profileDir = resolve(tmpdir(), `finehance-probe-${Date.now()}`);
+const profileDir = resolve(tmpdir(), `versifine-probe-${Date.now()}`);
 const outDir = resolve(import.meta.dir, '..', '_probe');
 mkdirSync(outDir, { recursive: true });
 

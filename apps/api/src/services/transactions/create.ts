@@ -20,7 +20,7 @@ import {
   type Category,
   type TransactionCreateInput,
   transactionCreateInput,
-} from '@finehance/shared';
+} from '@versifine/shared';
 import { db, type Db, type DbTx } from '../../db/client.ts';
 import { transactions, type Transaction } from '../../db/schema/transactions.ts';
 import { wallets } from '../../db/schema/wallets.ts';

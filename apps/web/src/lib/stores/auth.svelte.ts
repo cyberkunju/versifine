@@ -16,7 +16,7 @@ import { api, attachTokenSource } from '$lib/api/client';
 import { socket } from '$lib/api/ws';
 import type { LoginInput, RegisterInput, TokenPair, UserSummary } from '$lib/api/types';
 
-const REFRESH_KEY = 'finehance.refresh';
+const REFRESH_KEY = 'versifine.refresh';
 
 function readRefreshToken(): string | null {
   if (!browser) return null;

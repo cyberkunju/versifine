@@ -8,7 +8,7 @@
  * once with a sharper prompt; if that still fails we return the source
  * unchanged. Better one English line than confidently wrong Tamil.
  */
-import { LANGUAGE_META, SIBLING_SCRIPTS, type Language } from '@finehance/shared';
+import { LANGUAGE_META, SIBLING_SCRIPTS, type Language } from '@versifine/shared';
 import { env } from '../../config.ts';
 import { log } from '../../utils/logger.ts';
 import { getOpenAI, isAIConfigured, withLatency } from './client.ts';

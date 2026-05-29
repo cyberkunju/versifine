@@ -11,8 +11,8 @@
   import { ApiError } from '$lib/api/types';
   import { Button, Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter, Input, Label } from '$lib/components/ui';
 
-  let email = $state('demo@finehance.app');
-  let password = $state('Finehance#2026!');
+  let email = $state('demo@versifine.com');
+  let password = $state('Versifine#2026!');
   let error = $state<string | null>(null);
   const m = $derived(getMessages(settings.language));
 

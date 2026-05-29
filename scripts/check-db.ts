@@ -7,7 +7,7 @@
 import { default as postgres } from 'postgres';
 
 const url =
-  process.env.DATABASE_URL ?? 'postgres://finehance:finehance@localhost:5432/finehance_dev';
+  process.env.DATABASE_URL ?? 'postgres://versifine:versifine@localhost:5432/versifine_dev';
 
 const sql = postgres(url, { max: 1, prepare: false, onnotice: () => undefined });
 

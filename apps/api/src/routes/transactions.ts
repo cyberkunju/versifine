@@ -23,7 +23,7 @@ import {
   isCategory,
   transactionCreateInput,
   transactionUpdateInput,
-} from '@finehance/shared';
+} from '@versifine/shared';
 import { db } from '../db/client.ts';
 import { categoryCorrections } from '../db/schema/overrides.ts';
 import { transactions } from '../db/schema/transactions.ts';

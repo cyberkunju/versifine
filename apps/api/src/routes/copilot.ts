@@ -28,7 +28,7 @@
 import { sql as drizzleSql, and, desc, eq, isNull, gte, isNotNull, lte } from 'drizzle-orm';
 import { Hono } from 'hono';
 import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/chat/completions';
-import { copilotChatInput } from '@finehance/shared';
+import { copilotChatInput } from '@versifine/shared';
 import { db } from '../db/client.ts';
 import { goals } from '../db/schema/goals.ts';
 import { recurringItems } from '../db/schema/recurring.ts';
@@ -58,7 +58,7 @@ const copilotLimit = rateLimit({
 });
 
 const SYSTEM_PROMPT = [
-  "You are Vivien, Finehance's personal-finance copilot.",
+  "You are Vivien, Versifine's personal-finance copilot.",
   '',
   'Your job: answer the user\'s questions about THEIR money, grounded in the data shown to you.',
   '',

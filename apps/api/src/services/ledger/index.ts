@@ -25,7 +25,7 @@ import {
   type LedgerEntrySummary,
   type LedgerSettlementInput,
   type LedgerStatus,
-} from '@finehance/shared';
+} from '@versifine/shared';
 import { db } from '../../db/client.ts';
 import {
   ledgerEntries,

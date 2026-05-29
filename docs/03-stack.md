@@ -144,7 +144,7 @@ Two QR renderers: terminal (ASCII) for CLI, PNG for the web page.
 
 ### `packages/shared` workspace dep
 
-Imported as `@finehance/shared` from all three apps via Bun workspace symlinks. Exports:
+Imported as `@versifine/shared` from all three apps via Bun workspace symlinks. Exports:
 - `categories` (23 expense categories with display metadata)
 - `currencies` (9 currencies with symbols and aliases)
 - `languages` (6 languages with native names, BCP-47 tags, script regexes, sibling-script lists)

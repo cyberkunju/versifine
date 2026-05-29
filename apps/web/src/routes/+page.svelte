@@ -14,7 +14,7 @@
     TransactionSummary,
     WalletSummary,
   } from '$lib/api/types';
-  import { CATEGORY_META, type Category } from '@finehance/shared';
+  import { CATEGORY_META, type Category } from '@versifine/shared';
   import { api } from '$lib/api/client';
   import { useQuery } from '$lib/api/queries.svelte';
   import { settings } from '$lib/stores/settings.svelte';

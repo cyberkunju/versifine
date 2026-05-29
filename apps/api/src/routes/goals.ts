@@ -18,7 +18,7 @@ import {
   goalProgressInput,
   goalStatus,
   goalUpdateInput,
-} from '@finehance/shared';
+} from '@versifine/shared';
 import { requireUser } from '../middleware/auth.ts';
 import { emit } from '../services/events/bus.ts';
 import {

@@ -1,5 +1,5 @@
 {
-  "name": "@finehance/web",
+  "name": "@versifine/web",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -10,7 +10,7 @@
     "typecheck": "svelte-kit sync && svelte-check --tsconfig tsconfig.json"
   },
   "dependencies": {
-    "@finehance/shared": "workspace:*",
+    "@versifine/shared": "workspace:*",
     "@huggingface/transformers": "3.3.3",
     "@sveltejs/kit": "^2.15.1",
     "bits-ui": "^1.0.0",

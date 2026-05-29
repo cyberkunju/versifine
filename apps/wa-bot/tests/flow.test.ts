@@ -2,7 +2,7 @@
  * Engine smoke test.
  *
  * Drives the conversation engine through the simulator transport — no
- * real WhatsApp socket, no Chromium. The Finehance API at the configured
+ * real WhatsApp socket, no Chromium. The Versifine API at the configured
  * URL is mocked via `mock.module` so this test runs offline. Asserts:
  *
  *   1. First-touch greeting → AWAITING_LANGUAGE
@@ -118,7 +118,7 @@ const PHONE = '919999900001';
 test('greeting → language pick → link → capture happy path', async () => {
   // 1. First touch.
   const greet = await runEngine(inbound(PHONE, 'hi'));
-  expect(greet.text).toContain('Finehance');
+  expect(greet.text).toContain('Versifine');
   expect(greet.state).toBe('AWAITING_LANGUAGE');
 
   // 2. Language pick (English via "1").

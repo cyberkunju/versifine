@@ -41,7 +41,7 @@ The two pieces of foundation work that aren't code-related but unlock major demo
 pip install optimum[exporters,onnxruntime] transformers
 
 optimum-cli export onnx \
-  --model CyberKunju/finehance-categorizer-minilm \
+  --model CyberKunju/versifine-categorizer-minilm \
   --task text-classification \
   apps/api/src/ml/model/onnx
 
@@ -59,7 +59,7 @@ After this, Tier 3 of the categorizer is live. Tested via `apps/api/tests/catego
 Build `apps/api/src/data/seed-fixtures.ts` with:
 
 ```ts
-export const DEMO_USER = { email: 'demo@finehance.app', password: 'Finehance#2026!', displayName: 'Demo' };
+export const DEMO_USER = { email: 'demo@versifine.com', password: 'Versifine#2026!', displayName: 'Demo' };
 
 export const DEMO_WALLETS = [
   { name: 'HDFC Bank', type: 'bank', currency: 'INR', openingBalance: 75000 },

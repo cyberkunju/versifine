@@ -8,7 +8,7 @@
    */
   import { fly } from 'svelte/transition';
   import { Plus, Pencil, Trash2, Target, Sparkles, AlertTriangle } from 'lucide-svelte';
-  import { CATEGORIES, type Category } from '@finehance/shared';
+  import { CATEGORIES, type Category } from '@versifine/shared';
   import { api } from '$lib/api/client';
   import { useQuery, invalidate } from '$lib/api/queries.svelte';
   import { toast } from '$lib/stores/toast.svelte';

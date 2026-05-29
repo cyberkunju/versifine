@@ -82,7 +82,7 @@ The catalogue covers UPI handles (Swiggy, Zomato, Uber, Ola, Rapido, BigBasket, 
 
 ## Tier 3 — `services/categorize/minilm.ts`
 
-The fine-tuned MiniLM classifier (`CyberKunju/finehance-categorizer-minilm`). Runs in-process via `@huggingface/transformers` 3.3.3 (ONNX runtime).
+The fine-tuned MiniLM classifier (`CyberKunju/versifine-categorizer-minilm`). Runs in-process via `@huggingface/transformers` 3.3.3 (ONNX runtime).
 
 ### Model
 

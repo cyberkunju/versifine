@@ -4,7 +4,7 @@
    * fields (amount, date, description, category, wallet); the category
    * chip itself is the picker. Delete button at the bottom.
    */
-  import { CATEGORIES, CATEGORY_META, type Category } from '@finehance/shared';
+  import { CATEGORIES, CATEGORY_META, type Category } from '@versifine/shared';
   import { api } from '$lib/api/client';
   import { invalidate } from '$lib/api/queries.svelte';
   import type { TransactionSummary, WalletSummary } from '$lib/api/types';

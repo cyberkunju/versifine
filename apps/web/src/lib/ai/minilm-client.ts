@@ -7,7 +7,7 @@
  * the settings store, leaving privacy mode disabled.
  */
 import { browser } from '$app/environment';
-import { isCategory, type Category } from '@finehance/shared';
+import { isCategory, type Category } from '@versifine/shared';
 
 interface ClassifierResult {
   category: Category;

@@ -1,12 +1,12 @@
 <div align="center">
 
-# Finehance
+# Versifine
 
 **Frictionless multimodal personal finance, with an AI co-pilot that actually understands your money.**
 
 </div>
 
-Finehance lets you capture every rupee with a sentence, a voice note, or a photo — from a Svelte web dashboard or directly in WhatsApp — and gives you back honest forecasts, grounded insights, and budgets that learn from your corrections. Built India-first, multilingual to the bone, single-user MVP with a multi-tenant-ready schema.
+Versifine lets you capture every rupee with a sentence, a voice note, or a photo — from a Svelte web dashboard or directly in WhatsApp — and gives you back honest forecasts, grounded insights, and budgets that learn from your corrections. Built India-first, multilingual to the bone, single-user MVP with a multi-tenant-ready schema.
 
 ```
                   ┌──────────────────┐
@@ -37,7 +37,7 @@ You need: Bun ≥ 1.1, PostgreSQL 16 with `pgvector`, an OpenAI API key, a perso
 # 1. Install deps
 bun install
 
-# 2. Bootstrap the database (creates finehance_dev + finehance_test, enables extensions)
+# 2. Bootstrap the database (creates versifine_dev + versifine_test, enables extensions)
 bun run db:init
 
 # 3. Configure your env
@@ -55,15 +55,15 @@ bun run dev
 # Bot → http://localhost:5001/qr  (open in browser, scan with WhatsApp once)
 ```
 
-Demo credentials after seeding: `demo@finehance.app` / `Finehance#2026!`.
+Demo credentials after seeding: `demo@versifine.com` / `Versifine#2026!`.
 
 ## Documentation
 
-The full spec lives in [`.kiro/specs/finehance/`](.kiro/specs/finehance/):
+The full spec lives in [`.kiro/specs/versifine/`](.kiro/specs/versifine/):
 
-- [`requirements.md`](.kiro/specs/finehance/requirements.md) — every user story, every acceptance criterion.
-- [`design.md`](.kiro/specs/finehance/design.md) — architecture, schema, capture pipeline, copilot RAG, bot internals.
-- [`tasks.md`](.kiro/specs/finehance/tasks.md) — phased build plan, 79 tasks, dependency graph.
+- [`requirements.md`](.kiro/specs/versifine/requirements.md) — every user story, every acceptance criterion.
+- [`design.md`](.kiro/specs/versifine/design.md) — architecture, schema, capture pipeline, copilot RAG, bot internals.
+- [`tasks.md`](.kiro/specs/versifine/tasks.md) — phased build plan, 79 tasks, dependency graph.
 
 ## License
 

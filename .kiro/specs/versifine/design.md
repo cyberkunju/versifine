@@ -1,8 +1,8 @@
-# Finehance — Design
+# Versifine — Design
 
 ## Overview
 
-Finehance is built as a Bun-based monorepo with three apps (`web`, `api`, `wa-bot`) and one shared package, all sharing the same Postgres + PgVector database. The API is the single source of truth for parsing, categorization, persistence, and broadcasting. Both the Svelte web dashboard and the WhatsApp bot are dumb capture/render clients that go through the API. The user's fine-tuned MiniLM categorizer (`CyberKunju/finehance-categorizer-minilm`) runs in-process via Transformers.js (ONNX) inside the API for server-side categorization, and is also shipped to the browser for an optional Privacy Mode where categorization happens locally. OpenAI provides the LLM, voice (Whisper / gpt-4o-transcribe), TTS (gpt-4o-mini-tts and gpt-4o-audio-preview), embeddings, and vision capabilities.
+Versifine is built as a Bun-based monorepo with three apps (`web`, `api`, `wa-bot`) and one shared package, all sharing the same Postgres + PgVector database. The API is the single source of truth for parsing, categorization, persistence, and broadcasting. Both the Svelte web dashboard and the WhatsApp bot are dumb capture/render clients that go through the API. The user's fine-tuned MiniLM categorizer (`CyberKunju/versifine-categorizer-minilm`) runs in-process via Transformers.js (ONNX) inside the API for server-side categorization, and is also shipped to the browser for an optional Privacy Mode where categorization happens locally. OpenAI provides the LLM, voice (Whisper / gpt-4o-transcribe), TTS (gpt-4o-mini-tts and gpt-4o-audio-preview), embeddings, and vision capabilities.
 
 This design covers the system architecture, repository layout, database schema, API surface, capture pipeline, categorization tiers, forecast algorithm, copilot RAG, WhatsApp bot internals, web app architecture, real-time flow, AI service contract, auth, error handling, logging, testing, seed strategy, and risk register.
 
@@ -67,7 +67,7 @@ This design covers the system architecture, repository layout, database schema, 
 The following sections enumerate the components, their boundaries, and the interfaces between them. The repository layout in § 2 maps directly to the architectural components: `packages/shared` is the shared interface contract (Zod schemas, types, event definitions), `apps/api` exposes HTTP + WebSocket interfaces (§ 4), `apps/wa-bot` exposes a small internal HTTP interface for the API to call (§ 9), and `apps/web` consumes the API. The capture pipeline (§ 5) is the cross-component contract that text/voice/image inputs must satisfy regardless of origin.
 
 ```
-finehance/
+versifine/
 ├── package.json                        # root, defines workspaces
 ├── bun.lockb                           # single lockfile
 ├── biome.json                          # lint+format
@@ -641,7 +641,7 @@ POST   /demo/run                  scripted demo flow
 
 ---
 
-## 5. Capture pipeline (the heart of Finehance)
+## 5. Capture pipeline (the heart of Versifine)
 
 ```
    ┌────────────────┐     ┌────────────────┐     ┌────────────────┐
@@ -741,7 +741,7 @@ MiniLM ONNX is loaded once at API startup:
 import { pipeline } from '@huggingface/transformers'
 const classifier = await pipeline(
   'text-classification',
-  './ml/model/finehance-categorizer-minilm-onnx',
+  './ml/model/versifine-categorizer-minilm-onnx',
   { device: 'cpu', dtype: 'fp32' }
 )
 ```
@@ -1165,7 +1165,7 @@ Test data lives alongside the seed in `apps/api/src/data/seed-fixtures.ts`. Test
 
 `apps/api/src/db/seed.ts` creates:
 
-- User: `demo@finehance.app` / `Finehance#2026!`, language `en`, base INR
+- User: `demo@versifine.com` / `Versifine#2026!`, language `en`, base INR
 - Wallets: HDFC Bank, Cash, GPay UPI, ICICI Credit Card
 - 90 days of transactions:
   - Salary credit on the 1st (₹85,000)
@@ -1194,7 +1194,7 @@ bun install                          # workspace install
 
 # 3. Convert MiniLM (one-time)
 bun run --cwd apps/api convert:minilm
-# Downloads CyberKunju/finehance-categorizer-minilm, exports to ONNX,
+# Downloads CyberKunju/versifine-categorizer-minilm, exports to ONNX,
 # writes to apps/api/src/ml/model/ AND apps/web/static/models/
 
 # 4. Migrate + seed

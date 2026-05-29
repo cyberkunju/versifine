@@ -17,7 +17,7 @@
  * Re-exports `normalizeMerchant` and `upsertOverride` so route handlers
  * never have to know which file holds what.
  */
-import { isCategory } from '@finehance/shared';
+import { isCategory } from '@versifine/shared';
 import { log } from '../../utils/logger.ts';
 import { normalizeMerchant } from '../transactions/normalize.ts';
 import { categorizeFromMerchantDB } from './merchants.ts';

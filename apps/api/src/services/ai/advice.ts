@@ -243,7 +243,7 @@ async function llmAdvice(ctx: ContextBlock): Promise<AdviceItem[]> {
   if (!client) return [];
 
   const systemPrompt = [
-    "You are Vivien, Finehance's finance copilot.",
+    "You are Vivien, Versifine's finance copilot.",
     'Output 3 to 5 prioritised, actionable advice items as JSON.',
     'Schema: {"items":[{"kind":"cut_back|goal|recurring|forecast|savings","headline":"string (max 90 chars)","detail":"string (max 240 chars)","priority":"high|medium|low","deltaInr":number?}]}',
     'Rules:',

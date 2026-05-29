@@ -19,7 +19,7 @@ import {
   transferInput,
   walletCreateInput,
   walletUpdateInput,
-} from '@finehance/shared';
+} from '@versifine/shared';
 import { db } from '../db/client.ts';
 import { transactions } from '../db/schema/transactions.ts';
 import { wallets } from '../db/schema/wallets.ts';

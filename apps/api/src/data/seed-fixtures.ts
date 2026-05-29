@@ -59,8 +59,8 @@ export interface SeedLedgerDef {
 }
 
 export const DEMO_USER = {
-  email: 'demo@finehance.app',
-  password: 'Finehance#2026!',
+  email: 'demo@versifine.com',
+  password: 'Versifine#2026!',
   displayName: 'Demo User',
   primaryLanguage: 'en' as const,
 };

@@ -37,7 +37,7 @@ function describeDraft(d: DraftSummary): string {
 
 export const ml: MessagePack = {
   greeting:
-    'നമസ്കാരം! ഞാൻ Finehance — നിങ്ങളുടെ പേഴ്സണൽ പണ സഹായിയാണ്. ഭാഷ തിരഞ്ഞെടുക്കൂ:\n' +
+    'നമസ്കാരം! ഞാൻ Versifine — നിങ്ങളുടെ പേഴ്സണൽ പണ സഹായിയാണ്. ഭാഷ തിരഞ്ഞെടുക്കൂ:\n' +
     '1. English\n' +
     '2. हिन्दी\n' +
     '3. മലയാളം\n' +
@@ -50,7 +50,7 @@ export const ml: MessagePack = {
 
   linkPrompt:
     'ഈ നമ്പർ എനിക്ക് ഇതുവരെ ലിങ്ക് ചെയ്തിട്ടില്ല. മൂന്ന് ചെറിയ പടികൾ:\n' +
-    '1. വെബിൽ രജിസ്റ്റർ ചെയ്യൂ: finehance.app\n' +
+    '1. വെബിൽ രജിസ്റ്റർ ചെയ്യൂ: versifine.com\n' +
     '2. Settings → Link WhatsApp തുറന്ന് 6 അക്ക കോഡ് നോക്കൂ\n' +
     '3. ഇവിടെ അയക്കൂ: LINK 482917 (നിങ്ങളുടെ കോഡ്)\n\n' +
     'ലിങ്ക് ചെയ്താൽ ഉടനെ നിങ്ങൾ അയക്കുന്ന ഓരോ ചെലവും ഞാൻ രേഖപ്പെടുത്തും.',
@@ -92,7 +92,7 @@ export const ml: MessagePack = {
   queryAnswer: (text) => text,
 
   copilotNudge:
-    'വിശദമായ ചോദ്യങ്ങൾക്ക് വെബ് copilot ഉപയോഗിക്കാം: finehance.app. ഇവിടെയും ചോദിക്കാം — ചോദ്യം നേരിട്ട് അയക്കൂ.',
+    'വിശദമായ ചോദ്യങ്ങൾക്ക് വെബ് copilot ഉപയോഗിക്കാം: versifine.com. ഇവിടെയും ചോദിക്കാം — ചോദ്യം നേരിട്ട് അയക്കൂ.',
 
   budgetAskCategory:
     'ഏത് കാറ്റഗറിക്കാണ്? (Groceries, Restaurants, Transportation പോലെ)',

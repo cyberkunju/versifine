@@ -4,7 +4,7 @@
  * Trigger: a message that starts with "set budget" (or its localized
  * variants the engine maps). Three states:
  *   1. SET_BUDGET_CATEGORY — user picks the category (free text matched
- *      against `BUDGETABLE_CATEGORIES` from @finehance/shared).
+ *      against `BUDGETABLE_CATEGORIES` from @versifine/shared).
  *   2. SET_BUDGET_AMOUNT — user sends a number.
  *   3. Submit to /budgets, return localized confirmation.
  *
@@ -12,7 +12,7 @@
  * fields up-front and skips straight to the API call.
  */
 import type { Session } from '../../types.ts';
-import { BUDGETABLE_CATEGORIES, isCategory, type Category } from '@finehance/shared';
+import { BUDGETABLE_CATEGORIES, isCategory, type Category } from '@versifine/shared';
 import { ApiClientError, createBudget } from '../../services/apiClient.ts';
 import { log } from '../../utils/logger.ts';
 import { getMessages } from '../messages/index.ts';

@@ -1,8 +1,8 @@
-# Implementation Plan: Finehance
+# Implementation Plan: Versifine
 
 ## Overview
 
-This implementation plan breaks the Finehance MVP into 79 small, testable tasks across 17 phases plus a stretch list. Each task references the requirements (R) it satisfies. The plan is ordered top-to-bottom for the cleanest dependency order: foundation first, then schema, then API by layer, then bot port, then web, then polish.
+This implementation plan breaks the Versifine MVP into 79 small, testable tasks across 17 phases plus a stretch list. Each task references the requirements (R) it satisfies. The plan is ordered top-to-bottom for the cleanest dependency order: foundation first, then schema, then API by layer, then bot port, then web, then polish.
 
 ## Notes
 
@@ -108,7 +108,7 @@ Phase 0 ─→ 1 ─→ 2 ─→ 3 ─→ 4 ─→ 5 ─→ 6 ─→ 7 ─→ 8 
 
 - [x] 6. Set up Postgres locally (no Docker)
   - Native install of PostgreSQL 16 + pgvector 0.8.2
-  - `scripts/db-init.ts` (run via `bun run db:init`) creates `finehance_dev` and `finehance_test`, role `finehance`, and enables `pgcrypto`, `pg_trgm`, `citext`, `vector`
+  - `scripts/db-init.ts` (run via `bun run db:init`) creates `versifine_dev` and `versifine_test`, role `versifine`, and enables `pgcrypto`, `pg_trgm`, `citext`, `vector`
   - _Requirements: R2, R11_
 
 ## Phase 1 — Database schema and migrations
@@ -182,7 +182,7 @@ Phase 0 ─→ 1 ─→ 2 ─→ 3 ─→ 4 ─→ 5 ─→ 6 ─→ 7 ─→ 8 
 ## Phase 3 — MiniLM ONNX + categorization
 
 - [x] 18. Author MiniLM conversion script
-  - `apps/api/scripts/convert-minilm-to-onnx.ts` — uses `@huggingface/transformers` to download `CyberKunju/finehance-categorizer-minilm`, exports ONNX, writes to `apps/api/src/ml/model/` AND `apps/web/static/models/`
+  - `apps/api/scripts/convert-minilm-to-onnx.ts` — uses `@huggingface/transformers` to download `CyberKunju/versifine-categorizer-minilm`, exports ONNX, writes to `apps/api/src/ml/model/` AND `apps/web/static/models/`
   - Verify with a sample inference (e.g., "swiggy biryani" → expected category)
   - Document in `apps/api/src/ml/README.md` (how to re-run, what's in the artifact)
   - _Requirements: R7_

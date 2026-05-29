@@ -46,8 +46,8 @@ interface WsMessage {
 }
 
 async function main() {
-  const email = `copilot+${Date.now()}@finehance.app`;
-  const password = 'Finehance#2026!';
+  const email = `copilot+${Date.now()}@versifine.com`;
+  const password = 'Versifine#2026!';
 
   type Auth = {
     user: { id: string; activeSpaceId: string };

@@ -68,7 +68,7 @@ Receipt OCR for the `/capture/image` route.
 
 `gpt-4o-mini`, JSON-mode, temperature 0, max_tokens 200.
 
-- Output schema: `{ intent, confidence, category? }` with `intent` as one of 15 enum values from `@finehance/shared`.
+- Output schema: `{ intent, confidence, category? }` with `intent` as one of 15 enum values from `@versifine/shared`.
 - 60-second in-memory LRU cache (key = locale + text). Cuts duplicate-prompt cost during a single conversation.
 - Regex shortcut: messages matching `/^(spent|paid|gave|cost) \d+/i` skip the LLM entirely and return `expense` with confidence 0.95.
 

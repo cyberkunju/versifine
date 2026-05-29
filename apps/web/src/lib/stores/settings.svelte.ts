@@ -7,15 +7,15 @@
  * reload.
  */
 import { browser } from '$app/environment';
-import type { Currency, Language } from '@finehance/shared';
+import type { Currency, Language } from '@versifine/shared';
 
 type Theme = 'light' | 'dark' | 'system';
 
 const KEYS = {
-  theme: 'finehance.theme',
-  language: 'finehance.language',
-  privacy: 'finehance.privacy',
-  currency: 'finehance.currency',
+  theme: 'versifine.theme',
+  language: 'versifine.language',
+  privacy: 'versifine.privacy',
+  currency: 'versifine.currency',
 } as const;
 
 function readStorage(key: string): string | null {

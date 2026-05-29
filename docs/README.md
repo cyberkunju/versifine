@@ -1,14 +1,14 @@
-# Finehance — Documentation
+# Versifine — Documentation
 
-Welcome to the Finehance documentation. This folder is the **single source of truth** for the project as it exists right now: every file written, every decision taken, every bug found and fixed, every gap still open.
+Welcome to the Versifine documentation. This folder is the **single source of truth** for the project as it exists right now: every file written, every decision taken, every bug found and fixed, every gap still open.
 
-The spec in `.kiro/specs/finehance/` (`requirements.md`, `design.md`, `tasks.md`) describes the **target state**. The docs here describe the **current state** plus everything you need to navigate, debug, extend, or hand off the project.
+The spec in `.kiro/specs/versifine/` (`requirements.md`, `design.md`, `tasks.md`) describes the **target state**. The docs here describe the **current state** plus everything you need to navigate, debug, extend, or hand off the project.
 
 > **Last full audit**: 2026-05-28 (Phase 1 schema + Phase 2 auth + most of Phases 3-9 verified live, API boots and `/health/ready` returns 200).
 
-## What is Finehance?
+## What is Versifine?
 
-Finehance is a **personal finance manager with frictionless multimodal capture and an AI co-pilot that actually understands your money**.
+Versifine is a **personal finance manager with frictionless multimodal capture and an AI co-pilot that actually understands your money**.
 
 - Indian-market-first: INR-native, UPI vocabulary, multilingual to the bone.
 - Three apps share one Postgres: a Hono API, a SvelteKit web dashboard, a WhatsApp bot.

@@ -12,8 +12,8 @@ import { errors } from '../../utils/errors.ts';
 
 const ACCESS_SECRET = new TextEncoder().encode(env.JWT_ACCESS_SECRET);
 const REFRESH_SECRET = new TextEncoder().encode(env.JWT_REFRESH_SECRET);
-const ISSUER = 'finehance.api';
-const AUDIENCE = 'finehance.web';
+const ISSUER = 'versifine.api';
+const AUDIENCE = 'versifine.web';
 
 export interface AccessClaims {
   sub: string; // user id

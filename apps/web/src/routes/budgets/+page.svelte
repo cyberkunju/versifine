@@ -15,7 +15,7 @@
     CATEGORIES,
     CATEGORY_META,
     type Category,
-  } from '@finehance/shared';
+  } from '@versifine/shared';
   import { api } from '$lib/api/client';
   import { useQuery, invalidate } from '$lib/api/queries.svelte';
   import { toast } from '$lib/stores/toast.svelte';

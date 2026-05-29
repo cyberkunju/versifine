@@ -29,7 +29,7 @@ Three Bun-runtime apps share one Postgres + pgvector database. One shared TypeSc
             ▼                     ▼                     │
    ┌──────────────────────────────────────────────────────────────┐
    │                  Postgres 16 + pgvector 0.8.2                │
-   │  finehance_dev (live)   ·   finehance_test (CI)              │
+   │  versifine_dev (live)   ·   versifine_test (CI)              │
    └──────────────────────────────────────────────────────────────┘
 
 (There is no Redis, no Docker, no separate ML server. The MiniLM model
@@ -40,7 +40,7 @@ runs in-process inside `apps/api` via Transformers.js ONNX runtime.)
 
 1. **The API is the only writer to the database.** The bot never touches Postgres directly. Every bot action is a typed HTTP call into the API, signed with `X-Bot-Secret` + `X-Phone`. This keeps a single ingress for auth, validation, FX, categorization, embedding, and event emission.
 2. **Every owned row carries `space_id`.** Even though the MVP only ever has one personal space per user, every query filters by `space_id`. `space_members` table exists but is empty; v2 will populate it without a migration.
-3. **`packages/shared` is the wire contract.** Zod schemas validate every body crossing the network. The web client, the bot, and the API all `import { ... } from '@finehance/shared'`.
+3. **`packages/shared` is the wire contract.** Zod schemas validate every body crossing the network. The web client, the bot, and the API all `import { ... } from '@versifine/shared'`.
 4. **Server-Sent Events for streaming, WebSocket for fan-out.** Copilot answers are SSE because they're a one-way response. WS is for live broadcasts (transaction.created, budget.warning, etc.) initiated server-side without a request.
 5. **No browser secrets.** The web app holds the access JWT. Refresh tokens live in `localStorage` (acceptable for MVP; v2 should move to httpOnly cookies). The OpenAI key is only on the API server.
 

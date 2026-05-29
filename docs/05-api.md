@@ -248,7 +248,7 @@ ws.onmessage = (e) => {
 
 The auth subprotocol is `bearer.<jwt>`. Authorization header is also accepted (curl-friendly).
 
-**Events you'll receive** (from `@finehance/shared`'s `WsEvent` union):
+**Events you'll receive** (from `@versifine/shared`'s `WsEvent` union):
 
 - `transaction.created` — new transaction
 - `transaction.updated` — edit (changedFields list)
@@ -292,7 +292,7 @@ Either-or auth (`requireUserOrBot`) is used by `/capture/*` so the same routes s
 # Boot a user end-to-end
 curl -sX POST http://127.0.0.1:5000/auth/register \
   -H 'content-type: application/json' \
-  -d '{"email":"demo@finehance.app","password":"Finehance#2026!","primaryLanguage":"en"}'
+  -d '{"email":"demo@versifine.com","password":"Versifine#2026!","primaryLanguage":"en"}'
 
 # Capture an expense (paste accessToken from above)
 TOKEN=eyJ...

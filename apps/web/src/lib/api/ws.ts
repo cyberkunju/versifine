@@ -9,11 +9,11 @@
  */
 import { browser } from '$app/environment';
 import { PUBLIC_WS_URL } from '$lib/config';
-import type { WsEvent, WsEventType } from '@finehance/shared';
+import type { WsEvent, WsEventType } from '@versifine/shared';
 
 type Handler<T extends WsEventType> = (event: Extract<WsEvent, { type: T }>) => void;
 
-export class FinehanceSocket {
+export class VersifineSocket {
   private ws: WebSocket | null = null;
   private retryDelay = 1000;
   private readonly maxRetryDelay = 30_000;
@@ -151,4 +151,4 @@ export class FinehanceSocket {
 }
 
 /** Singleton — there's only one connection per tab. */
-export const socket = new FinehanceSocket();
+export const socket = new VersifineSocket();

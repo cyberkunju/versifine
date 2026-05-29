@@ -11,7 +11,7 @@
  *
  * and the engine handles the per-language rendering.
  */
-import type { Language } from '@finehance/shared';
+import type { Language } from '@versifine/shared';
 import { en } from './en.ts';
 import { hi } from './hi.ts';
 import { ml } from './ml.ts';

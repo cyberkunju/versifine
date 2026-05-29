@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Finehance is a personal finance manager that captures spending with **zero friction** and turns it into a real **AI co-pilot** that understands the user's money. Two killer surfaces: a **Svelte web dashboard** and a **WhatsApp bot** — both fed by the same brain. Indian-market-first (INR, UPI vocabulary, multilingual), single-user MVP, multi-tenant-ready schema.
+Versifine is a personal finance manager that captures spending with **zero friction** and turns it into a real **AI co-pilot** that understands the user's money. Two killer surfaces: a **Svelte web dashboard** and a **WhatsApp bot** — both fed by the same brain. Indian-market-first (INR, UPI vocabulary, multilingual), single-user MVP, multi-tenant-ready schema.
 
 This document defines the functional and non-functional requirements for the hackathon MVP.
 
@@ -140,7 +140,7 @@ A judge cloning the repo can:
 
 ### Acceptance criteria
 
-1. WHEN the API starts THEN it loads `CyberKunju/finehance-categorizer-minilm` (ONNX-converted) into memory via `@huggingface/transformers` for CPU inference.
+1. WHEN the API starts THEN it loads `CyberKunju/versifine-categorizer-minilm` (ONNX-converted) into memory via `@huggingface/transformers` for CPU inference.
 2. WHEN a transaction needs categorization THEN the system checks in order:
    a. User-specific override table `category_overrides(merchant_normalized, category)` for an exact match
    b. Curated India-first global merchant database (~300 entries, regex + alias)
@@ -333,7 +333,7 @@ A judge cloning the repo can:
 
 1. THE repo root README MUST contain a 60-second setup recipe.
 2. `bun install` from root MUST install all three workspaces.
-3. `docker compose up postgres -d && bun run db:migrate && bun run db:seed` MUST seed a demo user (`demo@finehance.app` / `Finehance#2026!`) with 90 days of realistic Indian transactions across 8 categories.
+3. `docker compose up postgres -d && bun run db:migrate && bun run db:seed` MUST seed a demo user (`demo@versifine.com` / `Versifine#2026!`) with 90 days of realistic Indian transactions across 8 categories.
 4. `bun run dev` from root MUST start `web` (5173), `api` (5000), `wa-bot` (5001) concurrently.
 5. THE seed data MUST include subscriptions (Netflix, Spotify, Zerodha SIP), salary credits, UPI to common merchants (Swiggy, Zomato, BPCL, Uber, BigBasket), at least one split-bill scenario, and a few entries in different currencies.
 6. THE web app at `/` MUST be one click from a useful dashboard, no tutorial walkthrough required.

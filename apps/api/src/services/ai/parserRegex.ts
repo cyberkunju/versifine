@@ -8,7 +8,7 @@
  * a chance: it sees the full text, so its other fields stay
  * unaffected.
  */
-import { CURRENCY_ALIASES, type Currency } from '@finehance/shared';
+import { CURRENCY_ALIASES, type Currency } from '@versifine/shared';
 
 export interface AmountExtraction {
   /** Positive amount or null. */

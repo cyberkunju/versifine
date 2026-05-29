@@ -25,7 +25,7 @@ function findChrome(): string {
 
 const TARGET = process.argv[2] ?? 'http://localhost:5173';
 const PORT = 9223 + Math.floor(Math.random() * 100);
-const profileDir = resolve(tmpdir(), `finehance-probe-${Date.now()}`);
+const profileDir = resolve(tmpdir(), `versifine-probe-${Date.now()}`);
 
 console.log(`probe: ${TARGET} via Chrome on devtools port ${PORT}`);
 

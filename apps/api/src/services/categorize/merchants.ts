@@ -21,7 +21,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { isCategory, type Category } from '@finehance/shared';
+import { isCategory, type Category } from '@versifine/shared';
 import { log } from '../../utils/logger.ts';
 
 type MatchKind = 'exact' | 'startsWith' | 'regex' | 'contains';

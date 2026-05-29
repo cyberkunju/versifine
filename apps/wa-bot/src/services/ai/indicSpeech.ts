@@ -13,8 +13,8 @@
  * fails we return null so the caller can fall back to text-only.
  */
 import type { OutgoingVoice } from '../../types.ts';
-import type { Language } from '@finehance/shared';
-import { LANGUAGE_META, SIBLING_SCRIPTS } from '@finehance/shared';
+import type { Language } from '@versifine/shared';
+import { LANGUAGE_META, SIBLING_SCRIPTS } from '@versifine/shared';
 import { env } from '../../config.ts';
 import { log } from '../../utils/logger.ts';
 import { getOpenAI, isAIConfigured, withLatency } from './client.ts';

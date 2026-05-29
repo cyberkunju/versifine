@@ -50,7 +50,7 @@ app.get('/summary.csv', async (c) => {
     status: 200,
     headers: {
       'content-type': 'text/csv; charset=utf-8',
-      'content-disposition': `attachment; filename="finehance-summary-${range.from}-${range.to}.csv"`,
+      'content-disposition': `attachment; filename="versifine-summary-${range.from}-${range.to}.csv"`,
     },
   });
 });

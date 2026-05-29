@@ -15,7 +15,7 @@ import {
   LANGUAGE_META,
   SIBLING_SCRIPTS,
   type Language,
-} from '@finehance/shared';
+} from '@versifine/shared';
 import { env } from '../../env.ts';
 import { log } from '../../utils/logger.ts';
 import { getOpenAI, isAIConfigured, withLatency } from './client.ts';

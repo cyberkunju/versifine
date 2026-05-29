@@ -1,5 +1,5 @@
 {
-  "name": "@finehance/api",
+  "name": "@versifine/api",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -16,7 +16,7 @@
     "convert:minilm": "bun --env-file=../../.env run scripts/convert-minilm-to-onnx.ts"
   },
   "dependencies": {
-    "@finehance/shared": "workspace:*",
+    "@versifine/shared": "workspace:*",
     "@hono/zod-validator": "0.4.2",
     "@huggingface/transformers": "3.3.3",
     "@scalar/hono-api-reference": "0.5.166",

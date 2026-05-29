@@ -16,7 +16,7 @@ import {
   ledgerDirection,
   ledgerSettlementInput,
   ledgerStatus,
-} from '@finehance/shared';
+} from '@versifine/shared';
 import { requireUser } from '../middleware/auth.ts';
 import {
   createEntry,

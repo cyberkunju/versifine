@@ -1,6 +1,6 @@
 /**
  * Public surface of the shared package. Re-exports everything in a flat
- * namespace so consumers can `import { Category, walletCreateInput } from '@finehance/shared'`
+ * namespace so consumers can `import { Category, walletCreateInput } from '@versifine/shared'`
  * without thinking about subpaths. Subpath imports remain available for
  * trees that benefit from finer-grained dependencies.
  */

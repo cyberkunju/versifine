@@ -6,7 +6,7 @@
  * pack; ta/te/kn callers translate the result before sending.
  */
 import type { Session } from '../../types.ts';
-import { LANGUAGE_META } from '@finehance/shared';
+import { LANGUAGE_META } from '@versifine/shared';
 import { getMessages } from '../messages/index.ts';
 import { resetSession, setState, updateSession } from '../state.ts';
 

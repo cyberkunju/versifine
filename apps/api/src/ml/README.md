@@ -6,7 +6,7 @@ model that the API loads at startup through Transformers.js.
 ## What lives here
 
 `model/` — checked-out files from the HuggingFace repo
-[`CyberKunju/finehance-categorizer-minilm`](https://huggingface.co/CyberKunju/finehance-categorizer-minilm).
+[`CyberKunju/versifine-categorizer-minilm`](https://huggingface.co/CyberKunju/versifine-categorizer-minilm).
 
 | File                       | Purpose                                                |
 | -------------------------- | ------------------------------------------------------ |
@@ -24,7 +24,7 @@ load the bundle in Privacy Mode and run categorization inside the browser.
 
 ## Label set
 
-The model emits exactly the 23 labels Finehance uses across the rest of the
+The model emits exactly the 23 labels Versifine uses across the rest of the
 system. The canonical list is owned by
 [`packages/shared/src/categories.ts`](../../../../packages/shared/src/categories.ts)
 and is _identical_ to what `label_map.json` ships:
@@ -73,7 +73,7 @@ toolchain once:
 ```sh
 pip install --upgrade "optimum[exporters,onnxruntime]" transformers
 optimum-cli export onnx \
-  --model CyberKunju/finehance-categorizer-minilm \
+  --model CyberKunju/versifine-categorizer-minilm \
   apps/api/src/ml/model/onnx
 ```
 

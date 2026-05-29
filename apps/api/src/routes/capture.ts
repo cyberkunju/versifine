@@ -6,14 +6,14 @@
  *   POST /capture/image    multipart image → vision → always confirm
  *   POST /capture/confirm  redeem a draft id and persist
  *
- * The response shape mirrors `captureResponse` in @finehance/shared so the
+ * The response shape mirrors `captureResponse` in @versifine/shared so the
  * omnibar and the bot can share a renderer.
  */
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { isLanguage, isTransactionIntent, type Language } from '@finehance/shared';
-import { captureTextInput } from '@finehance/shared';
+import { isLanguage, isTransactionIntent, type Language } from '@versifine/shared';
+import { captureTextInput } from '@versifine/shared';
 import { requireUserOrBot } from '../middleware/authEither.ts';
 import { limits, rateLimit } from '../middleware/rateLimit.ts';
 import { classifyIntent } from '../services/ai/intent.ts';

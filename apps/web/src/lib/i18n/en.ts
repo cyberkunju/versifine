@@ -6,7 +6,7 @@ import type { MessagePack } from './index';
 
 export const en: MessagePack = {
   app: {
-    title: 'Finehance',
+    title: 'Versifine',
     tagline: 'Your finances, finely tuned.',
   },
   nav: {
@@ -43,7 +43,7 @@ export const en: MessagePack = {
     needAccount: "Don't have an account?",
     haveAccount: 'Already have an account?',
     welcomeBack: 'Welcome back',
-    welcomeNew: 'Welcome to Finehance',
+    welcomeNew: 'Welcome to Versifine',
     invalidCredentials: 'That email and password did not match.',
   },
   dashboard: {
@@ -150,7 +150,7 @@ export const en: MessagePack = {
     phone: 'WhatsApp',
     phoneHelp: 'Link your phone to capture transactions from WhatsApp.',
     phoneStart: 'Start linking',
-    phoneCode: 'Send "LINK {code}" to the Finehance bot.',
+    phoneCode: 'Send "LINK {code}" to the Versifine bot.',
     wallets: 'Wallets',
     addWallet: 'Add wallet',
     save: 'Save',

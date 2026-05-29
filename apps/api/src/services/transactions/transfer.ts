@@ -16,7 +16,7 @@
  * never leaves a half-transfer on the books.
  */
 import { eq } from 'drizzle-orm';
-import { type TransferInput, transferInput } from '@finehance/shared';
+import { type TransferInput, transferInput } from '@versifine/shared';
 import { db } from '../../db/client.ts';
 import { transactions, type Transaction } from '../../db/schema/transactions.ts';
 import { wallets } from '../../db/schema/wallets.ts';

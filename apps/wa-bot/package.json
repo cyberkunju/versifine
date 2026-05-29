@@ -1,5 +1,5 @@
 {
-  "name": "@finehance/wa-bot",
+  "name": "@versifine/wa-bot",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -11,7 +11,7 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@finehance/shared": "workspace:*",
+    "@versifine/shared": "workspace:*",
     "hono": "4.6.16",
     "openai": "4.77.0",
     "qrcode": "1.5.4",

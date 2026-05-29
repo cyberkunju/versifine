@@ -17,7 +17,7 @@
  *     unsubscribe from the bus to keep the emitter clean.
  */
 import type { ServerWebSocket } from 'bun';
-import type { WsEvent } from '@finehance/shared';
+import type { WsEvent } from '@versifine/shared';
 import { log } from '../../utils/logger.ts';
 import { subscribe } from './bus.ts';
 

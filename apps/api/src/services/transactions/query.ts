@@ -1,7 +1,7 @@
 /**
  * Transaction list query.
  *
- * Filters mirror `transactionListQuery` in `@finehance/shared`. All queries
+ * Filters mirror `transactionListQuery` in `@versifine/shared`. All queries
  * are scoped to the caller's `space_id` and exclude soft-deleted rows by
  * default. Search uses Postgres trigram on the description; the GIN index
  * on `transactions.description` keeps this snappy for the demo dataset.
@@ -21,7 +21,7 @@ import {
   type TransactionListQuery,
   transactionListQuery,
   type TransactionSummary,
-} from '@finehance/shared';
+} from '@versifine/shared';
 import { db } from '../../db/client.ts';
 import { transactions, type Transaction } from '../../db/schema/transactions.ts';
 

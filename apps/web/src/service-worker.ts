@@ -26,9 +26,9 @@ import { build, files, version } from '$service-worker';
 
 declare const self: ServiceWorkerGlobalScope;
 
-const SHELL_CACHE = `finehance-shell-${version}`;
-const MODELS_CACHE = 'finehance-models-v1'; // version-independent — bundle rarely changes
-const RUNTIME_CACHE = `finehance-runtime-${version}`;
+const SHELL_CACHE = `versifine-shell-${version}`;
+const MODELS_CACHE = 'versifine-models-v1'; // version-independent — bundle rarely changes
+const RUNTIME_CACHE = `versifine-runtime-${version}`;
 
 // Everything SvelteKit emits as a build artefact + everything we ship
 // under `static/` is precached on install. `build` already includes

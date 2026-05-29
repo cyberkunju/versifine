@@ -2,7 +2,7 @@
  * Password hashing. Uses Bun's built-in bcrypt at cost 12.
  *
  * The password policy is enforced at the schema layer (see
- * `@finehance/shared/schemas/auth.ts`); this module only implements the
+ * `@versifine/shared/schemas/auth.ts`); this module only implements the
  * primitives. We deliberately keep verification timing-safe by always
  * running the hash compare even when the user is unknown — that's why the
  * "user not found" path also calls `verify` against a sentinel hash.

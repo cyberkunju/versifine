@@ -15,7 +15,7 @@ const app = new Hono();
 app.get('/', (c) =>
   c.json(
     ok({
-      service: 'finehance-api',
+      service: 'versifine-api',
       uptime: process.uptime(),
       ts: new Date().toISOString(),
     }),

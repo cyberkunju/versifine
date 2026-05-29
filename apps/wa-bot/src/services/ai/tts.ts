@@ -18,7 +18,7 @@
  * are issued in a single audio-modality chat call.
  */
 import type { OutgoingVoice } from '../../types.ts';
-import type { Language } from '@finehance/shared';
+import type { Language } from '@versifine/shared';
 import { env } from '../../config.ts';
 import { log } from '../../utils/logger.ts';
 import { getOpenAI, isAIConfigured, withLatency } from './client.ts';

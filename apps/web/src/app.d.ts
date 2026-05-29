@@ -9,7 +9,7 @@ declare global {
     }
     interface Locals {}
     interface PageData {
-      user?: import('@finehance/shared').UserSummary | null;
+      user?: import('@versifine/shared').UserSummary | null;
     }
     interface PageState {}
     interface Platform {}

@@ -1,7 +1,7 @@
 /**
  * MiniLM categorizer — tier 3.
  *
- * The fine-tuned MiniLM (`CyberKunju/finehance-categorizer-minilm`) emits a
+ * The fine-tuned MiniLM (`CyberKunju/versifine-categorizer-minilm`) emits a
  * single label from the 23-category set. It runs locally in-process via
  * `@huggingface/transformers` ONNX runtime when ONNX siblings are present
  * under `apps/api/src/ml/model/onnx/`. When the artifact is missing — which
@@ -23,7 +23,7 @@
  */
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { isCategory, type Category } from '@finehance/shared';
+import { isCategory, type Category } from '@versifine/shared';
 import { log } from '../../utils/logger.ts';
 
 export interface MiniLMHit {

@@ -4,7 +4,7 @@
  * Three audiences:
  *   1. Operators: `/health`, `/qr`, `/qr.png` for pairing the WhatsApp
  *      session. The QR page polls every 5 seconds until ready.
- *   2. The Finehance API: `/send`, `/broadcast/*` for pushing budget /
+ *   2. The Versifine API: `/send`, `/broadcast/*` for pushing budget /
  *      anomaly notifications outbound to a paired user. Auth via
  *      `X-Bot-Secret`.
  *   3. The test harness: `/simulator/message` drives the conversation

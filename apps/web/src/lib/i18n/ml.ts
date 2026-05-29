@@ -41,7 +41,7 @@ const overrides: Partial<MessagePack> = {
     needAccount: 'അക്കൗണ്ട് ഇല്ലേ?',
     haveAccount: 'ഇതിനോടകം അക്കൗണ്ട് ഉണ്ടോ?',
     welcomeBack: 'വീണ്ടും സ്വാഗതം',
-    welcomeNew: 'Finehance ലേക്ക് സ്വാഗതം',
+    welcomeNew: 'Versifine ലേക്ക് സ്വാഗതം',
     invalidCredentials: 'ഇമെയിലും പാസ്‌വേഡും പൊരുത്തപ്പെടുന്നില്ല.',
   },
   dashboard: {

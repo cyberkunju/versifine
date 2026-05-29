@@ -33,7 +33,7 @@
 # requires Python 3.10+ and pip
 pip install --upgrade "optimum[exporters,onnxruntime]" transformers
 optimum-cli export onnx \
-  --model CyberKunju/finehance-categorizer-minilm \
+  --model CyberKunju/versifine-categorizer-minilm \
   apps/api/src/ml/model/onnx
 # Then mirror into the web bundle:
 bun run --cwd apps/api convert:minilm

@@ -40,8 +40,8 @@ function isoOffset(yearMonthDelta: number, dayOffset = 0): string {
 }
 
 async function main() {
-  const email = `advice+${Date.now()}@finehance.app`;
-  const password = 'Finehance#2026!';
+  const email = `advice+${Date.now()}@versifine.com`;
+  const password = 'Versifine#2026!';
 
   type Auth = {
     user: { id: string; activeSpaceId: string };

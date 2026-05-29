@@ -8,7 +8,7 @@
  * the corrected label automatically.
  */
 import type { Session } from '../../types.ts';
-import { type Category, isCategory } from '@finehance/shared';
+import { type Category, isCategory } from '@versifine/shared';
 import { ApiClientError, patchTransactionCategory } from '../../services/apiClient.ts';
 import { log } from '../../utils/logger.ts';
 import { getMessages } from '../messages/index.ts';

@@ -3,7 +3,7 @@
  * runtime-translated languages (ta/te/kn).
  *
  * Every user-visible string for English flows through here. Numbers are
- * formatted with the Indian comma convention (12,34,567) because Finehance
+ * formatted with the Indian comma convention (12,34,567) because Versifine
  * is INR-first. Currency rendering keeps `₹` for INR and falls back to
  * the ISO code for everything else.
  */
@@ -42,7 +42,7 @@ function describeDraft(d: DraftSummary): string {
 
 export const en: MessagePack = {
   greeting:
-    "Hi! I'm Finehance — your personal money assistant. Pick your language:\n" +
+    "Hi! I'm Versifine — your personal money assistant. Pick your language:\n" +
     '1. English\n' +
     '2. हिन्दी\n' +
     '3. മലയാളം\n' +
@@ -55,7 +55,7 @@ export const en: MessagePack = {
 
   linkPrompt:
     "I don't know this number yet. Quick steps:\n" +
-    '1. Register on the web at finehance.app\n' +
+    '1. Register on the web at versifine.com\n' +
     "2. Open Settings → Link WhatsApp → you'll see a 6-digit code\n" +
     '3. Send: LINK 482917 (your code)\n\n' +
     "Once linked, I'll log every expense you send me.",
@@ -96,7 +96,7 @@ export const en: MessagePack = {
   queryAnswer: (text) => text,
 
   copilotNudge:
-    'For deep questions, try the web copilot at finehance.app — I can also try here, just send the question.',
+    'For deep questions, try the web copilot at versifine.com — I can also try here, just send the question.',
 
   budgetAskCategory:
     'Which category? (e.g., Groceries, Restaurants, Transportation)',

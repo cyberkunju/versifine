@@ -112,7 +112,7 @@ sudo -u "$DEPLOY_USER" ln -sfn "$BASE/wabot-state/.wwebjs_cache" "$APP/apps/wa-b
 
 # ---- 6. Install runtime dependencies on the server ----------------------
 # Bun's workspace resolver needs the lockfile + workspace package.json files
-# to wire @finehance/shared correctly. We re-install at /opt/versifine/repo
+# to wire @versifine/shared correctly. We re-install at /opt/versifine/repo
 # so the deploy user owns its own node_modules.
 log "Installing runtime dependencies on the server"
 sudo -u "$DEPLOY_USER" bash -lc "cd $APP && /usr/local/bin/bun install --frozen-lockfile"

@@ -10,7 +10,7 @@
  */
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
-import { budgetCreateInput, budgetUpdateInput } from '@finehance/shared';
+import { budgetCreateInput, budgetUpdateInput } from '@versifine/shared';
 import type { Budget } from '../db/schema/budgets.ts';
 import { requireUser } from '../middleware/auth.ts';
 import {

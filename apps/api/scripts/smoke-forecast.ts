@@ -41,8 +41,8 @@ function isoDaysAgo(n: number): string {
 }
 
 async function main() {
-  const email = `forecast+${Date.now()}@finehance.app`;
-  const password = 'Finehance#2026!';
+  const email = `forecast+${Date.now()}@versifine.com`;
+  const password = 'Versifine#2026!';
 
   type Auth = {
     user: { id: string; activeSpaceId: string };

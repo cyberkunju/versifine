@@ -1,8 +1,8 @@
 /**
  * Database bootstrap.
  *
- * Drops + recreates the `finehance_dev` and `finehance_test` databases and
- * the `finehance` role, then enables the four extensions every app needs:
+ * Drops + recreates the `versifine_dev` and `versifine_test` databases and
+ * the `versifine` role, then enables the four extensions every app needs:
  *
  *   - pgcrypto  → gen_random_uuid()
  *   - pg_trgm   → trigram indexes for transaction description search
@@ -19,7 +19,7 @@
 
 const SUPERUSER_DEFAULTS = {
   user: process.env.PG_SUPERUSER ?? 'postgres',
-  password: process.env.PG_SUPERPASSWORD ?? 'finehance_dev',
+  password: process.env.PG_SUPERPASSWORD ?? 'versifine_dev',
   host: process.env.PGHOST ?? 'localhost',
   port: process.env.PGPORT ?? '5432',
 };
@@ -52,15 +52,15 @@ async function ensureRole(): Promise<void> {
   await withDb('postgres', async (q) => {
     const rows = await q<{ rolname: string }>(
       'SELECT rolname FROM pg_roles WHERE rolname = $1',
-      ['finehance'],
+      ['versifine'],
     );
     if (rows.length === 0) {
-      await q(`CREATE ROLE finehance LOGIN PASSWORD 'finehance' CREATEDB`);
-      console.log('  ✓ created role finehance');
+      await q(`CREATE ROLE versifine LOGIN PASSWORD 'versifine' CREATEDB`);
+      console.log('  ✓ created role versifine');
     } else {
       // Keep the password aligned with what the docs promise.
-      await q(`ALTER ROLE finehance WITH LOGIN PASSWORD 'finehance' CREATEDB`);
-      console.log('  ✓ role finehance present (password reset to documented value)');
+      await q(`ALTER ROLE versifine WITH LOGIN PASSWORD 'versifine' CREATEDB`);
+      console.log('  ✓ role versifine present (password reset to documented value)');
     }
   });
 }
@@ -75,7 +75,7 @@ async function recreateDatabase(name: string): Promise<void> {
       [name],
     );
     await q(`DROP DATABASE IF EXISTS ${name}`);
-    await q(`CREATE DATABASE ${name} OWNER finehance`);
+    await q(`CREATE DATABASE ${name} OWNER versifine`);
     console.log(`  ✓ recreated database ${name}`);
   });
 }
@@ -85,8 +85,8 @@ async function enableExtensions(name: string): Promise<void> {
     for (const ext of ['pgcrypto', 'pg_trgm', 'citext', 'vector']) {
       await q(`CREATE EXTENSION IF NOT EXISTS "${ext}"`);
     }
-    // Ensure finehance can use everything inside the db.
-    await q(`GRANT ALL ON SCHEMA public TO finehance`);
+    // Ensure versifine can use everything inside the db.
+    await q(`GRANT ALL ON SCHEMA public TO versifine`);
     const exts = await q<{ extname: string; extversion: string }>(
       `SELECT extname, extversion FROM pg_extension ORDER BY extname`,
     );
@@ -99,9 +99,9 @@ async function enableExtensions(name: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  console.log('finehance · db init');
+  console.log('versifine · db init');
   await ensureRole();
-  for (const db of ['finehance_dev', 'finehance_test']) {
+  for (const db of ['versifine_dev', 'versifine_test']) {
     await recreateDatabase(db);
     await enableExtensions(db);
   }

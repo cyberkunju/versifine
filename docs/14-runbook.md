@@ -16,7 +16,7 @@ The audit at the start of this session installed Postgres + pgvector via winget.
 # Install Postgres 16 silently
 winget install --id PostgreSQL.PostgreSQL.16 --silent --accept-source-agreements `
   --accept-package-agreements `
-  --override "--mode unattended --superpassword finehance_dev --servicename postgresql-x64-16 --servicepassword finehance_dev --serverport 5432"
+  --override "--mode unattended --superpassword versifine_dev --servicename postgresql-x64-16 --servicepassword versifine_dev --serverport 5432"
 
 # Add to PATH
 $pgBin = 'C:\Program Files\PostgreSQL\16\bin'
@@ -39,14 +39,14 @@ Copy-Item "$tmp\include\server\extension\vector\*" "C:\Program Files\PostgreSQL\
 
 ```bash
 # 1. Clone (or already in workspace)
-cd c:\Users\knava\Downloads\Finehance
+cd c:\Users\knava\Downloads\Versifine
 
 # 2. Install workspace deps
 bun install
 
 # 3. Bootstrap Postgres (drops + recreates databases, role, extensions)
 bun run db:init
-# Output: creates finehance_dev + finehance_test, role finehance/finehance,
+# Output: creates versifine_dev + versifine_test, role versifine/versifine,
 # enables pgcrypto, pg_trgm, citext, vector
 
 # 4. Configure environment
@@ -64,7 +64,7 @@ bun run --cwd apps/api db:seed
 bun run --cwd apps/api dev
 # In another terminal:
 curl http://127.0.0.1:5000/health
-# {"success":true,"data":{"service":"finehance-api","uptime":...}}
+# {"success":true,"data":{"service":"versifine-api","uptime":...}}
 ```
 
 If everything works you'll see a log line like:
@@ -132,13 +132,13 @@ Required keys:
 ### "relation X does not exist"
 
 ```bash
-psql -U finehance -h localhost -d finehance_dev -c "\dt"
+psql -U versifine -h localhost -d versifine_dev -c "\dt"
 ```
 
 If empty, run `bun run --cwd apps/api db:migrate`. If `\dt` shows tables but the failing query mentions a column that doesn't exist, you're missing a migration:
 
 ```bash
-psql -U finehance -h localhost -d finehance_dev -c "SELECT * FROM drizzle.__drizzle_migrations ORDER BY created_at;"
+psql -U versifine -h localhost -d versifine_dev -c "SELECT * FROM drizzle.__drizzle_migrations ORDER BY created_at;"
 ```
 
 Should show 3 rows for `0000_*`, `0001_*`, `0002_*`. Re-run migrate if any are missing.
@@ -261,16 +261,16 @@ bun run --cwd apps/api dev 2>&1 | findstr /C:"event\":\"AUTH"
 
 ```bash
 # Backup
-pg_dump -U finehance -h localhost -d finehance_dev > backup-$(Get-Date -Format yyyy-MM-dd).dump
+pg_dump -U versifine -h localhost -d versifine_dev > backup-$(Get-Date -Format yyyy-MM-dd).dump
 
 # Restore
-psql -U finehance -h localhost -d finehance_dev < backup-2026-05-28.dump
+psql -U versifine -h localhost -d versifine_dev < backup-2026-05-28.dump
 ```
 
 For a full machine move:
 1. Install Postgres + pgvector on the new machine.
 2. `bun run db:init` to create the empty databases.
-3. `psql -d finehance_dev < backup.dump` to restore data.
+3. `psql -d versifine_dev < backup.dump` to restore data.
 4. Copy `.env` (or recreate from `.env.example`).
 5. `bun install` then `bun run --cwd apps/api dev`.
 

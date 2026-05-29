@@ -149,7 +149,7 @@ Each event also carries `type`, `seq`, `entityId`, `ts` from the envelope.
 
 ```ts
 // apps/web/src/lib/api/ws.ts
-export class FinehanceSocket {
+export class VersifineSocket {
   private ws: WebSocket | null = null;
   private retryDelay = 1000;
   private maxRetryDelay = 30000;

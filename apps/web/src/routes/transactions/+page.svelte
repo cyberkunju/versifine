@@ -18,7 +18,7 @@
     XCircle,
     ArrowRight,
   } from 'lucide-svelte';
-  import { CATEGORIES, CATEGORY_META, type Category } from '@finehance/shared';
+  import { CATEGORIES, CATEGORY_META, type Category } from '@versifine/shared';
   import { api } from '$lib/api/client';
   import { useQuery, invalidate } from '$lib/api/queries.svelte';
   import { toast } from '$lib/stores/toast.svelte';

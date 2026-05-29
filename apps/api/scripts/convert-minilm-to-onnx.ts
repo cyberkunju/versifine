@@ -1,7 +1,7 @@
 /**
  * Convert / fetch the fine-tuned MiniLM categorizer for Transformers.js.
  *
- * The HF repo `CyberKunju/finehance-categorizer-minilm` ships
+ * The HF repo `CyberKunju/versifine-categorizer-minilm` ships
  * `model.safetensors` + tokenizer + `label_map.json`. Transformers.js needs
  * an ONNX bundle (`onnx/model.onnx` or a quantized variant) to run the
  * classification pipeline locally. There is no pure-JS converter for
@@ -30,7 +30,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { copyFile, mkdir, readdir, stat } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 
-const REPO_ID = 'CyberKunju/finehance-categorizer-minilm';
+const REPO_ID = 'CyberKunju/versifine-categorizer-minilm';
 const REVISION = 'main';
 
 const HF_BASE = `https://huggingface.co/${REPO_ID}/resolve/${REVISION}`;
@@ -190,7 +190,7 @@ async function tryInference(
 }
 
 async function main() {
-  console.log(`finehance · convert MiniLM (${REPO_ID})`);
+  console.log(`versifine · convert MiniLM (${REPO_ID})`);
   ensureDir(API_MODEL_DIR);
   ensureDir(WEB_MODEL_DIR);
 

@@ -10,7 +10,7 @@
  * A 12-hour sweep retires idle sessions so the map can't grow unbounded
  * across long uptimes.
  */
-import type { Language } from '@finehance/shared';
+import type { Language } from '@versifine/shared';
 import type { ConversationState, ReplyMode, Session } from '../types.ts';
 
 const SWEEP_INTERVAL_MS = 60 * 60_000; // 1h

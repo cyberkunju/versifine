@@ -14,7 +14,7 @@
  * hackathon need. Drafts are scoped to the originating user/space so
  * a stray draftId from another tenant cannot be redeemed.
  */
-import { isLanguage, type Language } from '@finehance/shared';
+import { isLanguage, type Language } from '@versifine/shared';
 import { type ParsedExpense } from '../ai/parser.ts';
 
 export interface DraftRecord {

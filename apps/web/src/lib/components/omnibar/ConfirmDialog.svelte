@@ -5,7 +5,7 @@
    * description, date.
    */
   import type { CaptureResponse } from '$lib/api/types';
-  import { CATEGORIES, type Category } from '@finehance/shared';
+  import { CATEGORIES, type Category } from '@versifine/shared';
   import { api } from '$lib/api/client';
   import { invalidate } from '$lib/api/queries.svelte';
   import { toast } from '$lib/stores/toast.svelte';

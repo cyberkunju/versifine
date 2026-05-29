@@ -1,5 +1,5 @@
 /**
- * Finehance API client.
+ * Versifine API client.
  *
  * One fetch wrapper for the whole web app. It carries the access token
  * out of the rune-based auth store, retries once on a 401 by refreshing

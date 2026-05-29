@@ -1,7 +1,7 @@
 /**
  * Demo seed runner.
  *
- * Idempotent: if `demo@finehance.app` already exists, the run wipes that
+ * Idempotent: if `demo@versifine.com` already exists, the run wipes that
  * user's data (transactions, budgets, goals, ledger entries, recurring,
  * embeddings, etc.) and refreshes it with fresh fixtures. Wallets are
  * preserved when names match so existing transaction wallet ids stay

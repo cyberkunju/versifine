@@ -20,7 +20,7 @@ import {
   type BudgetProgress,
   type Category,
   isCategory,
-} from '@finehance/shared';
+} from '@versifine/shared';
 import { db } from '../../db/client.ts';
 import { budgets, type Budget } from '../../db/schema/budgets.ts';
 import { transactions } from '../../db/schema/transactions.ts';

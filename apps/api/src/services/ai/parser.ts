@@ -15,7 +15,7 @@
  * uses to decide whether to confirm or persist directly.
  */
 import { z } from 'zod';
-import { type Currency, isCurrency } from '@finehance/shared';
+import { type Currency, isCurrency } from '@versifine/shared';
 import { env } from '../../env.ts';
 import { log } from '../../utils/logger.ts';
 import { getOpenAI, isAIConfigured, withLatency } from './client.ts';

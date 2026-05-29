@@ -11,7 +11,7 @@
 import { browser } from '$app/environment';
 import { api } from '$lib/api/client';
 
-const DB_NAME = 'finehance-offline';
+const DB_NAME = 'versifine-offline';
 const DB_VERSION = 1;
 const STORE = 'captures';
 

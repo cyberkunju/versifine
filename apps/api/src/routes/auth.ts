@@ -17,7 +17,7 @@ import {
   phoneLinkConfirmInput,
   refreshInput,
   registerInput,
-} from '@finehance/shared';
+} from '@versifine/shared';
 import { db } from '../db/client.ts';
 import { spaceMembers, spaces } from '../db/schema/spaces.ts';
 import { phoneLinkOtps, refreshTokens, users } from '../db/schema/users.ts';
@@ -289,7 +289,7 @@ app.post('/phone-link/start', requireUser, async (c) => {
       // Only expose the code in dev; production should never echo it.
       code: env.NODE_ENV === 'development' ? otp.code : undefined,
       expiresAt: otp.expiresAt.toISOString(),
-      instruction: 'Send LINK <code> to the Finehance bot from your WhatsApp.',
+      instruction: 'Send LINK <code> to the Versifine bot from your WhatsApp.',
     }),
   );
 });

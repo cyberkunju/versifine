@@ -10,7 +10,7 @@
  * with a "last-seen" cursor can detect drops. Events carry `entityId` so
  * dedupe-on-receipt is trivial.
  */
-import { isWsEventType, type WsEvent, type WsEventType } from '@finehance/shared';
+import { isWsEventType, type WsEvent, type WsEventType } from '@versifine/shared';
 
 type Handler = (event: WsEvent) => void;
 

@@ -3,7 +3,7 @@
  * own everything that crosses the wire. These types only describe the
  * bot's internal session and message-handling shapes.
  */
-import type { Language } from '@finehance/shared';
+import type { Language } from '@versifine/shared';
 
 export type { Language };
 
@@ -82,7 +82,7 @@ export interface OutgoingReply {
 }
 
 /**
- * Mirrors `captureResponse` in @finehance/shared. We re-declare the
+ * Mirrors `captureResponse` in @versifine/shared. We re-declare the
  * minimum shape we need so the bot can typecheck without circular
  * dependencies on the API's runtime parser code.
  */

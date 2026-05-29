@@ -6,12 +6,12 @@
 
 | | |
 | --- | --- |
-| Database (dev) | `finehance_dev` |
-| Database (test) | `finehance_test` |
-| Role | `finehance` / `finehance` |
+| Database (dev) | `versifine_dev` |
+| Database (test) | `versifine_test` |
+| Role | `versifine` / `versifine` |
 | Host | `localhost:5432` |
-| URL (dev) | `postgres://finehance:finehance@localhost:5432/finehance_dev` |
-| URL (test) | `postgres://finehance:finehance@localhost:5432/finehance_test` |
+| URL (dev) | `postgres://versifine:versifine@localhost:5432/versifine_dev` |
+| URL (test) | `postgres://versifine:versifine@localhost:5432/versifine_test` |
 
 Both URLs live in the repo-root `.env` as `DATABASE_URL` and `DATABASE_URL_TEST`. The API picks the test URL when `NODE_ENV=test`.
 
@@ -264,8 +264,8 @@ The seed needs filling in for hackathon demo readiness — a 90-day realistic In
 For a hackathon laptop, no formal backup. For a demo-day move-the-laptop scenario:
 
 ```bash
-pg_dump -U finehance -h localhost -d finehance_dev > finehance_dev.dump
-psql -U finehance -h localhost -d finehance_dev < finehance_dev.dump
+pg_dump -U versifine -h localhost -d versifine_dev > versifine_dev.dump
+psql -U versifine -h localhost -d versifine_dev < versifine_dev.dump
 ```
 
 The Postgres data directory is the standard `C:\Program Files\PostgreSQL\16\data`. The pgvector binaries live in `C:\Program Files\PostgreSQL\16\{lib,share/extension,include/server/extension}` — these came from a community repo and should be reinstalled on a fresh machine before `bun run db:init`.

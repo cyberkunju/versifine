@@ -6,7 +6,7 @@
    */
   import { goto } from '$app/navigation';
   import { Sparkles } from 'lucide-svelte';
-  import { LANGUAGE_META, LANGUAGES, type Language } from '@finehance/shared';
+  import { LANGUAGE_META, LANGUAGES, type Language } from '@versifine/shared';
   import { auth } from '$lib/stores/auth.svelte';
   import { settings } from '$lib/stores/settings.svelte';
   import { getMessages } from '$lib/i18n';

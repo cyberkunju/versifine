@@ -12,7 +12,7 @@ import {
   type Currency,
   isCurrency,
   type TransactionSource,
-} from '@finehance/shared';
+} from '@versifine/shared';
 import type { ParsedExpense } from '../ai/parser.ts';
 import { enqueueEmbed } from '../transactions/embed.ts';
 import { log } from '../../utils/logger.ts';

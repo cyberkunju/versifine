@@ -32,8 +32,8 @@ async function call<T>(
 }
 
 async function main() {
-  const email = `txn+${Date.now()}@finehance.app`;
-  const password = 'Finehance#2026!';
+  const email = `txn+${Date.now()}@versifine.com`;
+  const password = 'Versifine#2026!';
 
   type Auth = {
     user: { id: string; activeSpaceId: string };

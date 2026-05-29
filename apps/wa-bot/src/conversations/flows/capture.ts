@@ -13,7 +13,7 @@
  * (CAPTURE_CONFIRM when the API returned a draft; LINKED_MAIN otherwise).
  */
 import type { Session, IncomingMessage } from '../../types.ts';
-import { LANGUAGE_META } from '@finehance/shared';
+import { LANGUAGE_META } from '@versifine/shared';
 import {
   ApiClientError,
   captureImage,

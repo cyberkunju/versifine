@@ -9,7 +9,7 @@
  * The pack shape is the same everywhere — picking a missing key is a
  * compile-time error, missing translations fall back gracefully.
  */
-import type { Language } from '@finehance/shared';
+import type { Language } from '@versifine/shared';
 import { en } from './en';
 import { hi } from './hi';
 import { ml } from './ml';

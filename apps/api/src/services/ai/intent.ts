@@ -11,7 +11,7 @@
  * fallback still routes the most common cases so dev work isn't blocked.
  */
 import { z } from 'zod';
-import { INTENTS, type Intent, isIntent } from '@finehance/shared';
+import { INTENTS, type Intent, isIntent } from '@versifine/shared';
 import { env } from '../../env.ts';
 import { log } from '../../utils/logger.ts';
 import { getOpenAI, isAIConfigured, withLatency } from './client.ts';

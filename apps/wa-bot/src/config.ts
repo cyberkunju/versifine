@@ -26,8 +26,8 @@ const schema = z.object({
 
   BOT_PORT: z.coerce.number().int().positive().default(5001),
   BOT_HOST: z.string().default('127.0.0.1'),
-  BOT_NAME: z.string().default('Finehance'),
-  SESSION_ID: z.string().default('FINEHANCE_DEV'),
+  BOT_NAME: z.string().default('Versifine'),
+  SESSION_ID: z.string().default('VERSIFINE_DEV'),
 
   DEMO_MODE: z.coerce.boolean().default(true),
   ALLOWED_TEST_NUMBERS: csvList,
