@@ -1,17 +1,14 @@
 <script lang="ts">
   /**
-   * Versifine logo lockup — the real brand marks. A solid V-mark glyph
-   * beside the inline wordmark, themed via `currentColor`. Used in the
-   * landing header/footer, the app sidebar, and the register rail so the
-   * brand reads identically everywhere.
+   * Versifine logo — the wordmark only. The wordmark already opens with the
+   * brand "V", so pairing it with the standalone V-mark read as two Vs; the
+   * single V-mark lives on the favicon instead. Themed via `currentColor`.
    *
-   * Props are unchanged from the previous lockup so every call site keeps
-   * working:
-   *  - `size`     pixel height of the glyph square
-   *  - `showText` show the wordmark beside the glyph
+   * Props unchanged so every call site keeps working:
+   *  - `size`     pixel height of the wordmark
+   *  - `showText` kept for API compatibility (the wordmark IS the text)
    *  - `tone`     'ink' (indigo on light) or 'paper' (white on dark)
    */
-  import VMark from './VMark.svelte';
   import Wordmark from './Wordmark.svelte';
 
   type Props = {
@@ -20,21 +17,14 @@
     tone?: 'ink' | 'paper';
     class?: string;
   };
-  let { size = 28, showText = true, tone = 'ink', class: className = '' }: Props = $props();
+  let { size = 28, tone = 'ink', class: className = '' }: Props = $props();
 
-  // On light surfaces the glyph carries the brand gradient; on dark
-  // surfaces it goes solid white so it reads cleanly. The wordmark follows
-  // the tone via currentColor.
   const tint = $derived(tone === 'paper' ? 'text-white' : 'text-[hsl(var(--primary))]');
+  // The wordmark reads a touch larger than the old glyph height — it's the
+  // whole identity now, so give it presence.
+  const height = $derived(Math.round(size * 0.82));
 </script>
 
-<span class="inline-flex items-center gap-2.5 {className}">
-  {#if tone === 'paper'}
-    <VMark tight variant="solid" class="shrink-0 {tint}" style={`height:${size}px;width:auto`} />
-  {:else}
-    <VMark tight variant="brand" class="shrink-0" style={`height:${size}px;width:auto`} />
-  {/if}
-  {#if showText}
-    <Wordmark class="w-auto {tint}" style={`height:${size * 0.62}px`} />
-  {/if}
+<span class="inline-flex items-center {className}">
+  <Wordmark class="w-auto {tint}" style={`height:${height}px`} />
 </span>

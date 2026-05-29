@@ -295,9 +295,8 @@
     />
 
     <header class="rise-1 relative z-10 flex items-center justify-between px-6 py-6 sm:px-10">
-      <a href="/" class="flex items-center gap-2 lg:hidden" aria-label="Versifine home">
-        <VMark class="h-7 w-auto text-[var(--brand)]" />
-        <span class="text-[16px] font-semibold tracking-[-0.02em]">Versifine</span>
+      <a href="/" class="flex items-center lg:hidden" aria-label="Versifine home">
+        <Wordmark class="h-6 w-auto text-[var(--brand)]" />
       </a>
 
       <div class="ml-auto text-[13px] text-[var(--muted-foreground)]">
