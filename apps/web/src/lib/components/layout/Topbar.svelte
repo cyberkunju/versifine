@@ -1,12 +1,14 @@
 <script lang="ts">
   /**
-   * Topbar: hamburger (mobile), the omnibar, and the right-side cluster
-   * of theme toggle + copilot trigger + ⌘K hint.
+   * Topbar: hamburger (mobile), a spacer, and the right-side cluster of
+   * command palette + theme toggle + copilot trigger. The capture omnibar
+   * now floats in a bottom dock (OmnibarDock), so the top bar stays a quiet,
+   * uncluttered control strip.
    */
   import { Menu, Sun, Moon, Monitor, MessageSquare, Command } from 'lucide-svelte';
   import { settings } from '$lib/stores/settings.svelte';
   import { getMessages } from '$lib/i18n';
-  import Omnibar from '$lib/components/omnibar/Omnibar.svelte';
+  import Wordmark from '$lib/components/brand/Wordmark.svelte';
   import { Button, DropdownMenu, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '$lib/components/ui';
 
   type Props = {
@@ -19,7 +21,7 @@
   const m = $derived(getMessages(settings.language));
 </script>
 
-<header class="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-[hsl(var(--border))] bg-[hsl(var(--background))]/80 px-4 backdrop-blur">
+<header class="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-[hsl(var(--border))] bg-[hsl(var(--background))]/80 px-4 backdrop-blur sm:px-6">
   <button
     type="button"
     onclick={onMenu}
@@ -29,18 +31,21 @@
     <Menu class="h-5 w-5" />
   </button>
 
-  <div class="flex-1">
-    <Omnibar onOpenCopilot={(text) => onOpenCopilot(text)} />
-  </div>
+  <a href="/dashboard" class="flex items-center lg:hidden" aria-label="Versifine home">
+    <Wordmark class="h-5 w-auto text-[hsl(var(--primary))]" />
+  </a>
+
+  <div class="flex-1"></div>
 
   <button
     type="button"
     onclick={onOpenCommand}
-    class="hidden h-9 items-center gap-2 rounded-md border border-[hsl(var(--border))] px-2.5 text-xs text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] sm:inline-flex"
+    class="hidden h-9 items-center gap-2 rounded-full border border-[hsl(var(--border))] px-3 text-xs text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--accent))] sm:inline-flex"
     aria-label="Open command menu"
   >
     <Command class="h-3.5 w-3.5" />
-    <span>{m.topbar.commandShortcut}</span>
+    <span>Search</span>
+    <kbd class="rounded border border-[hsl(var(--border))] bg-[hsl(var(--muted))] px-1 py-px text-[10px] font-medium">{m.topbar.commandShortcut}</kbd>
   </button>
 
   <DropdownMenu>

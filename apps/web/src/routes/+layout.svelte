@@ -27,6 +27,7 @@
   import Topbar from '$lib/components/layout/Topbar.svelte';
   import CommandMenu from '$lib/components/layout/CommandMenu.svelte';
   import CopilotPanel from '$lib/components/copilot/CopilotPanel.svelte';
+  import OmnibarDock from '$lib/components/omnibar/OmnibarDock.svelte';
   import { Toaster } from '$lib/components/ui';
 
   let { children } = $props();
@@ -162,11 +163,12 @@
         onOpenCommand={() => panels.setCommandOpen(true)}
         onOpenCopilot={(initial) => openCopilot(initial)}
       />
-      <main class="min-w-0 flex-1 overflow-x-hidden p-4 sm:p-6">
+      <main class="min-w-0 flex-1 overflow-x-hidden p-4 pb-28 sm:p-6 sm:pb-28">
         {@render children?.()}
       </main>
     </div>
   </div>
+  <OmnibarDock onOpenCopilot={(initial) => openCopilot(initial)} />
   <CommandMenu
     bind:open={panels.commandOpen}
     onOpenChange={(v) => panels.setCommandOpen(v)}
