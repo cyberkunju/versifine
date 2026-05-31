@@ -15,12 +15,12 @@
  * never exposed to the public web origin (nginx proxies only /qr* on the bot
  * and these live on the API behind the bot secret).
  */
-import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { botEnsureUserInput, isLanguage } from '@versifine/shared';
 import { z } from 'zod';
 import { env } from '../env.ts';
 import { rateLimit } from '../middleware/rateLimit.ts';
+import { validate } from '../middleware/validate.ts';
 import { ensureUserByPhone, findAccountByPhone } from '../services/auth/provision.ts';
 import { ok } from '../utils/envelope.ts';
 import { errors } from '../utils/errors.ts';
@@ -48,7 +48,7 @@ const provisionLimit = rateLimit({
 
 const whoamiInput = z.object({ phone: z.string().regex(/^\d{10,15}$/) });
 
-app.post('/whoami', zValidator('json', whoamiInput), async (c) => {
+app.post('/whoami', validate('json', whoamiInput), async (c) => {
   const { phone } = c.req.valid('json');
   const account = await findAccountByPhone(phone);
   const language = isLanguage(account.language) ? account.language : 'en';
@@ -62,7 +62,7 @@ app.post('/whoami', zValidator('json', whoamiInput), async (c) => {
   );
 });
 
-app.post('/ensure-user', provisionLimit, zValidator('json', botEnsureUserInput), async (c) => {
+app.post('/ensure-user', provisionLimit, validate('json', botEnsureUserInput), async (c) => {
   const { phone, language } = c.req.valid('json');
   const account = await ensureUserByPhone(phone, language);
   const resolved = isLanguage(account.language) ? account.language : 'en';

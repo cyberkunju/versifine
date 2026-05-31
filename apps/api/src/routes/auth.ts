@@ -10,7 +10,6 @@
  *   POST /auth/phone-link/start     mint OTP; user types `LINK <code>` in WhatsApp
  *   POST /auth/phone-link/confirm   alternative client-driven confirmation path
  */
-import { zValidator } from '@hono/zod-validator';
 import { and, eq, gt, isNull, sql as drizzleSql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import {
@@ -27,6 +26,7 @@ import { wallets } from '../db/schema/wallets.ts';
 import { env } from '../env.ts';
 import { requireUser } from '../middleware/auth.ts';
 import { rateLimit, limits } from '../middleware/rateLimit.ts';
+import { validate } from '../middleware/validate.ts';
 import {
   hashRefreshToken,
   signAccessToken,
@@ -76,7 +76,7 @@ const authUserColumns = {
   googleSub: users.googleSub,
 };
 
-app.post('/register', authLimit, zValidator('json', registerInput), async (c) => {
+app.post('/register', authLimit, validate('json', registerInput), async (c) => {
   const { email, password, displayName, primaryLanguage } = c.req.valid('json');
 
   const passwordHash = await hashPassword(password);
@@ -155,7 +155,7 @@ app.post('/register', authLimit, zValidator('json', registerInput), async (c) =>
   );
 });
 
-app.post('/login', authLimit, zValidator('json', loginInput), async (c) => {
+app.post('/login', authLimit, validate('json', loginInput), async (c) => {
   const { email, password } = c.req.valid('json');
 
   const [row] = await db
@@ -194,7 +194,7 @@ app.post('/login', authLimit, zValidator('json', loginInput), async (c) => {
   );
 });
 
-app.post('/google', authLimit, zValidator('json', googleAuthInput), async (c) => {
+app.post('/google', authLimit, validate('json', googleAuthInput), async (c) => {
   const { credential, primaryLanguage } = c.req.valid('json');
   const profile = await verifyGoogleCredential(credential);
   const now = new Date();
@@ -314,7 +314,7 @@ app.post('/google', authLimit, zValidator('json', googleAuthInput), async (c) =>
   );
 });
 
-app.post('/refresh', zValidator('json', refreshInput), async (c) => {
+app.post('/refresh', validate('json', refreshInput), async (c) => {
   const { refreshToken } = c.req.valid('json');
   const claims = await verifyRefreshToken(refreshToken);
   const tokenHash = hashRefreshToken(refreshToken);
@@ -426,7 +426,7 @@ app.post('/phone-link/start', requireUser, async (c) => {
   );
 });
 
-app.post('/phone-link/confirm', otpLimit, zValidator('json', phoneLinkConfirmInput), async (c) => {
+app.post('/phone-link/confirm', otpLimit, validate('json', phoneLinkConfirmInput), async (c) => {
   const { code, phone } = c.req.valid('json');
   const normalized = normalizePhone(phone);
 

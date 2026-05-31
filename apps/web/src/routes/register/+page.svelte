@@ -1,18 +1,26 @@
 <script lang="ts">
   /**
-   * Register — editorial split, mirrors the login page. Email, password,
-   * optional display name, primary language. Server enforces the password
-   * policy; we surface its error verbatim.
+   * Register — "Login Redefined" editorial design, pixel-matched to the
+   * login page. Same split layout, same motion (aurora glow blobs, drifting
+   * background "V", staggered rise-ins, rotating headline word, the rotating
+   * brand-rail story, gradient submit button with sweeping shimmer).
+   *
+   * Only the form differs: display name, email, a password with a live
+   * strength checklist, confirm-password, and primary language. Google
+   * sign-up sits above the email form. The server enforces the password
+   * policy; we surface its message verbatim, and validate client-side first
+   * so the common mistakes never round-trip.
    */
   import { goto } from '$app/navigation';
-  import { ArrowRight } from 'lucide-svelte';
+  import { cubicOut, cubicInOut } from 'svelte/easing';
   import { LANGUAGE_META, LANGUAGES, type Language } from '@versifine/shared';
-  import Logo from '$lib/components/brand/Logo.svelte';
   import { auth } from '$lib/stores/auth.svelte';
-  import { settings } from '$lib/stores/settings.svelte';
-  import { getMessages } from '$lib/i18n';
   import { ApiError } from '$lib/api/types';
   import GoogleSignInButton from '$lib/components/auth/GoogleSignInButton.svelte';
+  import VMark from '$lib/components/brand/VMark.svelte';
+  import Wordmark from '$lib/components/brand/Wordmark.svelte';
+
+  const ROTATING_WORDS = ['workspace', 'dashboard', 'account', 'studio'];
 
   let email = $state('');
   let password = $state('');
@@ -20,14 +28,144 @@
   let displayName = $state('');
   let primaryLanguage = $state<Language>('en');
   let error = $state<string | null>(null);
-  const m = $derived(getMessages(settings.language));
+  let wordIdx = $state(0);
+
   const passwordChecks = $derived([
     { label: '12+ characters', ok: password.length >= 12 },
-    { label: 'Upper and lower case', ok: /[A-Z]/.test(password) && /[a-z]/.test(password) },
-    { label: 'Number', ok: /[0-9]/.test(password) },
-    { label: 'Special character', ok: /[^A-Za-z0-9]/.test(password) },
+    { label: 'Upper & lower case', ok: /[A-Z]/.test(password) && /[a-z]/.test(password) },
+    { label: 'A number', ok: /[0-9]/.test(password) },
+    { label: 'A symbol', ok: /[^A-Za-z0-9]/.test(password) },
   ]);
-  const passwordReady = $derived(passwordChecks.every((check) => check.ok));
+  const passwordReady = $derived(passwordChecks.every((c) => c.ok));
+  const confirmReady = $derived(confirmPassword.length > 0 && password === confirmPassword);
+
+  // Rotate the headline word every 2.6s, retriggering the rise animation.
+  $effect(() => {
+    const id = setInterval(() => {
+      wordIdx = (wordIdx + 1) % ROTATING_WORDS.length;
+    }, 2600);
+    return () => clearInterval(id);
+  });
+
+  /**
+   * The brand-rail story — identical source to the login page. Every line is
+   * true and specific, drawn from the project docs: real features, real
+   * engineering calls, real fixes. No marketing filler.
+   */
+  type SlideKind = 'feature' | 'tip' | 'craft' | 'honest' | 'voice';
+  interface Slide {
+    id: number;
+    kind: SlideKind;
+    text: string;
+    by?: string;
+  }
+
+  const KIND_LABEL: Record<SlideKind, string> = {
+    feature: 'What it does',
+    tip: 'Tip',
+    craft: 'Under the hood',
+    honest: 'Straight talk',
+    voice: 'In their words',
+  };
+
+  const SLIDES: Slide[] = [
+    { id: 1, kind: 'feature', text: 'Capture a spend the way you’d say it — type it, speak it, or snap the receipt. Web, WhatsApp, and CSV all flow through one pipeline.' },
+    { id: 2, kind: 'tip', text: '“spent 450 on auto” is all the bar needs. Write it the way you’d say it out loud.' },
+    { id: 3, kind: 'feature', text: 'Ask the co-pilot where your money went. It reads your own transactions, in plain language — never the open internet.' },
+    { id: 4, kind: 'craft', text: 'The co-pilot can only quote a number that came back from a real query. That’s how we structurally stop it from inventing figures.' },
+    { id: 5, kind: 'feature', text: 'Privacy Mode runs categorization inside your browser. Your transaction text never leaves the device.' },
+    { id: 6, kind: 'feature', text: 'Built INR-first: UPI handles, rupee shorthand, and six languages — the way money actually moves in India.' },
+    { id: 7, kind: 'craft', text: 'A fine-tuned model sorts roughly 6,600 expenses a second at about 96% accuracy — and it runs on a plain CPU.' },
+    { id: 8, kind: 'feature', text: 'Correct a category once. The next time that merchant appears it’s labelled instantly — free, and for good.' },
+    { id: 9, kind: 'craft', text: 'Categorization is a four-tier waterfall: your own corrections first, then a 300-merchant India catalogue, then the model, then a safe default.' },
+    { id: 10, kind: 'feature', text: 'Recurring detection finds your subscriptions, rent, and EMIs on its own — and tells you when each one is due next.' },
+    { id: 11, kind: 'feature', text: 'The 30-day forecast separates what’s locked in, like rent and Netflix, from what’s only estimated, like groceries and transport.' },
+    { id: 12, kind: 'craft', text: 'We wrote the ARIMA forecaster by hand — about 120 lines — because honest math you can explain beats a black box you can’t.' },
+    { id: 13, kind: 'feature', text: 'Anomaly detection flags the day your spend jumped, and shows how far past normal it ran.' },
+    { id: 14, kind: 'tip', text: 'Press ⌘K to jump anywhere. ⌘L opens the capture bar from any screen.' },
+    { id: 15, kind: 'feature', text: 'Voice notes work in English, Hindi, Malayalam, Tamil, Telugu, and Kannada — and come back spoken in the same language.' },
+    { id: 16, kind: 'craft', text: 'Tamil and Malayalam share no Unicode block, so we check every translation’s script and retry rather than ship confident nonsense.' },
+    { id: 17, kind: 'tip', text: 'Snap a receipt. If the photo isn’t clear, you get one quick confirmation instead of a wrong guess saved silently.' },
+    { id: 18, kind: 'honest', text: 'Single-user today — but every record already carries a space, so shared household and business books arrive without a migration.' },
+    { id: 19, kind: 'craft', text: 'Three apps, one database: a Hono API, this SvelteKit dashboard, and a WhatsApp bot. One source of truth behind all of it.' },
+    { id: 20, kind: 'craft', text: 'Embeddings run in a background queue, so saving a transaction never waits on a network call.' },
+    { id: 21, kind: 'honest', text: 'We log how long every AI call takes, and never log what you spent it on. Observability without surveillance.' },
+    { id: 22, kind: 'craft', text: 'Every AI service has a fallback. No single upstream failure can lock you out of your own money.' },
+    { id: 23, kind: 'tip', text: 'Link WhatsApp once and capture spends by message — text, voice, or a photo of the bill — without opening the app.' },
+    { id: 24, kind: 'craft', text: '“Day before yesterday” used to match “yesterday.” We reordered the parser so the longer phrase wins. Small bug, real fix.' },
+    { id: 25, kind: 'feature', text: 'Set a goal and the co-pilot tracks whether you’re on pace — and flags it early when you’re drifting off.' },
+    { id: 26, kind: 'feature', text: 'Budgets warn before you breach them, not after. The alert lands while you can still do something about it.' },
+    { id: 27, kind: 'craft', text: 'The merchant key strips UPI prefixes, handles, reference codes, and city tags down to just “swiggy.” Lossy on purpose, stable forever.' },
+    { id: 28, kind: 'feature', text: 'Real-time by default: a spend captured on WhatsApp shows up on this dashboard a moment later, no refresh needed.' },
+    { id: 29, kind: 'tip', text: 'Numbers render with tabular figures, so columns line up and your eye can scan a ledger fast.' },
+    { id: 30, kind: 'honest', text: 'This is an MVP, and the docs say so out loud — every shipped feature, every open issue, every fix, kept in one place.' },
+    { id: 31, kind: 'craft', text: 'Receipts vary wildly — faded thermal prints, angled photos — so vision runs on the larger model and asks when it isn’t sure.' },
+    { id: 32, kind: 'feature', text: 'One pipeline, three doors in: the web omnibar, a WhatsApp message, or a CSV import. Parse, categorize, save, broadcast.' },
+    { id: 33, kind: 'voice', text: 'Versifine has become the quiet backbone of how our team thinks about numbers. It stays out of the way, and that is the highest praise we can give a tool.', by: 'Elena Marchetti · Head of Design, Cinder' },
+  ];
+
+  function shuffle<T>(arr: readonly T[]): T[] {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j]!, a[i]!];
+    }
+    return a;
+  }
+
+  let order = $state<Slide[]>(shuffle(SLIDES));
+  let slideIdx = $state(0);
+  const slide = $derived(order[slideIdx]!);
+
+  function readingMs(_text: string): number {
+    return 4000;
+  }
+
+  $effect(() => {
+    const current = order[slideIdx]!;
+    let timer: ReturnType<typeof setTimeout>;
+    const advance = () => {
+      if (typeof document !== 'undefined' && document.hidden) {
+        timer = setTimeout(advance, 1500);
+        return;
+      }
+      if (slideIdx + 1 >= order.length) {
+        const last = order[slideIdx];
+        let next = shuffle(SLIDES);
+        if (next[0]?.id === last?.id && next.length > 1) {
+          [next[0], next[1]] = [next[1]!, next[0]!];
+        }
+        order = next;
+        slideIdx = 0;
+      } else {
+        slideIdx = slideIdx + 1;
+      }
+    };
+    timer = setTimeout(advance, readingMs(current.text));
+    return () => clearTimeout(timer);
+  });
+
+  const prefersReduced =
+    typeof window !== 'undefined' &&
+    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+  function revealIn(_node: Element, { duration = 620 } = {}) {
+    if (prefersReduced) return { duration: 160, css: (t: number) => `opacity:${t}` };
+    return {
+      duration,
+      easing: cubicOut,
+      css: (t: number) => `opacity:${t}; transform:translateY(${(1 - t) * 8}px);`,
+    };
+  }
+
+  function concealOut(_node: Element, { duration = 380 } = {}) {
+    if (prefersReduced) return { duration: 120, css: (t: number) => `opacity:${t}` };
+    return {
+      duration,
+      easing: cubicInOut,
+      css: (t: number) => `opacity:${t}; transform:translateY(${-(1 - t) * 6}px);`,
+    };
+  }
 
   async function submit(e: SubmitEvent) {
     e.preventDefault();
@@ -38,11 +176,11 @@
       return;
     }
     if (!passwordReady) {
-      error = 'Choose a stronger password.';
+      error = 'Your password needs 12+ characters with upper & lower case, a number, and a symbol.';
       return;
     }
     if (password !== confirmPassword) {
-      error = 'Passwords do not match.';
+      error = 'Those passwords don’t match.';
       return;
     }
     try {
@@ -54,7 +192,7 @@
       });
       void goto('/dashboard');
     } catch (err) {
-      error = err instanceof ApiError ? err.message : 'Registration failed';
+      error = err instanceof ApiError ? err.message : 'We couldn’t create your account. Please try again.';
     }
   }
 
@@ -69,134 +207,343 @@
   }
 </script>
 
-<svelte:head><title>Create account · Versifine</title></svelte:head>
+<svelte:head>
+  <title>Create account · Versifine</title>
+  <meta name="description" content="Create your Versifine account." />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+</svelte:head>
 
-<div class="grid min-h-screen bg-[hsl(var(--brand-paper))] lg:grid-cols-2">
-  <!-- Brand rail -->
-  <aside class="relative hidden flex-col justify-between overflow-hidden bg-[hsl(var(--brand-navy))] p-12 text-[hsl(var(--brand-paper))] lg:flex">
-    <div class="pointer-events-none absolute inset-0 opacity-[0.5]">
-      <svg width="700" height="700" viewBox="0 0 700 700" fill="none" class="absolute -bottom-40 -left-40" aria-hidden="true">
-        {#each [0, 1, 2, 3] as i (i)}
-          <circle cx="350" cy="350" r={140 + i * 80} stroke="hsl(var(--brand-paper))" stroke-opacity="0.06" />
-        {/each}
-      </svg>
+<div
+  class="login grid min-h-screen w-full lg:grid-cols-2"
+  style="
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.18 0.005 260);
+    --muted-foreground: oklch(0.55 0.008 260);
+    --border: oklch(0.92 0.004 260);
+    --secondary: oklch(0.975 0.002 260);
+    --brand: oklch(0.32 0.18 268);
+    --brand-deep: oklch(0.24 0.16 268);
+    background: var(--background);
+    color: var(--foreground);
+    font-family: 'Outfit', ui-sans-serif, system-ui, sans-serif;
+  "
+>
+  <!-- ───────── Left brand panel ───────── -->
+  <aside
+    class="relative hidden flex-col justify-between overflow-hidden p-10 text-white lg:flex xl:p-14"
+    style="background: linear-gradient(160deg, oklch(0.32 0.18 268) 0%, oklch(0.22 0.16 268) 60%, oklch(0.16 0.12 268) 100%);"
+  >
+    <!-- Aurora glow blobs -->
+    <div
+      aria-hidden="true"
+      class="animate-aurora pointer-events-none absolute -left-32 -top-40 h-[520px] w-[520px] rounded-full"
+      style="background: radial-gradient(closest-side, oklch(0.55 0.22 290 / 0.55), transparent 70%); filter: blur(40px);"
+    ></div>
+    <div
+      aria-hidden="true"
+      class="animate-aurora pointer-events-none absolute -right-24 top-1/3 h-[420px] w-[420px] rounded-full"
+      style="background: radial-gradient(closest-side, oklch(0.6 0.2 230 / 0.45), transparent 70%); filter: blur(50px); animation-delay: -7s;"
+    ></div>
+
+    <!-- Background mark — large faded V (drifts slowly) -->
+    <div
+      aria-hidden="true"
+      class="animate-drift pointer-events-none absolute -bottom-32 -right-32 w-[640px] select-none opacity-[0.07]"
+    >
+      <VMark class="w-full" />
     </div>
-    <a href="/" class="relative z-10 w-fit"><Logo size={32} tone="paper" /></a>
-    <div class="relative z-10 max-w-md">
-      <p class="font-display text-3xl font-medium leading-snug tracking-tight">
-        “The whole point of a finance app is to disappear into a sentence. Ours does.”
-      </p>
-      <p class="mt-6 text-sm text-[hsl(var(--brand-paper)/0.6)]">Versifine — your finances, finely tuned.</p>
+
+    <!-- Brand -->
+    <a href="/" class="rise-1 relative z-10 inline-flex items-center self-start" aria-label="Versifine home">
+      <Wordmark class="h-[22px] w-auto text-white" />
+    </a>
+
+    <!-- Rotating story -->
+    <div class="rise-2 relative z-10 flex flex-1 items-center">
+      <div class="relative min-h-[280px] w-full max-w-md">
+        {#key slide.id}
+          <figure class="absolute inset-0 flex flex-col justify-center" in:revealIn out:concealOut>
+            <figcaption class="mb-5 flex items-center gap-2.5 text-[11px] font-medium uppercase tracking-[0.18em] text-white/45">
+              <span aria-hidden="true" class="h-px w-7 bg-gradient-to-r from-white/50 to-transparent"></span>
+              {KIND_LABEL[slide.kind]}
+            </figcaption>
+            <p class="font-light tracking-[-0.01em] text-white/95 {slide.kind === 'voice' ? 'text-[24px] leading-[1.5]' : 'text-[22px] leading-[1.55]'}">
+              {slide.text}
+            </p>
+            {#if slide.by}
+              <footer class="mt-6 flex items-center gap-2 text-[13px] text-white/55">
+                <span aria-hidden="true" class="animate-livedot inline-block h-1.5 w-1.5 rounded-full bg-green-400"></span>
+                <span>{slide.by}</span>
+              </footer>
+            {/if}
+          </figure>
+        {/key}
+      </div>
     </div>
-    <div class="relative z-10 text-xs text-[hsl(var(--brand-paper)/0.5)]">Free · No card · 90 days of demo data</div>
+
+    <!-- Footer -->
+    <div class="rise-3 relative z-10 flex items-center justify-between text-[12px] text-white/45">
+      <span>© {new Date().getFullYear()} Versifine, Inc.</span>
+      <div class="flex gap-5">
+        <a href="/" class="transition-colors hover:text-white/80">Privacy</a>
+        <a href="/" class="transition-colors hover:text-white/80">Terms</a>
+      </div>
+    </div>
   </aside>
 
-  <!-- Form -->
-  <main class="flex items-center justify-center px-5 py-12 sm:px-10">
-    <div class="w-full max-w-sm">
-      <div class="mb-8 lg:hidden"><a href="/"><Logo size={30} /></a></div>
+  <!-- ───────── Right form panel ───────── -->
+  <main class="relative flex flex-col overflow-hidden">
+    <!-- Faint dot grid background -->
+    <div
+      aria-hidden="true"
+      class="pointer-events-none absolute inset-0 opacity-60"
+      style="
+        background-image: radial-gradient(oklch(0.18 0.005 260 / 0.06) 1px, transparent 1px);
+        background-size: 22px 22px;
+        -webkit-mask-image: radial-gradient(ellipse at 70% 40%, black 0%, transparent 75%);
+        mask-image: radial-gradient(ellipse at 70% 40%, black 0%, transparent 75%);
+      "
+    ></div>
+    <!-- Huge V bleeding off the top-right edge -->
+    <VMark
+      class="pointer-events-none absolute -right-40 -top-32 w-[460px] select-none"
+      style="opacity: 0.05;"
+    />
 
-      <h1 class="font-display text-3xl font-medium tracking-tight text-[hsl(var(--brand-navy))]">{m.auth.welcomeNew}</h1>
-      <p class="mt-2 text-sm text-[hsl(var(--muted-foreground))]">{m.app.tagline}</p>
+    <header class="rise-1 relative z-10 flex items-center justify-between px-6 py-6 sm:px-10">
+      <a href="/" class="flex items-center lg:hidden" aria-label="Versifine home">
+        <Wordmark class="h-6 w-auto text-[var(--brand)]" />
+      </a>
 
-      <div class="mt-8">
-        <GoogleSignInButton
-          text="signup_with"
-          disabled={auth.loading}
-          onCredential={handleGoogleCredential}
-        />
+      <div class="ml-auto text-[13px] text-[var(--muted-foreground)]">
+        Already have an account?
+        <a href="/login" class="font-medium underline-offset-4 hover:underline" style="color: var(--brand);">
+          Sign in
+        </a>
       </div>
+    </header>
 
-      <div class="relative my-6">
-        <div class="absolute inset-0 flex items-center">
-          <div class="w-full border-t border-[hsl(var(--border))]"></div>
+    <div class="relative z-10 flex flex-1 items-center justify-center px-6 pb-16">
+      <div class="w-full max-w-[380px]">
+        <div class="rise-2">
+          <h1 class="flex flex-wrap items-baseline gap-x-1.5 text-[24px] font-semibold tracking-[-0.02em]">
+            <span>Create your</span>
+            {#key wordIdx}
+              <span class="word-rise inline-block" style="color: var(--brand);">{ROTATING_WORDS[wordIdx]}</span>
+            {/key}
+          </h1>
+          <p class="mt-1.5 text-[14px] text-[var(--muted-foreground)]">Free to start. No card. Your finances, finely tuned.</p>
         </div>
-        <div class="relative flex justify-center">
-          <span class="bg-[hsl(var(--brand-paper))] px-3 text-xs text-[hsl(var(--muted-foreground))]">or create with email</span>
-        </div>
-      </div>
 
-      <form onsubmit={submit} novalidate class="space-y-5">
-        <div class="space-y-1.5">
-          <label for="display" class="text-sm font-medium text-[hsl(var(--foreground))]">{m.auth.displayName}</label>
-          <input
-            id="display"
-            autocomplete="nickname"
-            bind:value={displayName}
-            class="h-11 w-full rounded-xl border border-[hsl(var(--input))] bg-white px-4 text-sm text-[hsl(var(--foreground))] outline-none transition-colors focus:border-[hsl(var(--brand-navy))] focus:ring-2 focus:ring-[hsl(var(--brand-navy)/0.12)]"
+        <div class="rise-3 mt-8 space-y-2.5">
+          <GoogleSignInButton
+            text="signup_with"
+            disabled={auth.loading}
+            onCredential={handleGoogleCredential}
           />
         </div>
-        <div class="space-y-1.5">
-          <label for="email" class="text-sm font-medium text-[hsl(var(--foreground))]">{m.auth.email}</label>
-          <input
-            id="email"
-            type="email"
-            autocomplete="email"
-            required
-            bind:value={email}
-            class="h-11 w-full rounded-xl border border-[hsl(var(--input))] bg-white px-4 text-sm text-[hsl(var(--foreground))] outline-none transition-colors focus:border-[hsl(var(--brand-navy))] focus:ring-2 focus:ring-[hsl(var(--brand-navy)/0.12)]"
-          />
-        </div>
-        <div class="space-y-1.5">
-          <label for="password" class="text-sm font-medium text-[hsl(var(--foreground))]">{m.auth.password}</label>
-          <input
-            id="password"
-            type="password"
-            autocomplete="new-password"
-            required
-            bind:value={password}
-            class="h-11 w-full rounded-xl border border-[hsl(var(--input))] bg-white px-4 text-sm text-[hsl(var(--foreground))] outline-none transition-colors focus:border-[hsl(var(--brand-navy))] focus:ring-2 focus:ring-[hsl(var(--brand-navy)/0.12)]"
-          />
-          <div class="grid grid-cols-2 gap-x-3 gap-y-1 pt-1 text-xs text-[hsl(var(--muted-foreground))]">
-            {#each passwordChecks as check (check.label)}
-              <span class:font-medium={check.ok} class:text-emerald-700={check.ok}>
-                {check.ok ? '✓' : '·'} {check.label}
-              </span>
-            {/each}
+
+        <div class="relative my-6">
+          <div class="absolute inset-0 flex items-center">
+            <div class="w-full border-t border-[var(--border)]"></div>
+          </div>
+          <div class="relative flex justify-center">
+            <span class="bg-[var(--background)] px-3 text-[12px] text-[var(--muted-foreground)]">or sign up with email</span>
           </div>
         </div>
-        <div class="space-y-1.5">
-          <label for="confirm-password" class="text-sm font-medium text-[hsl(var(--foreground))]">Confirm password</label>
-          <input
-            id="confirm-password"
-            type="password"
-            autocomplete="new-password"
-            required
-            bind:value={confirmPassword}
-            class="h-11 w-full rounded-xl border border-[hsl(var(--input))] bg-white px-4 text-sm text-[hsl(var(--foreground))] outline-none transition-colors focus:border-[hsl(var(--brand-navy))] focus:ring-2 focus:ring-[hsl(var(--brand-navy)/0.12)]"
-          />
-        </div>
-        <div class="space-y-1.5">
-          <label for="lang" class="text-sm font-medium text-[hsl(var(--foreground))]">{m.auth.primaryLanguage}</label>
-          <select
-            id="lang"
-            bind:value={primaryLanguage}
-            class="h-11 w-full rounded-xl border border-[hsl(var(--input))] bg-white px-4 text-sm text-[hsl(var(--foreground))] outline-none transition-colors focus:border-[hsl(var(--brand-navy))] focus:ring-2 focus:ring-[hsl(var(--brand-navy)/0.12)]"
+
+        <form onsubmit={submit} novalidate class="rise-4 space-y-4">
+          <label class="block">
+            <div class="mb-1.5 flex items-center justify-between">
+              <span class="text-[13px] font-medium">Display name <span class="font-normal text-[var(--muted-foreground)]">(optional)</span></span>
+            </div>
+            <input
+              type="text"
+              bind:value={displayName}
+              placeholder="What should we call you?"
+              autocomplete="nickname"
+              class="field-input"
+            />
+          </label>
+
+          <label class="block">
+            <div class="mb-1.5 flex items-center justify-between">
+              <span class="text-[13px] font-medium">Email</span>
+            </div>
+            <input
+              type="email"
+              bind:value={email}
+              placeholder="name@company.com"
+              autocomplete="email"
+              required
+              class="field-input"
+            />
+          </label>
+
+          <label class="block">
+            <div class="mb-1.5 flex items-center justify-between">
+              <span class="text-[13px] font-medium">Password</span>
+            </div>
+            <input
+              type="password"
+              bind:value={password}
+              placeholder="Create a strong password"
+              autocomplete="new-password"
+              required
+              class="field-input"
+            />
+            <div class="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
+              {#each passwordChecks as check (check.label)}
+                <span
+                  class="inline-flex items-center gap-1.5 text-[12px] transition-colors"
+                  style="color: {check.ok ? 'oklch(0.52 0.13 150)' : 'var(--muted-foreground)'};"
+                >
+                  <span aria-hidden="true" class="inline-flex h-3.5 w-3.5 items-center justify-center">
+                    {#if check.ok}
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                    {:else}
+                      <span class="h-1 w-1 rounded-full bg-current opacity-50"></span>
+                    {/if}
+                  </span>
+                  {check.label}
+                </span>
+              {/each}
+            </div>
+          </label>
+
+          <label class="block">
+            <div class="mb-1.5 flex items-center justify-between">
+              <span class="text-[13px] font-medium">Confirm password</span>
+              {#if confirmPassword.length > 0}
+                <span class="text-[12px]" style="color: {confirmReady ? 'oklch(0.52 0.13 150)' : 'oklch(0.55 0.18 28)'};">
+                  {confirmReady ? 'Matches' : 'No match yet'}
+                </span>
+              {/if}
+            </div>
+            <input
+              type="password"
+              bind:value={confirmPassword}
+              placeholder="Re-enter your password"
+              autocomplete="new-password"
+              required
+              class="field-input"
+            />
+          </label>
+
+          <label class="block">
+            <div class="mb-1.5 flex items-center justify-between">
+              <span class="text-[13px] font-medium">Primary language</span>
+            </div>
+            <select bind:value={primaryLanguage} class="field-input">
+              {#each LANGUAGES as code (code)}
+                <option value={code}>{LANGUAGE_META[code].nativeName} — {LANGUAGE_META[code].englishName}</option>
+              {/each}
+            </select>
+          </label>
+
+          {#if error}
+            <p class="text-[13px] text-[oklch(0.55_0.18_28)]" role="alert">{error}</p>
+          {/if}
+
+          <button
+            type="submit"
+            disabled={auth.loading}
+            class="group relative mt-1 w-full overflow-hidden rounded-md py-2.5 text-[14px] font-medium text-white transition-transform active:scale-[0.99] disabled:opacity-70"
+            style="
+              background: linear-gradient(120deg, var(--brand-deep), var(--brand) 50%, var(--brand-deep));
+              background-size: 200% 100%;
+              box-shadow: 0 8px 24px -10px color-mix(in oklab, var(--brand) 60%, transparent);
+            "
           >
-            {#each LANGUAGES as code (code)}
-              <option value={code}>{LANGUAGE_META[code].nativeName} — {LANGUAGE_META[code].englishName}</option>
-            {/each}
-          </select>
-        </div>
+            <span class="relative z-10 inline-flex items-center justify-center gap-2">
+              {auth.loading ? 'Creating your account…' : 'Create account'}
+              {#if !auth.loading}
+                <span aria-hidden="true" class="transition-transform group-hover:translate-x-0.5">→</span>
+              {/if}
+            </span>
+            <span
+              aria-hidden="true"
+              class="absolute inset-0 -translate-x-full transition-transform duration-[1100ms] ease-out group-hover:translate-x-full"
+              style="background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);"
+            ></span>
+          </button>
 
-        {#if error}
-          <p class="rounded-xl border border-[hsl(var(--destructive)/0.3)] bg-[hsl(var(--destructive)/0.06)] px-4 py-3 text-sm text-[hsl(var(--destructive))]" role="alert">{error}</p>
-        {/if}
+          <div class="flex items-center justify-center gap-1.5 pt-1 text-[11px] text-[var(--muted-foreground)]">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="11" width="18" height="11" rx="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+            <span>Protected by end-to-end encryption</span>
+          </div>
+        </form>
 
-        <button
-          type="submit"
-          disabled={auth.loading}
-          class="group flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[hsl(var(--brand-navy))] text-sm font-medium text-[hsl(var(--brand-paper))] transition-all hover:bg-[hsl(var(--brand-navy-deep))] disabled:opacity-60"
-        >
-          {auth.loading ? m.common.loading : m.auth.signUp}
-          {#if !auth.loading}<ArrowRight class="h-4 w-4 text-[hsl(var(--brand-gold))] transition-transform group-hover:translate-x-0.5" />{/if}
-        </button>
-      </form>
-
-      <p class="mt-6 text-center text-sm text-[hsl(var(--muted-foreground))]">
-        {m.auth.haveAccount}
-        <a class="font-medium text-[hsl(var(--brand-navy))] underline decoration-[hsl(var(--brand-gold))] underline-offset-4 hover:opacity-80" href="/login">{m.auth.signIn}</a>
-      </p>
+        <p class="mt-8 text-center text-[12px] text-[var(--muted-foreground)]">
+          By continuing, you agree to our
+          <a href="/" class="underline-offset-4 hover:underline" style="color: color-mix(in oklab, var(--foreground) 80%, transparent);">Terms</a>
+          and
+          <a href="/" class="underline-offset-4 hover:underline" style="color: color-mix(in oklab, var(--foreground) 80%, transparent);">Privacy Policy</a>.
+        </p>
+      </div>
     </div>
   </main>
 </div>
+
+<style>
+  /* ───── Inputs (matches the login page's themed Field exactly) ───── */
+  .field-input {
+    width: 100%;
+    background: var(--background);
+    border: 1px solid var(--border);
+    border-radius: 0.375rem;
+    padding: 0.625rem 0.75rem;
+    font-size: 14px;
+    transition: all 0.15s ease;
+    color: var(--foreground);
+  }
+  .field-input::placeholder {
+    color: color-mix(in oklab, var(--muted-foreground) 70%, transparent);
+  }
+  .field-input:focus {
+    outline: none;
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand) 18%, transparent);
+  }
+
+  @keyframes drift {
+    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+    50% { transform: translate(-18px, -22px) rotate(-3deg); }
+  }
+  @keyframes aurora {
+    0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.55; }
+    50% { transform: translate(40px, -30px) scale(1.15); opacity: 0.8; }
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes livedot {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 color-mix(in oklab, #4ade80 60%, transparent); }
+    50% { opacity: 0.7; box-shadow: 0 0 0 6px transparent; }
+  }
+
+  .animate-drift { animation: drift 18s ease-in-out infinite; }
+  .animate-aurora { animation: aurora 14s ease-in-out infinite; }
+  .animate-livedot { animation: livedot 2.2s ease-in-out infinite; }
+  .word-rise { animation: rise 0.5s ease-out; }
+
+  .rise-1 { opacity: 0; animation: rise 0.7s ease-out 0.05s forwards; }
+  .rise-2 { opacity: 0; animation: rise 0.7s ease-out 0.18s forwards; }
+  .rise-3 { opacity: 0; animation: rise 0.7s ease-out 0.32s forwards; }
+  .rise-4 { opacity: 0; animation: rise 0.7s ease-out 0.46s forwards; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-drift, .animate-aurora, .animate-livedot, .word-rise,
+    .rise-1, .rise-2, .rise-3, .rise-4 {
+      animation: none;
+      opacity: 1;
+    }
+  }
+</style>
