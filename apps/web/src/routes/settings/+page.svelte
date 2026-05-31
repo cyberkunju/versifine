@@ -99,7 +99,7 @@
     linkBusy = true;
     try {
       linkInfo = await api.auth.phoneLinkStart();
-      toast.success('Link code generated', 'Send LINK <code> to the bot.');
+      toast.success('Link code generated', 'Send the shown LINK command to the bot.');
     } catch (err) {
       toast.error('Failed', err instanceof Error ? err.message : String(err));
     } finally {
@@ -294,7 +294,9 @@
                 Send <span class="font-mono">LINK {linkInfo.code}</span> to the Versifine bot. Code expires {new Date(linkInfo.expiresAt).toLocaleString()}.
               </p>
             {:else}
-              <p class="text-sm">Open the bot and send the LINK command from your WhatsApp.</p>
+              <p class="text-sm">
+                Could not show a code. Generate a new link code and try again.
+              </p>
             {/if}
           </div>
         {:else}

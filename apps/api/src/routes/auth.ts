@@ -418,8 +418,10 @@ app.post('/phone-link/start', requireUser, async (c) => {
   const otp = await createOtp(u.id);
   return c.json(
     ok({
-      // Only expose the code in dev; production should never echo it.
-      code: env.NODE_ENV === 'development' ? otp.code : undefined,
+      // The code is not sent out-of-band yet, so the web UI must show it.
+      // It is short-lived and still has to be sent from the user's WhatsApp
+      // number, which proves control of the phone being linked.
+      code: otp.code,
       expiresAt: otp.expiresAt.toISOString(),
       instruction: 'Send LINK <code> to the Versifine bot from your WhatsApp.',
     }),
