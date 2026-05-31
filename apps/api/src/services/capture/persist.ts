@@ -2,11 +2,14 @@
  * Bridge between the parser output and the canonical create-transaction
  * service.
  *
- * The transactions service is owned by another agent in this codebase.
- * We import it lazily and try/catch the call; if it isn't there yet we
- * surface a structured "service unavailable" error so the capture flow
- * can keep functioning end-to-end (the draft is shown, the user is told
- * persistence is offline). Same defensive shape we use for categorize.
+ * `createTransaction` lives in `services/transactions/create.ts` and is
+ * imported statically so the dependency survives bundling (`bun build`).
+ * The earlier string-concatenated `await import('../transactions/' +
+ * 'create.ts')` trick hid the dep from the bundler, which left a raw
+ * runtime `import()` in `dist/index.js` that resolved against `dist/` and
+ * always threw — silently degrading every capture to "service unavailable"
+ * in production. We still try/catch the call itself so a genuine runtime
+ * failure surfaces as a structured error instead of crashing the request.
  */
 import {
   type Currency,
@@ -17,6 +20,7 @@ import {
 } from '@versifine/shared';
 import type { ParsedExpense } from '../ai/parser.ts';
 import { log } from '../../utils/logger.ts';
+import { createTransaction } from '../transactions/create.ts';
 
 export interface PersistInput {
   userId: string;
@@ -48,42 +52,6 @@ export interface PersistFailure {
   message: string;
 }
 
-type CreateFn = (opts: {
-  userId: string;
-  spaceId: string;
-  source: TransactionSource;
-  input: Record<string, unknown>;
-}) => Promise<{
-  id: string;
-  walletId: string;
-  type: 'income' | 'expense' | 'transfer' | 'opening_balance';
-  amount: string;
-  currency: string;
-  description: string;
-  date: string;
-  category: string | null;
-}>;
-
-let cached: CreateFn | null | undefined;
-
-async function loadCreate(): Promise<CreateFn | null> {
-  if (cached !== undefined) return cached;
-  try {
-    // TODO: cross-agent import — services/transactions/create.ts is built
-    // by another worker. The dynamic specifier hides the dep from tsc so
-    // typechecks stay green even when the file isn't in place yet.
-    const path = '../transactions/' + 'create.ts';
-    const mod = (await import(path)) as { createTransaction?: CreateFn };
-    cached = typeof mod.createTransaction === 'function' ? mod.createTransaction : null;
-  } catch (err) {
-    cached = null;
-    log.warn('CAPTURE_CREATE_IMPORT_FAIL', {
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
-  return cached ?? null;
-}
-
 export async function persistDraft(
   input: PersistInput,
 ): Promise<PersistResult | PersistFailure> {
@@ -101,15 +69,6 @@ export async function persistDraft(
       ok: false,
       reason: 'bad_input',
       message: 'Transfer captures must use the dedicated transfer flow',
-    };
-  }
-
-  const create = await loadCreate();
-  if (!create) {
-    return {
-      ok: false,
-      reason: 'service_unavailable',
-      message: 'Transaction service is not yet available',
     };
   }
 
@@ -141,7 +100,7 @@ export async function persistDraft(
   }
 
   try {
-    const row = await create({
+    const row = await createTransaction({
       userId: input.userId,
       spaceId: input.spaceId,
       source: input.source,

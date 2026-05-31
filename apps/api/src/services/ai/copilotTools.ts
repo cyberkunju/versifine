@@ -21,6 +21,7 @@ import { recurringItems } from '../../db/schema/recurring.ts';
 import { transactions } from '../../db/schema/transactions.ts';
 import { log } from '../../utils/logger.ts';
 import { createTransaction } from '../transactions/create.ts';
+import { computeForecast } from '../forecast/index.ts';
 import { listLiveWallets, pickWallet } from '../capture/wallet.ts';
 
 type Range = { from: string; to: string };
@@ -188,48 +189,26 @@ export interface ComputeForecastResult {
   source: 'forecast_service' | 'rolling_average';
 }
 
-type ForecastFn = (
-  spaceId: string,
-  days: number,
-) => Promise<{ recurringBase?: number; variableTotal?: number; total?: number }>;
-
-let forecastFn: ForecastFn | null | undefined;
-async function loadForecast(): Promise<ForecastFn | null> {
-  if (forecastFn !== undefined) return forecastFn;
-  try {
-    // TODO: cross-agent import — services/forecast/index.ts
-    const path = '../forecast/' + 'index.ts';
-    const mod = (await import(path)) as { computeForecast?: ForecastFn };
-    forecastFn = typeof mod.computeForecast === 'function' ? mod.computeForecast : null;
-  } catch {
-    forecastFn = null;
-  }
-  return forecastFn ?? null;
-}
-
 export async function compute_forecast(
   spaceId: string,
   args: { days: number },
 ): Promise<ComputeForecastResult | ReturnType<typeof unavailable>> {
   const days = Math.max(1, Math.min(90, Math.round(args.days)));
-  const fn = await loadForecast();
-  if (fn) {
-    try {
-      const out = await fn(spaceId, days);
-      return {
-        tool: 'compute_forecast',
-        ok: true,
-        days,
-        recurringBase: Number(out.recurringBase ?? 0),
-        variableTotal: Number(out.variableTotal ?? 0),
-        total: Number(out.total ?? 0),
-        source: 'forecast_service',
-      };
-    } catch (err) {
-      log.warn('TOOL_FORECAST_RUNTIME_FAIL', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
+  try {
+    const out = await computeForecast(spaceId, days);
+    return {
+      tool: 'compute_forecast',
+      ok: true,
+      days,
+      recurringBase: Number(out.recurringBase ?? 0),
+      variableTotal: Number(out.variableTotal ?? 0),
+      total: Number(out.total ?? 0),
+      source: 'forecast_service',
+    };
+  } catch (err) {
+    log.warn('TOOL_FORECAST_RUNTIME_FAIL', {
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 
   // Defensive fallback: rolling average over the last 30 days, scaled
