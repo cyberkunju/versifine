@@ -8,6 +8,7 @@
 import type { ConversationState, IncomingMessage } from '../types.ts';
 import { env } from '../config.ts';
 import { runEngine } from '../conversations/engine.ts';
+import { addToAllowlist, isDemoRequest, isDynamicallyAllowed } from '../services/allowlist.ts';
 import { log, maskPhone } from '../utils/logger.ts';
 import { isAllowed, normalizePhone } from '../utils/phone.ts';
 import { chunkText } from '../utils/text.ts';
@@ -178,9 +179,28 @@ export async function onMessage(raw: RawMessageLike): Promise<void> {
 
   const phone = await resolveSenderPhone(raw.from);
   if (!phone) return;
-  if (!isAllowed(phone, env.ALLOWED_TEST_NUMBERS, env.DEMO_MODE)) {
-    log.debug('MESSAGE_DROPPED_ALLOWLIST', { phone: maskPhone(phone) });
-    return;
+
+  // Demo-access gate.
+  //
+  // The landing page's "Chat on WhatsApp" button pre-fills an exact phrase.
+  // ANY number that sends that exact phrase — allowlisted or not — is granted
+  // demo access on the spot and then flows into normal onboarding. Every other
+  // inbound message from a non-allowlisted number is silently dropped, so the
+  // operator's personal WhatsApp keeps working normally for real contacts.
+  const rawBody = raw.body ?? '';
+  const alreadyAllowed =
+    isAllowed(phone, env.ALLOWED_TEST_NUMBERS, env.DEMO_MODE) || isDynamicallyAllowed(phone);
+
+  if (!alreadyAllowed) {
+    if (isDemoRequest(rawBody)) {
+      const added = addToAllowlist(phone);
+      log.info('DEMO_ACCESS_GRANTED', { phone: maskPhone(phone), newlyAdded: added });
+      // Fall through: the message itself is just the demo request, so we let
+      // the engine handle it — a brand-new number gets the onboarding greeting.
+    } else {
+      log.debug('MESSAGE_DROPPED_ALLOWLIST', { phone: maskPhone(phone) });
+      return;
+    }
   }
 
   const media = await extractMedia(raw);

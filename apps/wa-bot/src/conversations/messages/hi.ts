@@ -5,7 +5,17 @@
  * for currency formatting (numbers stay in Latin digits — most Indian
  * users read ₹4,250 the same way regardless of UI language).
  */
-import type { DraftSummary, MessagePack } from './types.ts';
+import type { DraftSummary, MessagePack, QuerySummaryView } from './types.ts';
+
+const PERIOD_LABELS_HI: Record<string, string> = {
+  today: 'आज',
+  yesterday: 'कल',
+  this_week: 'इस हफ्ते',
+  last_week: 'पिछले हफ्ते',
+  this_month: 'इस महीने',
+  last_month: 'पिछले महीने',
+  this_year: 'इस साल',
+};
 
 function formatINR(value: number): string {
   const intPart = Math.abs(Math.floor(value));
@@ -115,6 +125,27 @@ export const hi: MessagePack = {
   captureFailed: 'इसे रिकॉर्ड नहीं कर पाया। फिर से कोशिश करें या RESET भेजें।',
 
   queryAnswer: (text) => text,
+
+  queryReply: (q: QuerySummaryView) => {
+    const period = q.periodKey ? (PERIOD_LABELS_HI[q.periodKey] ?? q.periodLabel) : q.periodLabel;
+    if (q.kind === 'forecast') {
+      const days = q.horizonDays ?? 30;
+      return `अगले ${days} दिनों में आपका अनुमानित खर्च लगभग ${formatAmount(q.total, q.currency)} है।`;
+    }
+    if (q.kind === 'spending') {
+      const on = q.category ? `${q.category} पर ` : '';
+      return q.total > 0
+        ? `आपने ${period} ${on}${formatAmount(q.total, q.currency)} खर्च किए हैं।`
+        : `${period} ${on}कोई खर्च दर्ज नहीं है।`;
+    }
+    // summary
+    if (q.total <= 0) return `${period} अभी तक कोई खर्च दर्ज नहीं है।`;
+    let msg = `आपने ${period} ${formatAmount(q.total, q.currency)} खर्च किए हैं।`;
+    if (q.topCategory && q.topCategory.total > 0) {
+      msg += ` सबसे ज़्यादा: ${q.topCategory.category} (${formatAmount(q.topCategory.total, q.currency)})।`;
+    }
+    return msg;
+  },
 
   copilotNudge:
     'गहरे सवाल के लिए वेब copilot आज़माएँ: versifine.com। यहाँ भी पूछ सकते हैं — सीधे सवाल भेजें।',

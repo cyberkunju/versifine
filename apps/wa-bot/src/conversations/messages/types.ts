@@ -17,6 +17,24 @@ export interface DraftSummary {
   splitPeople: number | null;
 }
 
+/**
+ * Structured spending-query result the bot localises per language. Mirrors
+ * the API's `QuerySummaryPayload` (services/capture/queryStubs.ts) but kept
+ * independent so the bot doesn't import API runtime code.
+ */
+export interface QuerySummaryView {
+  kind: 'spending' | 'summary' | 'forecast';
+  total: number;
+  currency: string;
+  /** Stable period key (today, this_month, …) — null for forecast. */
+  periodKey: string | null;
+  /** English period label, used when there's no localized key. */
+  periodLabel: string;
+  category: string | null;
+  topCategory: { category: string; total: number } | null;
+  horizonDays: number | null;
+}
+
 export interface MessagePack {
   /** Initial reply when an unknown phone first messages the bot. */
   greeting: string;
@@ -84,6 +102,12 @@ export interface MessagePack {
 
   /** Free-form answer for query intents. */
   queryAnswer: (text: string) => string;
+
+  /**
+   * Localized spending/summary/forecast answer built from the API's
+   * structured result, so hi/ml users don't get an English sentence.
+   */
+  queryReply: (q: QuerySummaryView) => string;
 
   /** Nudge the user toward the copilot for chat intent. */
   copilotNudge: string;

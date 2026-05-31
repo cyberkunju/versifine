@@ -7,7 +7,17 @@
  * is INR-first. Currency rendering keeps `₹` for INR and falls back to
  * the ISO code for everything else.
  */
-import type { DraftSummary, MessagePack } from './types.ts';
+import type { DraftSummary, MessagePack, QuerySummaryView } from './types.ts';
+
+const PERIOD_LABELS_EN: Record<string, string> = {
+  today: 'today',
+  yesterday: 'yesterday',
+  this_week: 'this week',
+  last_week: 'last week',
+  this_month: 'this month',
+  last_month: 'last month',
+  this_year: 'this year',
+};
 
 function formatINR(value: number): string {
   // Indian-style comma grouping: last 3 digits, then 2-digit groups.
@@ -121,6 +131,26 @@ export const en: MessagePack = {
   captureFailed: "Couldn't log that. Try again or send RESET.",
 
   queryAnswer: (text) => text,
+
+  queryReply: (q: QuerySummaryView) => {
+    const period = q.periodKey ? (PERIOD_LABELS_EN[q.periodKey] ?? q.periodLabel) : q.periodLabel;
+    if (q.kind === 'forecast') {
+      return `You're projected to spend about ${formatAmount(q.total, q.currency)} over the ${period}.`;
+    }
+    if (q.kind === 'spending') {
+      const on = q.category ? ` on ${q.category}` : '';
+      return q.total > 0
+        ? `You've spent ${formatAmount(q.total, q.currency)}${on} ${period}.`
+        : `No spending${on} recorded ${period}.`;
+    }
+    // summary
+    if (q.total <= 0) return `No spending recorded ${period} yet.`;
+    let msg = `You've spent ${formatAmount(q.total, q.currency)} ${period}.`;
+    if (q.topCategory && q.topCategory.total > 0) {
+      msg += ` Biggest: ${q.topCategory.category} (${formatAmount(q.topCategory.total, q.currency)}).`;
+    }
+    return msg;
+  },
 
   copilotNudge:
     'For deep questions, try the web copilot at versifine.com — I can also try here, just send the question.',

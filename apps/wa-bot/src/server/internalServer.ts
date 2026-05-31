@@ -17,6 +17,7 @@ import { dispatchSimulator } from '../openwa/handlers.ts';
 import { getQrSnapshot, isClientReady, QR_FILE } from '../openwa/createClient.ts';
 import { getSharedClient } from '../openwa/sharedClient.ts';
 import { listSessions } from '../conversations/state.ts';
+import { listDynamicAllowlist } from '../services/allowlist.ts';
 import { log, maskPhone } from '../utils/logger.ts';
 import { normalizePhone } from '../utils/phone.ts';
 
@@ -122,7 +123,13 @@ app.get('/sessions', (c) => {
     linked: s.linked,
     lastSeenAtIso: new Date(s.lastSeenAt).toISOString(),
   }));
-  return c.json({ sessions });
+  return c.json({
+    sessions,
+    demoAllowlist: {
+      count: listDynamicAllowlist().length,
+      phones: listDynamicAllowlist().map((p) => maskPhone(p)),
+    },
+  });
 });
 
 app.post('/send', async (c) => {

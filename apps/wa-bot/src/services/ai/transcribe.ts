@@ -1,15 +1,25 @@
 /**
- * Voice → text. Identical strategy to the API's transcribe.ts: try
- * gpt-4o-transcribe first, fall back to whisper-1 if the modern model
- * trips on the audio. The bot needs its own copy because we don't share
- * a runtime — pulling the API's module would drag the API's env loader
- * and database client along for the ride.
+ * Voice → text. Try gpt-4o-transcribe first, fall back to whisper-1 if the
+ * modern model trips on the audio. The bot needs its own copy because we
+ * don't share a runtime — pulling the API's module would drag the API's env
+ * loader and database client along for the ride.
  *
- * Important: `toFile` consumes its source. We rebuild the upload from
- * the original Buffer on retry; reusing the consumed file produces an
- * empty body and a confusing 400.
+ * Language handling (important): we DO NOT pass a hard `language` lock to the
+ * transcriber. Locking the output language forces the model to transliterate
+ * whatever was actually said into that script — so an English sentence from a
+ * user whose app language is Malayalam comes back as gibberish Malayalam
+ * letters ("ഹൗ മച്ച് ഡിഡ് ഐ സ്പെന്റ് ടുഡേ"). India is code-mixed: the same
+ * user switches between English and their language mid-conversation, so we let
+ * the model auto-detect and then infer the real language from the SCRIPT of
+ * the returned text (more reliable than the ASR language field on short
+ * utterances). The caller's preferred language is only a last-resort fallback.
+ *
+ * Important: `toFile` consumes its source. We rebuild the upload from the
+ * original Buffer on retry; reusing the consumed file produces an empty body
+ * and a confusing 400.
  */
 import { toFile } from 'openai/uploads';
+import { detectScript } from '@versifine/shared';
 import { env } from '../../config.ts';
 import { log } from '../../utils/logger.ts';
 import { getOpenAI, isAIConfigured, withLatency } from './client.ts';
@@ -50,6 +60,30 @@ function bareLanguageHint(language?: string): string | undefined {
   return tag && tag.length === 2 ? tag : undefined;
 }
 
+/**
+ * Decide the spoken language from (in order): the actual script of the
+ * transcribed text, the ASR-reported language, then the caller's fallback.
+ * Script wins because it can't lie — if the text is Latin letters the user
+ * spoke English (or romanised), regardless of what the ASR guessed.
+ */
+function resolveLanguage(
+  text: string,
+  asrLanguage: string | undefined,
+  fallback: string | undefined,
+): string {
+  const byScript = detectScript(text);
+  if (byScript && byScript !== 'en') return byScript; // a non-Latin Indic script is unambiguous
+  const asr = bareLanguageHint(asrLanguage);
+  if (byScript === 'en') {
+    // Latin text: trust the ASR only if it also says a romanisable language;
+    // otherwise call it English so we don't reply in the wrong script.
+    return asr === 'hi' || asr === 'ml' || asr === 'ta' || asr === 'te' || asr === 'kn'
+      ? asr
+      : 'en';
+  }
+  return asr ?? bareLanguageHint(fallback) ?? 'en';
+}
+
 export async function transcribe(
   audio: Buffer,
   mimetype: string,
@@ -70,22 +104,22 @@ export async function transcribe(
   }
 
   const filename = filenameFor(mimetype);
-  const hint = bareLanguageHint(language);
+  const fallback = bareLanguageHint(language);
 
-  // Primary attempt: gpt-4o-transcribe.
+  // Primary attempt: gpt-4o-transcribe with AUTO-DETECT (no language lock).
   try {
     const file = await toFile(audio, filename, { type: mimetype });
     const result = await withLatency('transcribe.primary', () =>
       client.audio.transcriptions.create({
         file,
         model: env.OPENAI_TRANSCRIPTION_MODEL,
-        language: hint,
         response_format: 'json',
       }),
     );
+    const text = (result.text ?? '').trim();
     return {
-      text: (result.text ?? '').trim(),
-      language: hint ?? 'en',
+      text,
+      language: resolveLanguage(text, (result as { language?: string }).language, fallback),
       source: 'gpt-4o-transcribe',
     };
   } catch (err) {
@@ -96,31 +130,31 @@ export async function transcribe(
     });
   }
 
-  // Fallback: whisper-1 with verbose JSON so we can see the detected
-  // language even if the user didn't supply a hint.
+  // Fallback: whisper-1 with verbose JSON (returns a detected language) and
+  // still no hard lock, so code-mixed speech transcribes faithfully.
   try {
     const file = await toFile(audio, filename, { type: mimetype });
     const result = await withLatency('transcribe.fallback', () =>
       client.audio.transcriptions.create({
         file,
         model: 'whisper-1',
-        language: hint,
         response_format: 'verbose_json',
       }),
     );
+    const text = (result.text ?? '').trim();
     const detected =
       typeof (result as { language?: unknown }).language === 'string'
         ? ((result as { language: string }).language as string)
-        : (hint ?? 'en');
+        : undefined;
     return {
-      text: (result.text ?? '').trim(),
-      language: detected,
+      text,
+      language: resolveLanguage(text, detected, fallback),
       source: 'whisper-1',
     };
   } catch (err) {
     log.error('AI_TRANSCRIBE_FAIL', {
       error: err instanceof Error ? err.message.slice(0, 240) : String(err),
     });
-    return { text: '', language: hint ?? 'en', source: 'mock' };
+    return { text: '', language: fallback ?? 'en', source: 'mock' };
   }
 }

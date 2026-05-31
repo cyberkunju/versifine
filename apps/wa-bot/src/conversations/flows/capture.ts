@@ -23,6 +23,7 @@ import {
 } from '../../services/apiClient.ts';
 import { log } from '../../utils/logger.ts';
 import { getMessages } from '../messages/index.ts';
+import type { QuerySummaryView } from '../messages/types.ts';
 import { setState, updateSession } from '../state.ts';
 
 export interface CaptureResult {
@@ -81,6 +82,15 @@ function renderCaptureResponse(session: Session, response: CaptureResponseShape)
       response.intent === 'query_summary' ||
       response.intent === 'query_forecast'
     ) {
+      // Prefer the API's structured summary so the answer is rendered in the
+      // user's language (hi/ml packs build it locally; ta/te/kn translate the
+      // English build at send time). Fall back to the raw message string only
+      // when the structured payload is absent (older API).
+      const summaryPayload = response.queryResult?.summary as QuerySummaryView | undefined;
+      if (summaryPayload && typeof summaryPayload.total === 'number') {
+        const text = m.queryReply(summaryPayload);
+        return { text, speakable: text };
+      }
       const summary = summarizeQueryResult(response.queryResult);
       return { text: m.queryAnswer(summary || m.unknown), speakable: summary };
     }

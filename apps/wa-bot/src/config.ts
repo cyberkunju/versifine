@@ -42,6 +42,12 @@ const schema = z.object({
 
   DEMO_MODE: z.coerce.boolean().default(true),
   ALLOWED_TEST_NUMBERS: phoneAllowlist,
+  /**
+   * Optional override for where the dynamic demo allowlist is persisted.
+   * Defaults to `.wwebjs_auth/versifine-demo-allowlist.json` (a durable,
+   * gitignored location). Mainly useful for tests.
+   */
+  DEMO_ALLOWLIST_FILE: z.string().optional(),
   HEADLESS: z.coerce.boolean().default(true),
 
   OPENAI_API_KEY: z

@@ -62,21 +62,6 @@ interface DispatchOutcome {
   speakable?: boolean;
 }
 
-function detectVoiceLanguage(detected: string, current: Language): Language {
-  const lower = detected.toLowerCase().split('-')[0] ?? '';
-  if (
-    lower === 'en' ||
-    lower === 'hi' ||
-    lower === 'ml' ||
-    lower === 'ta' ||
-    lower === 'te' ||
-    lower === 'kn'
-  ) {
-    return lower as Language;
-  }
-  return current;
-}
-
 async function dispatch(session: Session, message: IncomingMessage): Promise<DispatchOutcome> {
   // Universal commands first — they always win.
   const universal = parseUniversal(message.body);
@@ -190,6 +175,11 @@ async function maybeTranscribe(message: IncomingMessage, session: Session): Prom
   if (!message.hasAudio || !message.audioBuffer) {
     return { text: message.body, language: session.language };
   }
+  // Pass the user's chosen language only as a SOFT fallback — the transcriber
+  // auto-detects so code-mixed / English speech isn't mangled into the wrong
+  // script. We do NOT flip the session's reply language here: the user picked
+  // it deliberately at onboarding and can change it with LANGUAGE / "speak in
+  // X". Voice detection only ensures we transcribe what was actually said.
   const result = await transcribe(
     message.audioBuffer,
     message.audioMimetype ?? 'audio/ogg',
@@ -198,9 +188,7 @@ async function maybeTranscribe(message: IncomingMessage, session: Session): Prom
   if (!result.text) {
     return { text: '', language: session.language };
   }
-  const detected = detectVoiceLanguage(result.language, session.language);
-  if (detected !== session.language) updateSession(session.phone, { language: detected });
-  return { text: result.text, language: detected };
+  return { text: result.text, language: session.language };
 }
 
 async function localize(text: string, language: Language): Promise<string> {

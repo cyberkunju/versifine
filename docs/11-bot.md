@@ -161,6 +161,33 @@ For demo: the user opens `http://localhost:5001/qr` on the bot machine, scans wi
 
 `config.DEMO_MODE=true` + `ALLOWED_TEST_NUMBERS=919876543210,...` means the bot only replies to listed numbers. Every other inbound message is silently dropped (logged at debug level for traceability).
 
+### Self-serve demo access (the magic phrase)
+
+The landing page's "Chat on WhatsApp" button opens a `wa.me` deep link to the
+bot number with an EXACT phrase pre-filled:
+
+```
+Hi, Requesting whatsapp demo for versifine.
+```
+
+`openwa/handlers.ts` checks every inbound message (before the allowlist gate)
+against this phrase via `services/allowlist.ts:isDemoRequest`. The match is
+case/punctuation/whitespace tolerant but specific. When ANY number — not just
+seeded ones — sends it:
+
+1. the number is added to a **dynamic allowlist** and the message flows into
+   normal onboarding (the sender gets the greeting immediately);
+2. the number is **persisted** to `.wwebjs_auth/versifine-demo-allowlist.json`
+   — the one bot-state dir the deploy treats as durable (symlinked to
+   `/opt/versifine/wabot-state` and excluded from `rsync --delete`), so demo
+   users survive restarts and releases;
+3. from then on that number chats with the bot like any allowlisted number.
+
+Every other message from a non-seeded, non-demo number is still silently
+dropped, so the operator's personal WhatsApp keeps working normally for real
+contacts. The phrase string is kept byte-identical on both ends
+(`apps/web/src/lib/whatsapp.ts` ⇄ `apps/wa-bot/src/services/allowlist.ts`).
+
 For the hackathon: the user uses their personal number as the bot, paired once. They use a SECOND phone (typed digits-only into `ALLOWED_TEST_NUMBERS`) to test. Other incoming messages from real contacts get ignored, so the bot doesn't accidentally reply to a friend.
 
 ## Multilingual strategy

@@ -6,7 +6,17 @@
  * and mixing Malayalam digits would break the curated merchant DB
  * patterns when the bot echoes user input back.
  */
-import type { DraftSummary, MessagePack } from './types.ts';
+import type { DraftSummary, MessagePack, QuerySummaryView } from './types.ts';
+
+const PERIOD_LABELS_ML: Record<string, string> = {
+  today: 'ഇന്ന്',
+  yesterday: 'ഇന്നലെ',
+  this_week: 'ഈ ആഴ്ച',
+  last_week: 'കഴിഞ്ഞ ആഴ്ച',
+  this_month: 'ഈ മാസം',
+  last_month: 'കഴിഞ്ഞ മാസം',
+  this_year: 'ഈ വർഷം',
+};
 
 function formatINR(value: number): string {
   const intPart = Math.abs(Math.floor(value));
@@ -117,6 +127,27 @@ export const ml: MessagePack = {
     'ഇത് രേഖപ്പെടുത്താൻ കഴിഞ്ഞില്ല. വീണ്ടും ശ്രമിക്കൂ അല്ലെങ്കിൽ RESET അയക്കൂ.',
 
   queryAnswer: (text) => text,
+
+  queryReply: (q: QuerySummaryView) => {
+    const period = q.periodKey ? (PERIOD_LABELS_ML[q.periodKey] ?? q.periodLabel) : q.periodLabel;
+    if (q.kind === 'forecast') {
+      const days = q.horizonDays ?? 30;
+      return `അടുത്ത ${days} ദിവസത്തിൽ ഏകദേശം ${formatAmount(q.total, q.currency)} ചെലവാകുമെന്ന് പ്രതീക്ഷിക്കുന്നു.`;
+    }
+    if (q.kind === 'spending') {
+      const on = q.category ? `${q.category}-ന് ` : '';
+      return q.total > 0
+        ? `${period} നിങ്ങൾ ${on}${formatAmount(q.total, q.currency)} ചെലവാക്കി.`
+        : `${period} ${on}ഒരു ചെലവും രേഖപ്പെടുത്തിയിട്ടില്ല.`;
+    }
+    // summary
+    if (q.total <= 0) return `${period} ഇതുവരെ ഒരു ചെലവും രേഖപ്പെടുത്തിയിട്ടില്ല.`;
+    let msg = `${period} നിങ്ങൾ ${formatAmount(q.total, q.currency)} ചെലവാക്കി.`;
+    if (q.topCategory && q.topCategory.total > 0) {
+      msg += ` ഏറ്റവും കൂടുതൽ: ${q.topCategory.category} (${formatAmount(q.topCategory.total, q.currency)}).`;
+    }
+    return msg;
+  },
 
   copilotNudge:
     'വിശദമായ ചോദ്യങ്ങൾക്ക് വെബ് copilot ഉപയോഗിക്കാം: versifine.com. ഇവിടെയും ചോദിക്കാം — ചോദ്യം നേരിട്ട് അയക്കൂ.',

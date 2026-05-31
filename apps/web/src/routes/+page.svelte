@@ -6,15 +6,15 @@
    */
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
-  import { ArrowRight, ArrowUpRight, Check } from 'lucide-svelte';
+  import { ArrowRight, Check, MessageCircle } from 'lucide-svelte';
   import Header from '$lib/components/landing/Header.svelte';
   import Footer from '$lib/components/landing/Footer.svelte';
   import FeatureGrid from '$lib/components/landing/FeatureGrid.svelte';
   import WhatsAppDemo from '$lib/components/landing/WhatsAppDemo.svelte';
   import CopilotDemo from '$lib/components/landing/CopilotDemo.svelte';
-
-  const WA_NUMBER = '919999900001';
-  const WA_LINK = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent('hi')}`;
+  import WhatsAppInvite from '$lib/components/landing/WhatsAppInvite.svelte';
+  import WhatsAppFab from '$lib/components/landing/WhatsAppFab.svelte';
+  import { WA_DEMO_LINK } from '$lib/whatsapp';
 
   const LANGS = [
     { native: 'English', english: 'English', sample: 'Logged ₹450 — Transportation.' },
@@ -200,16 +200,16 @@
           </ul>
 
           <div class="mt-10 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
-            <a href={WA_LINK} class="group inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[hsl(var(--brand-navy))] px-6 py-3 text-sm font-medium text-[hsl(var(--brand-paper))] transition-all hover:bg-[hsl(var(--brand-navy-deep))]">
-              Open in WhatsApp
-              <ArrowUpRight class="h-4 w-4 text-[hsl(var(--brand-gold))]" />
+            <a href={WA_DEMO_LINK} target="_blank" rel="noopener" class="group inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#25D366] px-6 py-3 text-sm font-semibold text-white shadow-[0_10px_28px_-10px_rgba(37,211,102,0.7)] transition-all hover:bg-[#1ebe5d]">
+              <MessageCircle class="h-4 w-4" />
+              Try the WhatsApp demo
             </a>
             <a href="/wa-qr/" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[hsl(var(--brand-navy)/0.2)] bg-white px-6 py-3 text-sm font-medium text-[hsl(var(--brand-navy))] transition-all hover:border-[hsl(var(--brand-navy)/0.4)]">
               See pairing QR
             </a>
           </div>
           <p class="mt-4 text-xs text-[hsl(var(--muted-foreground))]">
-            The bot only replies to numbers linked to a Versifine account or on the demo allowlist. Send <code class="rounded bg-[hsl(var(--muted))] px-1.5 py-0.5 font-mono text-[10px]">LINK</code> after you register.
+            Tap to open WhatsApp with a ready-to-send message. The moment it arrives, your number is added to the demo — no sign-up, no code. Just start chatting.
           </p>
         </div>
 
@@ -381,6 +381,10 @@
 
   <Footer />
 </div>
+
+<!-- Persistent WhatsApp entry point + first-visit invite popup. -->
+<WhatsAppFab />
+<WhatsAppInvite />
 
 <style>
   /* Scroll-reveal: elements start slightly lowered + transparent, then
