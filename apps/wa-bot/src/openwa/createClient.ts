@@ -18,7 +18,7 @@ import waPkg from 'whatsapp-web.js';
 import { env } from '../config.ts';
 import { log, maskPhone } from '../utils/logger.ts';
 import { bindClient, onMessage } from './handlers.ts';
-import { setSharedClient } from './sharedClient.ts';
+import { getSharedClient, setSharedClient } from './sharedClient.ts';
 import type { QrSnapshot, WhatsAppLikeClient } from './types.ts';
 
 const { Client, LocalAuth, MessageMedia } = waPkg as unknown as {
@@ -304,8 +304,90 @@ export function getQrSnapshot(): QrSnapshot | null {
   return qrSnapshot;
 }
 
+/**
+ * Delete the persisted WhatsApp session so the next `initialize()` starts
+ * fresh and emits a QR. Used by the boot loop when a stored session is
+ * invalidated (logged out / "Execution context was destroyed" on restore).
+ * Best-effort: a partially-removed profile is fine — whatsapp-web.js will
+ * recreate what it needs.
+ */
+export async function clearSession(): Promise<void> {
+  const profile = join(SESSION_DIR, `session-${env.SESSION_ID}`);
+  for (const target of [profile]) {
+    try {
+      if (existsSync(target)) {
+        rmSync(target, { recursive: true, force: true });
+        log.warn('SESSION_CLEARED', { target });
+      }
+    } catch (err) {
+      log.warn('SESSION_CLEAR_FAIL', {
+        error: err instanceof Error ? err.message.slice(0, 160) : String(err),
+      });
+    }
+  }
+}
+
 export function isClientReady(): boolean {
   return isReady;
+}
+
+/**
+ * Unlink the currently paired WhatsApp device.
+ *
+ * Flow: ask whatsapp-web.js to `logout()` (removes the linked device on the
+ * phone's side and clears the LocalAuth session), then exit the process so
+ * systemd restarts us clean. On the next boot there's no session, so a fresh
+ * QR is generated for re-pairing. If `logout()` isn't available or throws, we
+ * fall back to wiping the session profile directory before exiting.
+ *
+ * Returns immediately after scheduling the exit so the HTTP handler can reply
+ * first; the actual process exit happens on a short delay.
+ */
+export async function unlinkSession(): Promise<{ ok: boolean; method: string }> {
+  const client = getSharedClient();
+  let method = 'restart';
+  try {
+    if (client?.logout) {
+      await client.logout();
+      method = 'logout';
+      log.info('UNLINK_LOGOUT_OK', {});
+    }
+  } catch (err) {
+    log.warn('UNLINK_LOGOUT_FAIL', {
+      error: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    });
+  }
+
+  // Best-effort destroy so Chromium releases the profile before we wipe it.
+  try {
+    if (client) await client.destroy();
+  } catch {
+    // ignore — exiting anyway
+  }
+
+  // Wipe the session profile so the next boot starts unpaired and shows a QR.
+  try {
+    const profile = join(SESSION_DIR, `session-${env.SESSION_ID}`);
+    if (existsSync(profile)) {
+      rmSync(profile, { recursive: true, force: true });
+      if (method === 'restart') method = 'wiped';
+      log.info('UNLINK_SESSION_WIPED', { profile });
+    }
+  } catch (err) {
+    log.warn('UNLINK_WIPE_FAIL', {
+      error: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    });
+  }
+
+  isReady = false;
+  qrSnapshot = null;
+  // Exit shortly so the HTTP response is flushed first; systemd restarts us
+  // and the fresh boot generates a new QR.
+  setTimeout(() => {
+    log.info('UNLINK_EXIT', { method });
+    process.exit(0);
+  }, 600);
+  return { ok: true, method };
 }
 
 export async function startWatchdog(client: WhatsAppLikeClient): Promise<ReturnType<typeof setInterval>> {
