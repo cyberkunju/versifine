@@ -196,18 +196,36 @@ read-only) and the **dynamic** numbers, and supports add/remove of dynamic
 entries. Flow:
 
 ```
-browser  ──(x-admin-token)──►  web /allowlist/api  ──(x-bot-secret)──►  bot /allowlist
+browser ──(cookie session)──► web /admin/api/* ──(x-bot-secret)──► bot internal API
 ```
 
-The bot secret never reaches the browser: the page sends only an admin token,
-which the SvelteKit server route (`/allowlist/api`) checks against
-`ADMIN_TOKEN` (falling back to `BOT_SECRET`) before forwarding to the bot's
-internal `/allowlist` endpoint with `X-Bot-Secret`. Runtime config lives in
-the web env (`BOT_SECRET`, `WABOT_INTERNAL_URL`, `ADMIN_TOKEN`) — server-side
-only, never `PUBLIC_*`. The page is `noindex` and renders standalone (its own
-token gate), independent of web-app login.
+The `/admin` operator console (credential-gated) is the single place for all
+operator tasks: WhatsApp pairing (live QR + status + unlink) and allowlist
+management. The operator logs in once with a username/password
+(`ADMIN_USER` / `ADMIN_PASS`), which mints an httpOnly, HMAC-signed session
+cookie (`ADMIN_SESSION_SECRET`). After that, no tokens are typed — the
+SvelteKit server routes under `/admin/api/*` hold the bot secret and forward
+to the bot's internal endpoints (`/allowlist`, `/qr.json`, `/unlink`) with
+`X-Bot-Secret`. The bot secret and password NEVER reach the browser. Runtime
+config lives in the web env (`BOT_SECRET`, `WABOT_INTERNAL_URL`, `ADMIN_USER`,
+`ADMIN_PASS`, `ADMIN_SESSION_SECRET`) — server-side only, never `PUBLIC_*`.
+The page is `noindex` and renders standalone, independent of web-app login.
 
 For the hackathon: the user uses their personal number as the bot, paired once. They use a SECOND phone (typed digits-only into `ALLOWED_TEST_NUMBERS`) to test. Other incoming messages from real contacts get ignored, so the bot doesn't accidentally reply to a friend.
+
+## Pairing & unlink (via /admin)
+
+Pairing and unlinking both happen inside the `/admin` console — the old public
+`/wa-qr/` page is removed (the bot's `/qr` HTML is no longer proxied by nginx).
+
+- **Pair:** open `/admin`, sign in, and the WhatsApp card shows a live QR that
+  auto-refreshes every ~4s (polling `bot /qr.json`). Scan with WhatsApp →
+  Linked Devices. The status flips to "Connected & ready" once paired.
+- **Unlink:** the card's Unlink action calls `bot /unlink`, which runs
+  `client.logout()`, wipes the session profile, and exits so systemd restarts
+  the bot clean — a fresh QR appears for re-pairing. The session still
+  persists at `/opt/versifine/wabot-state/.wwebjs_auth/` across normal deploys;
+  unlink is the explicit way to force re-pairing.
 
 ## Multilingual strategy
 
@@ -271,8 +289,10 @@ Total perceived latency: ~300ms for the text, +1-3s for the voice. Without two-p
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
 | GET | `/health` | none | liveness |
-| GET | `/qr` | none | HTML pairing page |
-| GET | `/qr.png` | none | PNG QR |
+| GET | `/qr` | none | HTML pairing page (legacy; not proxied publicly) |
+| GET | `/qr.png` | none | PNG QR (legacy) |
+| GET | `/qr.json` | bot secret | pairing status + QR data URI for the /admin poller |
+| POST | `/unlink` | bot secret | log out the device, wipe session, restart for fresh QR |
 | GET | `/sessions` | bot secret | active session count + last-seen per phone |
 | GET | `/allowlist` | bot secret | list seed + dynamic demo numbers |
 | POST | `/allowlist` | bot secret | `{ phone }` — add to the dynamic allowlist |

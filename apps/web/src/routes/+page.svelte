@@ -204,9 +204,6 @@
               <MessageCircle class="h-4 w-4" />
               Try the WhatsApp demo
             </a>
-            <a href="/wa-qr/" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[hsl(var(--brand-navy)/0.2)] bg-white px-6 py-3 text-sm font-medium text-[hsl(var(--brand-navy))] transition-all hover:border-[hsl(var(--brand-navy)/0.4)]">
-              See pairing QR
-            </a>
           </div>
           <p class="mt-4 text-xs text-[hsl(var(--muted-foreground))]">
             Tap to open WhatsApp with a ready-to-send message. The moment it arrives, your number is added to the demo — no sign-up, no code. Just start chatting.

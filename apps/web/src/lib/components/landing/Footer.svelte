@@ -5,6 +5,7 @@
    */
   import { Code2, Mail, MessageCircle } from 'lucide-svelte';
   import Logo from '$lib/components/brand/Logo.svelte';
+  import { WA_DEMO_LINK } from '$lib/whatsapp';
 
   const groups: Array<{ title: string; links: Array<{ label: string; href: string; external?: boolean }> }> = [
     {
@@ -35,7 +36,7 @@
     {
       title: 'Contact',
       links: [
-        { label: 'WhatsApp the bot', href: '/wa-qr/' },
+        { label: 'WhatsApp the bot', href: WA_DEMO_LINK, external: true },
         { label: 'hello@versifine.com', href: 'mailto:hello@versifine.com', external: true },
       ],
     },
@@ -55,7 +56,7 @@
         <div class="mt-5 flex items-center gap-2">
           {#each [
             { icon: Code2, href: 'https://github.com/cyberkunju/versifine', label: 'Source on GitHub', external: true },
-            { icon: MessageCircle, href: '/wa-qr/', label: 'WhatsApp pairing', external: false },
+            { icon: MessageCircle, href: WA_DEMO_LINK, label: 'WhatsApp the bot', external: true },
             { icon: Mail, href: 'mailto:hello@versifine.com', label: 'Email', external: true },
           ] as social (social.label)}
             {@const Icon = social.icon}

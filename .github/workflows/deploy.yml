@@ -81,7 +81,7 @@ jobs:
           SSH_HOST: ${{ secrets[matrix.host_secret] }}
         run: |
           set -e
-          for url in / /healthz /api/health /wa-qr/; do
+          for url in / /healthz /api/health /admin; do
             code=$(curl -sk -o /dev/null -w '%{http_code}' \
               -H 'Host: versifine.com' \
               "https://$SSH_HOST$url" || true)
@@ -96,7 +96,7 @@ jobs:
         if: ${{ matrix.public }}
         run: |
           set -e
-          for url in / /healthz /api/health /wa-qr/; do
+          for url in / /healthz /api/health /admin; do
             code=$(curl -sS -o /dev/null -w '%{http_code}' \
               "https://versifine.com$url" || true)
             echo "GET https://versifine.com$url -> $code"

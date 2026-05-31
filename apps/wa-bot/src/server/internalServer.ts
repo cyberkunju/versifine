@@ -14,7 +14,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { Hono } from 'hono';
 import { env } from '../config.ts';
 import { dispatchSimulator } from '../openwa/handlers.ts';
-import { getQrSnapshot, isClientReady, QR_FILE } from '../openwa/createClient.ts';
+import { getQrSnapshot, isClientReady, QR_FILE, unlinkSession } from '../openwa/createClient.ts';
 import { getSharedClient } from '../openwa/sharedClient.ts';
 import { listSessions } from '../conversations/state.ts';
 import {
@@ -114,6 +114,43 @@ app.get('/qr.png', (c) => {
       'cache-control': 'no-store',
     },
   });
+});
+
+/**
+ * JSON pairing status for the admin panel poller. Returns whether the client
+ * is paired/ready and, when not, the current QR as a data URI + SVG so the
+ * panel can render it without a second request. Bot-secret gated.
+ */
+app.get('/qr.json', (c) => {
+  if (!requireBotSecret(c.req.header('x-bot-secret'))) {
+    return c.json({ error: 'unauthorised' }, 401);
+  }
+  const ready = isClientReady();
+  const snap = getQrSnapshot();
+  return c.json(
+    {
+      ready,
+      hasQr: !ready && Boolean(snap),
+      dataUri: ready ? null : (snap?.dataUri ?? null),
+      svg: ready ? null : (snap?.svg ?? null),
+      generatedAt: snap?.generatedAt ?? null,
+    },
+    200,
+    { 'cache-control': 'no-store' },
+  );
+});
+
+/**
+ * Unlink the paired WhatsApp device. Logs out, wipes the session, and the
+ * process restarts (systemd) to surface a fresh QR. Bot-secret gated.
+ */
+app.post('/unlink', async (c) => {
+  if (!requireBotSecret(c.req.header('x-bot-secret'))) {
+    return c.json({ error: 'unauthorised' }, 401);
+  }
+  log.info('UNLINK_REQUESTED', {});
+  const result = await unlinkSession();
+  return c.json({ ok: result.ok, method: result.method });
 });
 
 app.get('/sessions', (c) => {

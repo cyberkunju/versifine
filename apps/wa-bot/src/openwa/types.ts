@@ -15,6 +15,8 @@ export interface WhatsAppLikeMessageMediaCtor {
 export interface WhatsAppLikeClient {
   initialize(): Promise<void>;
   destroy(): Promise<void>;
+  /** Unlink the paired device and clear the auth session (whatsapp-web.js). */
+  logout?(): Promise<void>;
   on(event: string, handler: (...args: unknown[]) => void): unknown;
   sendMessage(
     to: string,

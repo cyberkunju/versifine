@@ -51,9 +51,9 @@
   const path = $derived($page.url.pathname);
   const isAuthRoute = $derived(path.startsWith('/login') || path.startsWith('/register'));
   const isLandingRoute = $derived(path === '/');
-  // Operator-only console: renders standalone (its own token gate), never the
-  // app shell, regardless of web-app auth state.
-  const isStandaloneRoute = $derived(path === '/allowlist' || path.startsWith('/allowlist/'));
+  // Operator-only console: renders standalone (its own credential gate),
+  // never the app shell, regardless of web-app auth state.
+  const isStandaloneRoute = $derived(path === '/admin' || path.startsWith('/admin/'));
   const isAppRoute = $derived(APP_ROUTES.some((r) => path === r || path.startsWith(`${r}/`)));
   const isPublicRoute = $derived(PUBLIC_ROUTES.some((r) => r === '/' ? path === '/' : path.startsWith(r)));
 
@@ -171,7 +171,9 @@
       </main>
     </div>
   </div>
-  <OmnibarDock onOpenCopilot={(initial) => openCopilot(initial)} />
+  {#if !panels.copilotOpen}
+    <OmnibarDock onOpenCopilot={(initial) => openCopilot(initial)} />
+  {/if}
   <CommandMenu
     bind:open={panels.commandOpen}
     onOpenChange={(v) => panels.setCommandOpen(v)}
