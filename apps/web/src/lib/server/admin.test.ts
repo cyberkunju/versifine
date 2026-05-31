@@ -9,7 +9,7 @@ import { afterAll, expect, test, mock } from 'bun:test';
 mock.module('$env/dynamic/private', () => ({
   env: {
     ADMIN_USER: 'cyberkunju',
-    ADMIN_PASS: '*Nk*creation*world',
+    ADMIN_PASS: '*Nk*creation*2348',
     ADMIN_SESSION_SECRET: 'unit-test-secret',
     BOT_SECRET: 'bot-secret',
     WABOT_INTERNAL_URL: 'http://127.0.0.1:5001',
@@ -19,12 +19,12 @@ mock.module('$env/dynamic/private', () => ({
 const mod = await import('./admin.ts');
 
 test('checkCredentials accepts the exact pair', () => {
-  expect(mod.checkCredentials('cyberkunju', '*Nk*creation*world')).toBe(true);
+  expect(mod.checkCredentials('cyberkunju', '*Nk*creation*2348')).toBe(true);
 });
 
 test('checkCredentials rejects wrong username or password', () => {
   expect(mod.checkCredentials('cyberkunju', 'wrong')).toBe(false);
-  expect(mod.checkCredentials('nope', '*Nk*creation*world')).toBe(false);
+  expect(mod.checkCredentials('nope', '*Nk*creation*2348')).toBe(false);
   expect(mod.checkCredentials('', '')).toBe(false);
 });
 
