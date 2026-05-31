@@ -62,9 +62,15 @@ function renderCaptureResponse(session: Session, response: CaptureResponseShape)
   if (!response.needsConfirmation) {
     if (response.intent === 'expense' || response.intent === 'income' || response.intent === 'transfer') {
       const tx = response.queryResult?.transaction as
-        | { amount: number; currency: string; category: string | null }
+        | { id?: string; amount: number; currency: string; category: string | null }
         | undefined;
       if (tx) {
+        // Remember the just-created transaction so the "actually, that was
+        // <category>" correction flow can patch it. Without this the
+        // correction flow always reports "nothing to correct".
+        if (tx.id) {
+          updateSession(session.phone, { lastTransactionId: tx.id });
+        }
         return {
           text: m.captureLogged(tx.amount, tx.currency, tx.category),
           speakable: m.captureLogged(tx.amount, tx.currency, tx.category),

@@ -14,7 +14,7 @@
  * reset 'achieved' back to 'active' automatically, even if the target is
  * raised, because the historical milestone matters.
  */
-import { and, eq, gte, sql as drizzleSql } from 'drizzle-orm';
+import { and, eq, gte, isNull, sql as drizzleSql } from 'drizzle-orm';
 import {
   type Category,
   type GoalCreateInput,
@@ -257,6 +257,11 @@ async function computeCategoryDailyContribution(
         eq(transactions.spaceId, spaceId),
         eq(transactions.category, category),
         gte(transactions.date, since),
+        // Only real, live expenses count toward a savings/spend projection.
+        // Without these, soft-deleted rows and non-expense rows (income,
+        // transfers) inflate the contribution and skew the projection.
+        eq(transactions.type, 'expense'),
+        isNull(transactions.deletedAt),
       ),
     );
   if (!row) return 0;

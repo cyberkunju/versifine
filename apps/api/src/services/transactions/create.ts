@@ -31,6 +31,7 @@ import { recomputeAffectedBudgets } from '../budgets/index.ts';
 import { emit } from '../events/bus.ts';
 import { getRate } from '../fx/client.ts';
 import { normalizeCurrencyCode, toBase } from '../fx/convert.ts';
+import { enqueueEmbed } from './embed.ts';
 
 export interface CreateTransactionOptions {
   userId: string;
@@ -147,6 +148,12 @@ async function persist(
   });
 
   emitCreated(userId, stored);
+  // Best-effort RAG embedding for EVERY creation path (manual web, CSV
+  // import, copilot tool, capture/confirm). Fire-and-forget — never blocks
+  // the create. The job resolves the row by id at run time, so it works
+  // even when this persist ran inside a batch-import transaction that
+  // commits slightly later.
+  enqueueEmbed(stored.id, stored.description);
   // Fire-and-forget budget recompute. We never block the create path on this.
   void recomputeAffectedBudgets(userId, spaceId, stored.category).catch((err) => {
     log.warn('BUDGET_RECOMPUTE_FAIL', {

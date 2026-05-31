@@ -11,10 +11,11 @@
 import {
   type Currency,
   isCurrency,
+  CATEGORIES,
+  type Category,
   type TransactionSource,
 } from '@versifine/shared';
 import type { ParsedExpense } from '../ai/parser.ts';
-import { enqueueEmbed } from '../transactions/embed.ts';
 import { log } from '../../utils/logger.ts';
 
 export interface PersistInput {
@@ -126,6 +127,14 @@ export async function persistDraft(
     walletId: input.walletId,
     tags: [],
   };
+  // Honour an explicit category the user picked in the confirm dialog. The
+  // parser/confirm flow carries it on `categoryHint`; map it into `category`
+  // so createTransaction treats it as user-chosen instead of silently
+  // re-categorizing and discarding the edit.
+  if (draft.categoryHint && (CATEGORIES as readonly string[]).includes(draft.categoryHint)) {
+    payload.category = draft.categoryHint as Category;
+    payload.categorizedBy = 'user';
+  }
   if (draft.originalAmount !== null && draft.originalCurrency) {
     payload.originalAmount = draft.originalAmount;
     payload.originalCurrency = draft.originalCurrency.toUpperCase();
@@ -138,8 +147,8 @@ export async function persistDraft(
       source: input.source,
       input: payload,
     });
-    // Best-effort embed — never blocks the response.
-    enqueueEmbed(row.id, row.description);
+    // Embeddings are enqueued centrally inside createTransaction now, so we
+    // don't enqueue again here (that would double-embed the same row).
     return {
       ok: true,
       transaction: {
