@@ -100,6 +100,24 @@ describe('extractAmount', () => {
   test('Malayalam-style "2 vada 140" picks the price', () => {
     expect(extractAmount('mala chaya randu vada 140')).toEqual({ amount: 140, currency: null });
   });
+
+  // --- letter-for-digit typo normalization ("5oo" → 500) ---------------
+  test('fixes "5oo" typo to 500', () => {
+    expect(extractAmount('spnt 5oo on grocries yestrday')).toEqual({ amount: 500, currency: null });
+  });
+
+  test('fixes "1o0" typo to 100', () => {
+    expect(extractAmount('paid 1o0 for chai')).toEqual({ amount: 100, currency: null });
+  });
+
+  test('does NOT corrupt real words that contain o/l/s/b', () => {
+    // "auto", "lunch", "is", "so" must never be read as numbers.
+    expect(extractAmount('auto lunch is so good')).toEqual({ amount: null, currency: null });
+  });
+
+  test('leaves a clean number with following words intact', () => {
+    expect(extractAmount('500 on groceries')).toEqual({ amount: 500, currency: null });
+  });
 });
 
 describe('extractCurrency', () => {

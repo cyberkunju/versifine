@@ -47,9 +47,28 @@ const QUANTITY_UNIT = /^\s*(?:x|nos?|pcs?|pieces?|plates?|cups?|glasses?|kg|kgs?
  * the most price-like one rather than blindly taking the first — that bug
  * logged "₹2" for "I had 2 coffee for 560".
  */
+/**
+ * Fix common "letter-for-digit" typos inside numeric tokens before amount
+ * extraction: "5oo" → "500", "1o0" → "100", "2l" → "21". We only rewrite a
+ * token that STARTS with a real digit and whose every non-digit character is
+ * a fixable look-alike letter (o/O→0, l/I→1, s/S→5, b/B→8). So real words
+ * like "auto", "lunch", "so", "is" are never touched — they don't start with
+ * a digit — while "5oo on grocries" becomes "500 on grocries".
+ */
+const DIGIT_TYPO_TOKEN = /\b[0-9][0-9oOlIsSbB]*[oOlIsSbB][0-9oOlIsSbB]*\b/g;
+function normalizeDigitTypos(text: string): string {
+  return text.replace(DIGIT_TYPO_TOKEN, (token) =>
+    token
+      .replace(/[oO]/g, '0')
+      .replace(/[lI]/g, '1')
+      .replace(/[sS]/g, '5')
+      .replace(/[bB]/g, '8'),
+  );
+}
+
 export function extractAmount(text: string): AmountExtraction {
   if (!text) return { amount: null, currency: null };
-  const cleaned = text.replace(/[\u00a0]/g, ' ');
+  const cleaned = normalizeDigitTypos(text.replace(/[\u00a0]/g, ' '));
 
   // 1) Currency followed by amount: "₹450", "Rs 450", "USD 50", "$50".
   const leading = new RegExp(
