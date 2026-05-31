@@ -213,19 +213,38 @@ export async function runEngine(message: IncomingMessage): Promise<OutgoingReply
     return { text: '', state: session.state };
   }
 
-  // Voice → text bookkeeping.
+  // Voice → text. We transcribe once here (the bot's own transcribe path)
+  // and route the result as TEXT, so the API isn't asked to transcribe the
+  // same audio a second time. We keep the transcript to (a) decide routing
+  // and (b) echo it back to the user so they see what we heard.
+  let voiceTranscript: string | null = null;
   if (message.hasAudio && message.audioBuffer) {
     setReplyMode(message.phone, 'auto');
     const transcribed = await maybeTranscribe(message, session);
-    message = {
-      ...message,
-      body: transcribed.text,
-    };
+    voiceTranscript = transcribed.text.trim() || null;
     log.debug('VOICE_TRANSCRIBED', {
       phone: session.phone,
       length: transcribed.text.length,
       language: transcribed.language,
     });
+    if (!voiceTranscript) {
+      // Couldn't make out the audio — tell the user instead of failing
+      // silently or pushing an empty body downstream.
+      const couldntHear = await localize(
+        "🎤 I couldn't make out that voice note. Could you try again or type it?",
+        getSession(message.phone).language,
+      );
+      return { text: couldntHear, state: getSession(message.phone).state };
+    }
+    // Collapse to a text message carrying the transcript. Downstream flows
+    // (capture/confirm/budget/query) now see plain text — single source of
+    // truth, no double transcription.
+    message = {
+      ...message,
+      body: voiceTranscript,
+      hasAudio: false,
+      audioBuffer: null,
+    };
   }
 
   // Onboarding gate — phone-first sign-up.
@@ -268,13 +287,22 @@ export async function runEngine(message: IncomingMessage): Promise<OutgoingReply
 
   const body = welcomePrefix ? `${welcomePrefix}\n\n${outcome.text}` : outcome.text;
   const localized = await localize(body, active.language);
-  const speakable = outcome.speakable !== false && active.replyMode !== 'text' && message.hasAudio;
+
+  // Voice-in → prefix the reply with what we heard so the user can confirm
+  // the transcription, and mirror the modality (voice-in → voice-out).
+  const wasVoice = voiceTranscript !== null;
+  const withTranscript = wasVoice
+    ? `🎤 _“${voiceTranscript}”_\n\n${localized}`
+    : localized;
+
+  const speakable = outcome.speakable !== false && active.replyMode !== 'text' && wasVoice;
+  // Only the actual answer is spoken, never the transcript echo.
   const voicePromise: Promise<OutgoingVoice | null> | undefined = speakable
     ? speak(localized, active.language)
     : undefined;
 
   const final: OutgoingReply = {
-    text: localized,
+    text: withTranscript,
     state: getSession(active.phone).state,
     ...(voicePromise ? { voicePromise } : {}),
   };

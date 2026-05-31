@@ -32,9 +32,10 @@ const DEFAULT_RESULT: CategorizeResult = {
 export async function safeCategorize(
   spaceId: string,
   description: string,
+  hint: string | null = null,
 ): Promise<CategorizeResult> {
   try {
-    const result = await categorize(spaceId, description);
+    const result = await categorize(spaceId, description, hint);
     if (
       !result ||
       typeof result.category !== 'string' ||
