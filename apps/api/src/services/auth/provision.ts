@@ -18,10 +18,12 @@
  * address. A phone-first user who later wants the website goes through the
  * explicit claim/link flow rather than logging in with this placeholder.
  */
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import type { Language } from '@versifine/shared';
 import { db } from '../../db/client.ts';
+import { transactionEmbeddings } from '../../db/schema/embeddings.ts';
 import { spaceMembers, spaces } from '../../db/schema/spaces.ts';
+import { transactions } from '../../db/schema/transactions.ts';
 import { users } from '../../db/schema/users.ts';
 import { wallets } from '../../db/schema/wallets.ts';
 import { errors } from '../../utils/errors.ts';
@@ -151,6 +153,46 @@ export async function ensureUserByPhone(
       const patch: Partial<typeof users.$inferInsert> = {};
       if (existing.primaryLanguage !== language) patch.primaryLanguage = language;
 
+      if (email && isSyntheticEmail(existing.email)) {
+        const [emailOwner] = await tx
+          .select({
+            id: users.id,
+            displayName: users.displayName,
+            primaryLanguage: users.primaryLanguage,
+            activeSpaceId: users.activeSpaceId,
+            whatsappPhone: users.whatsappPhone,
+          })
+          .from(users)
+          .where(eq(users.email, email))
+          .limit(1);
+
+        if (emailOwner && emailOwner.id !== existing.id && emailOwner.activeSpaceId) {
+          if (emailOwner.whatsappPhone && emailOwner.whatsappPhone !== phone) {
+            throw errors.conflict('Email is already linked to another WhatsApp number');
+          }
+
+          await mergePhoneAccountIntoWebAccount({
+            tx,
+            phone,
+            language,
+            phoneUserId: existing.id,
+            phoneSpaceId: existing.activeSpaceId,
+            webUserId: emailOwner.id,
+            webSpaceId: emailOwner.activeSpaceId,
+          });
+
+          return {
+            userId: emailOwner.id,
+            spaceId: emailOwner.activeSpaceId,
+            displayName: emailOwner.displayName,
+            language: (emailOwner.primaryLanguage as Language) ?? language,
+            isNew: false,
+            email,
+            linkedExisting: true,
+          };
+        }
+      }
+
       // Upgrade a placeholder email to the real one the user just typed,
       // but only when nobody else already owns that address.
       let storedEmail = existing.email;
@@ -276,4 +318,66 @@ export async function ensureUserByPhone(
       linkedExisting: false,
     };
   });
+}
+
+async function mergePhoneAccountIntoWebAccount(input: {
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0];
+  phone: string;
+  language: Language;
+  phoneUserId: string;
+  phoneSpaceId: string;
+  webUserId: string;
+  webSpaceId: string;
+}): Promise<void> {
+  const [targetWallet] = await input.tx
+    .select({ id: wallets.id })
+    .from(wallets)
+    .where(
+      and(
+        eq(wallets.spaceId, input.webSpaceId),
+        eq(wallets.type, 'cash'),
+        eq(wallets.currency, 'INR'),
+        isNull(wallets.archivedAt),
+      ),
+    )
+    .limit(1);
+
+  let walletId = targetWallet?.id;
+  if (!walletId) {
+    const [created] = await input.tx
+      .insert(wallets)
+      .values({
+        spaceId: input.webSpaceId,
+        name: 'Cash',
+        type: 'cash',
+        currency: 'INR',
+      })
+      .returning({ id: wallets.id });
+    if (!created) throw errors.internal('Wallet creation failed');
+    walletId = created.id;
+  }
+
+  await input.tx
+    .update(transactions)
+    .set({ spaceId: input.webSpaceId, walletId })
+    .where(eq(transactions.spaceId, input.phoneSpaceId));
+
+  await input.tx
+    .update(transactionEmbeddings)
+    .set({ spaceId: input.webSpaceId })
+    .where(eq(transactionEmbeddings.spaceId, input.phoneSpaceId));
+
+  await input.tx
+    .update(users)
+    .set({ whatsappPhone: null, whatsappPhoneVerifiedAt: null })
+    .where(eq(users.id, input.phoneUserId));
+
+  await input.tx
+    .update(users)
+    .set({
+      whatsappPhone: input.phone,
+      whatsappPhoneVerifiedAt: new Date(),
+      primaryLanguage: input.language,
+    })
+    .where(eq(users.id, input.webUserId));
 }
