@@ -49,4 +49,13 @@ declare global {
   }
 }
 
+interface ImportMetaEnv {
+  readonly PUBLIC_GOOGLE_CLIENT_ID?: string;
+  readonly VITE_GOOGLE_CLIENT_ID?: string;
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv & Record<string, string | undefined>;
+}
+
 export {};

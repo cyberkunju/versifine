@@ -45,8 +45,22 @@ function defaultWsUrl(): string {
 
 export const PUBLIC_WS_URL: string = pick('WS_URL', defaultWsUrl());
 
-/** Google Identity Services web client ID. Empty means Google sign-in is hidden/disabled. */
-export const PUBLIC_GOOGLE_CLIENT_ID: string = pick('GOOGLE_CLIENT_ID', '');
+/**
+ * Google Identity Services web client ID. Empty means Google sign-in is
+ * hidden/disabled.
+ *
+ * This MUST be read as a static literal `import.meta.env.PUBLIC_GOOGLE_CLIENT_ID`
+ * (not via the dynamic `pick()` helper) — Vite only inlines build-time env
+ * values when the property access is a literal it can statically replace. A
+ * computed key like `env[\`PUBLIC_${key}\`]` is left untouched, which is why
+ * the relative-defaulting vars above can use `pick()` but this one cannot.
+ */
+const staticEnv = (import.meta as ImportMeta & { env: Record<string, string | undefined> }).env ?? {};
+export const PUBLIC_GOOGLE_CLIENT_ID: string =
+  import.meta.env.PUBLIC_GOOGLE_CLIENT_ID ??
+  import.meta.env.VITE_GOOGLE_CLIENT_ID ??
+  staticEnv.PUBLIC_GOOGLE_CLIENT_ID ??
+  '';
 
 /** True when the running build embeds a non-default API URL (used by debug strips). */
 export const IS_LOCAL_API: boolean = PUBLIC_API_URL.includes('localhost');
