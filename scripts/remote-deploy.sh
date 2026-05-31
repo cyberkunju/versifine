@@ -74,7 +74,23 @@ log "Building web (SvelteKit + adapter-node)"
 # generated route types. The deploy clones a fresh checkout so this dir
 # doesn't exist yet — without sync the build fails on the tsconfig
 # extends path.
-( cd apps/web && /usr/local/bin/bun x svelte-kit sync && /usr/local/bin/bun x vite build )
+#
+# Vite only inlines `import.meta.env.PUBLIC_*` from a `.env` FILE in the
+# web project root (exported shell vars / process.env are not reliably
+# exposed to the client bundle). So we materialise an `apps/web/.env` from
+# the PUBLIC_/VITE_ keys in the deployment web.env before building. This is
+# what gets the Google client ID (and any future public config) into the
+# client bundle deterministically.
+(
+    set -a
+    [ -f "$ENV_DIR/web.env" ] && source "$ENV_DIR/web.env"
+    set +a
+    cd apps/web
+    : > .env
+    [ -n "${PUBLIC_GOOGLE_CLIENT_ID:-}" ] && echo "PUBLIC_GOOGLE_CLIENT_ID=${PUBLIC_GOOGLE_CLIENT_ID}" >> .env
+    /usr/local/bin/bun x svelte-kit sync
+    /usr/local/bin/bun x vite build
+)
 [ -f apps/web/build/index.js ] || { echo "ERROR: apps/web/build/index.js missing"; exit 1; }
 
 # ---- 3. Hash existing dist trees BEFORE we overwrite them ---------------
