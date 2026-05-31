@@ -123,9 +123,9 @@
   });
 </script>
 
-<div class="overflow-hidden rounded-2xl border border-[hsl(var(--border))] bg-white shadow-[0_24px_60px_-30px_rgba(18,26,140,0.4)]">
+<div class="w-full min-w-0 overflow-hidden rounded-2xl border border-[hsl(var(--border))] bg-white shadow-[0_24px_60px_-30px_rgba(18,26,140,0.4)]">
   <!-- Title bar -->
-  <div class="flex items-center justify-between border-b border-[hsl(var(--border))] px-5 py-4">
+  <div class="flex items-center justify-between gap-4 border-b border-[hsl(var(--border))] px-4 py-4 sm:px-5">
     <div class="flex items-center gap-2.5">
       <span class="grid h-8 w-8 place-items-center rounded-full bg-[hsl(var(--brand-navy))] font-display text-sm font-semibold text-[hsl(var(--brand-paper))]">V</span>
       <div>
@@ -142,14 +142,14 @@
   </div>
 
   <!-- Prompt chips -->
-  <div class="flex flex-wrap gap-2 border-b border-[hsl(var(--border))] bg-[hsl(var(--brand-ivory)/0.5)] px-5 py-3">
+  <div class="scrollbar-none flex gap-2 overflow-x-auto border-b border-[hsl(var(--border))] bg-[hsl(var(--brand-ivory)/0.5)] px-4 py-3 sm:flex-wrap sm:overflow-visible sm:px-5">
     {#each CONVERSATIONS as conv, i (conv.id)}
       {@const Icon = conv.icon}
       <button
         type="button"
         onclick={() => selectConversation(i)}
         class={[
-          'flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all',
+          'flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all',
           i === activeIdx
             ? 'border-[hsl(var(--brand-navy))] bg-[hsl(var(--brand-navy))] text-[hsl(var(--brand-paper))]'
             : 'border-[hsl(var(--border))] bg-white text-[hsl(var(--muted-foreground))] hover:border-[hsl(var(--brand-navy)/0.4)] hover:text-[hsl(var(--brand-navy))]',
@@ -162,10 +162,10 @@
   </div>
 
   <!-- Conversation -->
-  <div class="min-h-[340px] space-y-3 px-5 py-5">
+  <div class="min-h-[340px] space-y-3 px-4 py-4 sm:px-5 sm:py-5">
     {#if typedQuestion}
       <div in:fly={{ y: 6, duration: 200 }}>
-        <div class="ml-auto w-fit max-w-prose rounded-2xl rounded-tr-sm bg-[hsl(var(--brand-navy))] px-4 py-2.5 text-sm text-[hsl(var(--brand-paper))]">
+        <div class="ml-auto w-fit max-w-[min(42rem,88%)] rounded-2xl rounded-tr-sm bg-[hsl(var(--brand-navy))] px-4 py-2.5 text-sm text-[hsl(var(--brand-paper))]">
           {typedQuestion}{#if !revealedSteps.includes(0)}<span class="ml-0.5 inline-block h-3.5 w-0.5 animate-pulse bg-[hsl(var(--brand-gold))] align-middle"></span>{/if}
         </div>
       </div>
@@ -183,7 +183,7 @@
             <ul class="space-y-2">
               {#each tool.rows as row, i (row.category)}
                 <li in:fade={{ delay: i * 70, duration: 240 }} class="flex items-center gap-3">
-                  <span class="w-28 truncate text-xs text-[hsl(var(--foreground))]">{row.category}</span>
+                  <span class="w-24 shrink-0 truncate text-xs text-[hsl(var(--foreground))] sm:w-28">{row.category}</span>
                   <div class="relative h-2 flex-1 overflow-hidden rounded-full bg-[hsl(var(--muted))]">
                     <span class="absolute inset-y-0 left-0 rounded-full bg-[hsl(var(--brand-navy))]" style:width={`${row.pct}%`}></span>
                   </div>
@@ -196,11 +196,11 @@
               <span class="font-mono text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--brand-gold))]">compute_forecast</span>
               <span class="text-xs font-medium text-[hsl(var(--muted-foreground))]">next 30 days</span>
             </div>
-            <div class="grid grid-cols-3 gap-3">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {#each [{ l: 'Recurring', v: tool.recurring, c: 'text-[hsl(var(--foreground))]' }, { l: 'Variable', v: tool.variable, c: 'text-[hsl(var(--foreground))]' }, { l: 'Total', v: tool.total, c: 'text-[hsl(var(--brand-navy))]' }] as cell (cell.l)}
                 <div>
                   <p class="text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">{cell.l}</p>
-                  <p class="mt-0.5 font-display text-lg font-semibold tabular-nums {cell.c}">{inr(cell.v)}</p>
+                  <p class="mt-0.5 font-display text-base font-semibold tabular-nums {cell.c} sm:text-lg">{inr(cell.v)}</p>
                 </div>
               {/each}
             </div>
@@ -239,7 +239,7 @@
 
     {#if typedAnswer}
       <div in:fly={{ y: 6, duration: 240 }}>
-        <div class="w-fit max-w-prose rounded-2xl rounded-tl-sm bg-[hsl(var(--muted))] px-4 py-3 text-sm leading-relaxed text-[hsl(var(--foreground))]">
+        <div class="w-fit max-w-[min(42rem,92%)] rounded-2xl rounded-tl-sm bg-[hsl(var(--muted))] px-4 py-3 text-sm leading-relaxed text-[hsl(var(--foreground))]">
           {typedAnswer}{#if busy}<span class="ml-0.5 inline-block h-3.5 w-0.5 animate-pulse bg-[hsl(var(--brand-gold))] align-middle"></span>{/if}
         </div>
       </div>

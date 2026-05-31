@@ -49,18 +49,18 @@
   ];
 </script>
 
-<div class="grid grid-cols-1 gap-x-14 gap-y-px md:grid-cols-2">
+<div class="grid grid-cols-1 gap-x-10 gap-y-px sm:grid-cols-2 xl:grid-cols-3 2xl:gap-x-14">
   {#each ITEMS as item (item.n)}
     {@const Icon = item.icon}
-    <article class="group flex gap-5 border-t border-[hsl(var(--border))] py-8">
+    <article class="group flex gap-4 border-t border-[hsl(var(--border))] py-7 sm:gap-5 sm:py-8">
       <div class="flex flex-col items-start gap-3">
         <span class="font-display text-sm font-medium tabular-nums text-[hsl(var(--brand-gold))]">{item.n}</span>
         <span class="grid h-10 w-10 place-items-center rounded-lg border border-[hsl(var(--border))] bg-white text-[hsl(var(--brand-navy))] transition-colors group-hover:border-[hsl(var(--brand-navy)/0.3)] group-hover:bg-[hsl(var(--brand-navy))] group-hover:text-[hsl(var(--brand-paper))]">
           <Icon class="h-5 w-5" />
         </span>
       </div>
-      <div class="pt-0.5">
-        <h3 class="font-display text-xl font-medium tracking-tight text-[hsl(var(--brand-navy))]">{item.title}</h3>
+      <div class="min-w-0 pt-0.5">
+        <h3 class="font-display text-xl font-medium tracking-normal text-[hsl(var(--brand-navy))]">{item.title}</h3>
         <p class="mt-2 text-[15px] leading-relaxed text-[hsl(var(--muted-foreground))]">{item.blurb}</p>
       </div>
     </article>

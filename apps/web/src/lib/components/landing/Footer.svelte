@@ -45,8 +45,8 @@
 </script>
 
 <footer class="border-t border-[hsl(var(--border))] bg-[hsl(var(--brand-ivory))]">
-  <div class="mx-auto max-w-6xl px-5 py-16 sm:px-8">
-    <div class="grid grid-cols-2 gap-10 lg:grid-cols-6">
+  <div class="vf-container vf-page-gutter py-14 sm:py-16">
+    <div class="grid grid-cols-2 gap-8 sm:gap-10 lg:grid-cols-6">
       <div class="col-span-2 lg:col-span-2">
         <Logo size={30} />
         <p class="mt-4 max-w-xs text-sm leading-relaxed text-[hsl(var(--muted-foreground))]">

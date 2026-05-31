@@ -139,6 +139,22 @@
 }
 
 @layer utilities {
+  .vf-page-gutter {
+    padding-left: max(clamp(1rem, 4vw, 5rem), env(safe-area-inset-left));
+    padding-right: max(clamp(1rem, 4vw, 5rem), env(safe-area-inset-right));
+  }
+  .vf-container {
+    width: 100%;
+    max-width: 1680px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .vf-container-wide {
+    width: 100%;
+    max-width: 1920px;
+    margin-left: auto;
+    margin-right: auto;
+  }
   .font-display {
     font-family: var(--font-display);
     font-optical-sizing: auto;

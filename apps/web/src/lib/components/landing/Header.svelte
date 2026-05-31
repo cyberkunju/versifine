@@ -42,12 +42,12 @@
     scrolled ? 'border-b border-[hsl(var(--border))] bg-[hsl(var(--brand-paper)/0.82)] backdrop-blur-md' : 'border-b border-transparent',
   ].join(' ')}
 >
-  <div class="mx-auto flex h-[4.5rem] max-w-6xl items-center justify-between gap-4 px-5 sm:px-8">
-    <a href="/" class="transition-opacity hover:opacity-80" aria-label="Versifine home">
-      <Logo size={30} />
+  <div class="vf-page-gutter grid h-16 w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4 sm:h-[4.75rem]">
+    <a href="/" class="justify-self-start transition-opacity hover:opacity-80" aria-label="Versifine home">
+      <Logo size={34} />
     </a>
 
-    <nav class="hidden items-center gap-8 lg:flex" aria-label="Primary">
+    <nav class="col-start-2 hidden items-center gap-7 xl:flex 2xl:gap-9" aria-label="Primary">
       {#each links as link (link.href)}
         <a
           href={link.href}
@@ -59,7 +59,7 @@
       {/each}
     </nav>
 
-    <div class="hidden items-center gap-5 lg:flex">
+    <div class="col-start-3 hidden items-center gap-5 justify-self-end xl:flex">
       <a
         href="/login"
         class="text-sm font-medium text-[hsl(var(--muted-foreground))] transition-colors hover:text-[hsl(var(--brand-navy))]"
@@ -77,7 +77,7 @@
 
     <button
       type="button"
-      class="rounded-md p-2 text-[hsl(var(--brand-navy))] transition-colors hover:bg-[hsl(var(--accent))] lg:hidden"
+      class="col-start-3 justify-self-end rounded-md p-2 text-[hsl(var(--brand-navy))] transition-colors hover:bg-[hsl(var(--accent))] xl:hidden"
       onclick={() => (mobileOpen = !mobileOpen)}
       aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
       aria-expanded={mobileOpen}
@@ -87,7 +87,7 @@
   </div>
 
   {#if mobileOpen}
-    <div class="border-t border-[hsl(var(--border))] bg-[hsl(var(--brand-paper))] px-5 py-4 lg:hidden">
+    <div class="vf-page-gutter border-t border-[hsl(var(--border))] bg-[hsl(var(--brand-paper))] py-4 xl:hidden">
       <nav class="flex flex-col" aria-label="Mobile">
         {#each links as link (link.href)}
           <a

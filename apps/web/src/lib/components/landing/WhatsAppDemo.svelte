@@ -94,13 +94,13 @@
 
 <div
   role="presentation"
-  class="relative mx-auto w-full max-w-[20rem]"
+  class="relative mx-auto w-full max-w-[min(100%,22rem)] lg:max-w-[clamp(21rem,24vw,28rem)]"
   onmouseenter={() => (paused = true)}
   onmouseleave={() => (paused = false)}
 >
   <!-- Device shell -->
-  <div class="overflow-hidden rounded-[2.5rem] border border-[hsl(var(--border))] bg-white p-2 shadow-[0_30px_60px_-25px_rgba(18,26,140,0.30)] ring-1 ring-black/[0.03]">
-    <div class="overflow-hidden rounded-[2rem] bg-[#ECE5DD]">
+  <div class="overflow-hidden rounded-[2rem] border border-[hsl(var(--border))] bg-white p-1.5 shadow-[0_30px_60px_-25px_rgba(18,26,140,0.30)] ring-1 ring-black/[0.03] sm:rounded-[2.5rem] sm:p-2">
+    <div class="overflow-hidden rounded-[1.5rem] bg-[#ECE5DD] sm:rounded-[2rem]">
       <!-- WhatsApp chat header -->
       <div class="flex items-center gap-3 bg-[hsl(var(--brand-navy))] px-4 py-3 text-[hsl(var(--brand-paper))]">
         <span class="grid h-9 w-9 place-items-center rounded-full bg-[hsl(var(--brand-paper))] font-display text-sm font-semibold text-[hsl(var(--brand-navy))]">V</span>
@@ -114,7 +114,7 @@
       <!-- Conversation -->
       <div
         bind:this={scrollContainer}
-        class="h-[400px] overflow-y-auto scrollbar-none px-3 py-4"
+        class="h-[min(440px,58svh)] min-h-[330px] overflow-y-auto scrollbar-none px-3 py-4"
         style:background-image="radial-gradient(circle at 25% 15%, rgba(18,26,140,0.04), transparent 45%), radial-gradient(circle at 80% 85%, rgba(132,129,246,0.06), transparent 45%)"
         aria-label="Versifine WhatsApp demo"
       >
@@ -125,7 +125,7 @@
               <li in:fly={{ y: 8, duration: 240 }} class={bubble.side === 'me' ? 'self-end' : 'self-start'}>
                 <div
                   class={[
-                    'max-w-[15rem] px-3 py-2 text-[13px] leading-snug shadow-sm',
+                    'max-w-[min(15rem,78vw)] px-3 py-2 text-[13px] leading-snug shadow-sm',
                     bubble.side === 'me'
                       ? 'rounded-2xl rounded-tr-sm bg-[#DCF8C6] text-[#0b3d12]'
                       : 'rounded-2xl rounded-tl-sm bg-white text-[hsl(var(--foreground))]',
