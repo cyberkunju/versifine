@@ -25,6 +25,7 @@ import { isLanguage, LANGUAGE_META, LANGUAGES } from '@versifine/shared';
 import type { Session } from '../../types.ts';
 import { botEnsureUser, botWhoami } from '../../services/apiClient.ts';
 import { log } from '../../utils/logger.ts';
+import { parseEmail, looksLikeSkip } from '../../utils/text.ts';
 import { getMessages } from '../messages/index.ts';
 import { setLanguage, setLinked, setState, updateSession } from '../state.ts';
 
@@ -123,8 +124,12 @@ export interface LanguagePickResult {
 }
 
 /**
- * Handle the language selection for a NEW user, then auto-provision the
- * account and move straight to LINKED_MAIN. No verification, no LINK step.
+ * Handle the language selection.
+ *
+ *   - NEW user (not yet provisioned): advance to the optional email step
+ *     (AWAITING_EMAIL); provisioning happens in `handleEmailStep`.
+ *   - ALREADY-linked user (used the LANGUAGE command to switch): persist the
+ *     new language and drop straight back to LINKED_MAIN — no email step.
  */
 export async function handleLanguagePick(session: Session, body: string): Promise<LanguagePickResult> {
   const picked = pickLanguage(body);
@@ -137,21 +142,79 @@ export async function handleLanguagePick(session: Session, body: string): Promis
   setLanguage(session.phone, picked);
   const localized = getMessages(picked);
 
+  // Already provisioned → this is a language switch, not onboarding.
+  if (session.linked) {
+    try {
+      // Persist the new primary language (idempotent find-or-create).
+      await botEnsureUser(session.phone, picked);
+    } catch (err) {
+      log.warn('LANG_REFRESH_FAIL', {
+        phone: session.phone,
+        error: err instanceof Error ? err.message.slice(0, 160) : String(err),
+      });
+    }
+    setState(session.phone, 'LINKED_MAIN');
+    return {
+      text: localized.languageSet(LANGUAGE_META[picked].englishName),
+      state: 'LINKED_MAIN',
+    };
+  }
+
+  // New user → ask for an email before provisioning.
+  setState(session.phone, 'AWAITING_EMAIL');
+  const text = `${localized.languageSet(LANGUAGE_META[picked].englishName)}\n\n${localized.askEmail}`;
+  return { text, state: 'AWAITING_EMAIL' };
+}
+
+export interface EmailStepResult {
+  text: string;
+  state: Session['state'];
+}
+
+/**
+ * Onboarding step 2 — optional email linking, then provisioning.
+ *
+ *   - SKIP / "no" / "later"  → provision a phone-only account (placeholder
+ *     email), drop into LINKED_MAIN.
+ *   - a valid email          → provision with the email so the WhatsApp and
+ *     web accounts auto-join (no OTP). If the email already belongs to a
+ *     web account the phone is attached to it ("welcome back").
+ *   - anything else          → re-prompt (still skippable).
+ *
+ * Provisioning failures keep the user in AWAITING_EMAIL so the next message
+ * retries rather than stranding them.
+ */
+export async function handleEmailStep(session: Session, body: string): Promise<EmailStepResult> {
+  const m = getMessages(session.language);
+  const skipping = looksLikeSkip(body);
+  const email = skipping ? null : parseEmail(body);
+
+  if (!skipping && !email) {
+    return { text: m.emailInvalid, state: 'AWAITING_EMAIL' };
+  }
+
   try {
-    const account = await botEnsureUser(session.phone, picked);
+    const account = await botEnsureUser(session.phone, session.language, email ?? undefined);
     setLinked(session.phone, { userId: account.userId, spaceId: account.spaceId });
     updateSession(session.phone, { accountResolved: true });
     setState(session.phone, 'LINKED_MAIN');
-    const text = `${localized.languageSet(LANGUAGE_META[picked].englishName)}\n\n${localized.onboardingReady}`;
-    return { text, state: 'LINKED_MAIN' };
+
+    let head: string;
+    if (skipping) {
+      head = m.emailSkipped;
+    } else if (account.linkedExisting) {
+      head = m.emailLinkedExisting(account.email ?? email ?? '');
+    } else {
+      head = m.emailLinked(account.email ?? email ?? '');
+    }
+    return { text: `${head}\n\n${m.onboardingReady}`, state: 'LINKED_MAIN' };
   } catch (err) {
     log.warn('ENSURE_USER_FAIL', {
       phone: session.phone,
       error: err instanceof Error ? err.message.slice(0, 160) : String(err),
     });
-    // Provisioning failed — keep the chosen language, stay in AWAITING_LANGUAGE
-    // so the next message retries provisioning rather than stranding the user.
-    setState(session.phone, 'AWAITING_LANGUAGE');
-    return { text: localized.error, state: 'AWAITING_LANGUAGE' };
+    // Stay in AWAITING_EMAIL so the next message retries provisioning.
+    setState(session.phone, 'AWAITING_EMAIL');
+    return { text: m.error, state: 'AWAITING_EMAIL' };
   }
 }

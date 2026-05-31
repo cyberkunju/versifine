@@ -67,9 +67,17 @@ mock.module('../src/services/apiClient.ts', () => {
       // Default: brand-new number → onboarding.
       return { exists: false, displayName: null, language: 'en', webLinked: false };
     },
-    botEnsureUser: async (phone: string, language: string) => {
-      calls.push({ method: 'POST', path: '/bot/ensure-user', body: { phone, language } });
-      return { userId: 'u_test_1', spaceId: 's_test_1', isNew: true, displayName: null, language };
+    botEnsureUser: async (phone: string, language: string, email?: string) => {
+      calls.push({ method: 'POST', path: '/bot/ensure-user', body: { phone, language, email } });
+      return {
+        userId: 'u_test_1',
+        spaceId: 's_test_1',
+        isNew: true,
+        displayName: null,
+        language,
+        email: email ?? null,
+        linkedExisting: false,
+      };
     },
     phoneLinkConfirm: async (code: string, phone: string) => {
       calls.push({ method: 'POST', path: '/auth/phone-link/confirm', body: { code, phone } });
@@ -125,20 +133,27 @@ function inbound(phone: string, body: string) {
 
 const PHONE = '919999900001';
 
-test('greeting → language pick → auto-provision → capture happy path', async () => {
+test('greeting → language pick → email step → auto-provision → capture happy path', async () => {
   // 1. First touch → whoami says new → language menu.
   const greet = await runEngine(inbound(PHONE, 'hi'));
   expect(greet.text).toContain('Versifine');
   expect(greet.state).toBe('AWAITING_LANGUAGE');
   expect(calls.find((c) => c.path === '/bot/whoami')).toBeTruthy();
 
-  // 2. Language pick (English via "1") → auto-provision, straight to LINKED_MAIN.
+  // 2. Language pick (English via "1") → ask for email, NOT provisioned yet.
   const langSet = await runEngine(inbound(PHONE, '1'));
   expect(langSet.text.toLowerCase()).toContain('english');
-  expect(langSet.state).toBe('LINKED_MAIN');
-  expect(calls.find((c) => c.path === '/bot/ensure-user')).toBeTruthy();
+  expect(langSet.state).toBe('AWAITING_EMAIL');
+  expect(calls.find((c) => c.path === '/bot/ensure-user')).toBeFalsy();
 
-  // 3. Capture: "spent 450 on auto" — no LINK step needed.
+  // 3. Email step: SKIP → auto-provision, straight to LINKED_MAIN.
+  const emailStep = await runEngine(inbound(PHONE, 'SKIP'));
+  expect(emailStep.state).toBe('LINKED_MAIN');
+  const ensureCall = calls.find((c) => c.path === '/bot/ensure-user');
+  expect(ensureCall).toBeTruthy();
+  expect((ensureCall?.body as { email?: string }).email).toBeUndefined();
+
+  // 4. Capture: "spent 450 on auto" — no LINK step needed.
   const capture = await runEngine(inbound(PHONE, 'spent 450 on auto'));
   expect(capture.text).toContain('Logged');
   expect(capture.text).toContain('450');
@@ -147,13 +162,15 @@ test('greeting → language pick → auto-provision → capture happy path', asy
   expect(captureCall).toBeTruthy();
   expect((captureCall?.body as { text: string }).text).toBe('spent 450 on auto');
 
-  // 4. STATUS.
+  // 5. STATUS.
   const status = await runEngine(inbound(PHONE, 'STATUS'));
   expect(status.text.toLowerCase()).toContain('linked');
 
-  // 5. RESET.
+  // 6. RESET → fully restarts onboarding (back to the language menu).
   const reset = await runEngine(inbound(PHONE, 'RESET'));
   expect(reset.text).toMatch(/Reset/i);
+  expect(reset.text).toContain('Versifine');
+  expect(reset.state).toBe('AWAITING_LANGUAGE');
 });
 
 test('returning user: first message is processed, not discarded', async () => {
@@ -185,12 +202,14 @@ test('returning user: first message is processed, not discarded', async () => {
     captureConfirm: async () => ({ intent: 'unknown', needsConfirmation: false, echo: '' }),
     askCopilot: async () => ({ answer: 'a', outcome: 'answered' }),
     botWhoami: async () => ({ exists: true, displayName: 'Asha', language: 'en', webLinked: false }),
-    botEnsureUser: async (phone: string, language: string) => ({
+    botEnsureUser: async (phone: string, language: string, email?: string) => ({
       userId: 'u_rt',
       spaceId: 's_rt',
       isNew: false,
       displayName: 'Asha',
       language,
+      email: email ?? null,
+      linkedExisting: false,
     }),
     phoneLinkConfirm: async () => ({ linked: true, phone: PHONE }),
     createBudget: async () => ({ budget: { id: 'b', name: 'b' } }),
@@ -253,12 +272,14 @@ test('CANCEL on a draft routes through draft pending state', async () => {
     }),
     askCopilot: async () => ({ answer: 'mock copilot answer', outcome: 'answered' }),
     botWhoami: async () => ({ exists: false, displayName: null, language: 'en', webLinked: false }),
-    botEnsureUser: async (phone: string, language: string) => ({
+    botEnsureUser: async (phone: string, language: string, email?: string) => ({
       userId: 'u_test_2',
       spaceId: 's_test_2',
       isNew: true,
       displayName: null,
       language,
+      email: email ?? null,
+      linkedExisting: false,
     }),
     phoneLinkConfirm: async () => ({ linked: true, phone: PHONE }),
     createBudget: async () => ({ budget: { id: 'b', name: 'b' } }),
@@ -270,9 +291,10 @@ test('CANCEL on a draft routes through draft pending state', async () => {
   delete (require.cache as unknown as Record<string, unknown>)[require.resolve(enginePath)];
   const fresh = (await import('../src/conversations/engine.ts')).runEngine;
 
-  // Onboard: hi → language pick → auto-provisioned into LINKED_MAIN.
+  // Onboard: hi → language pick → email step (SKIP) → LINKED_MAIN.
   await fresh(inbound(PHONE, 'hi'));
   await fresh(inbound(PHONE, '1'));
+  await fresh(inbound(PHONE, 'SKIP'));
 
   const drafted = await fresh(inbound(PHONE, 'something'));
   expect(drafted.text).toContain('How much');
@@ -340,12 +362,14 @@ test('expired draft reprocesses the follow-up instead of trapping the user', asy
     },
     askCopilot: async () => ({ answer: 'mock copilot answer', outcome: 'answered' }),
     botWhoami: async () => ({ exists: false, displayName: null, language: 'en', webLinked: false }),
-    botEnsureUser: async (phone: string, language: string) => ({
+    botEnsureUser: async (phone: string, language: string, email?: string) => ({
       userId: 'u_expired',
       spaceId: 's_expired',
       isNew: true,
       displayName: null,
       language,
+      email: email ?? null,
+      linkedExisting: false,
     }),
     phoneLinkConfirm: async () => ({ linked: true, phone: PHONE }),
     createBudget: async () => ({ budget: { id: 'b', name: 'b' } }),
@@ -359,6 +383,7 @@ test('expired draft reprocesses the follow-up instead of trapping the user', asy
 
   await fresh(inbound(phone, 'hi'));
   await fresh(inbound(phone, '1'));
+  await fresh(inbound(phone, 'SKIP'));
 
   const drafted = await fresh(inbound(phone, 'something'));
   expect(drafted.text).toContain('What did you spend it on?');

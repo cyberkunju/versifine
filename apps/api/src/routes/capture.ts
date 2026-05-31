@@ -22,6 +22,7 @@ import { transcribe } from '../services/ai/transcribe.ts';
 import { extractFromReceipt } from '../services/ai/vision.ts';
 import { storeDraft, getDraft, consumeDraft, type DraftRecord } from '../services/capture/drafts.ts';
 import { persistDraft } from '../services/capture/persist.ts';
+import { safeCategorize } from '../services/categorize/_safe.ts';
 import { answerQuery } from '../services/capture/queryStubs.ts';
 import { listLiveWallets, pickWallet } from '../services/capture/wallet.ts';
 import { ok } from '../utils/envelope.ts';
@@ -104,6 +105,7 @@ async function runTextPipeline(input: RunPipelineInput) {
   ) {
     const reply = await answerQuery(intentResult.intent, user.activeSpaceId, {
       category: intentResult.category,
+      text,
     });
     return c.json(
       ok({
@@ -115,14 +117,18 @@ async function runTextPipeline(input: RunPipelineInput) {
     );
   }
 
-  // Anything that's not a transaction intent → respond with the unknown
-  // shape so the client can prompt the user.
+  // Anything that's not a transaction intent and not a direct query — budget,
+  // goal, advice, lend/borrow, correction, delete, or an unclear message — is
+  // handed to the finance copilot rather than nagging the user to "rephrase".
+  // The copilot is finance-scoped (and injection-guarded server-side), so it
+  // either answers the money question, asks one short clarifier, or politely
+  // declines true off-topic. Far better UX than a dead-end prompt.
   if (!isTransactionIntent(intentResult.intent)) {
     return c.json(
       ok({
-        intent: intentResult.intent,
-        needsConfirmation: true,
-        followupQuestion: 'Could you rephrase that as an expense, income, or transfer?',
+        intent: 'chat',
+        needsConfirmation: false,
+        copilotStreamUrl: '/copilot/chat',
         echo: text,
       }),
     );
@@ -313,13 +319,25 @@ app.post('/image', requireUserOrBot, captureLimit, async (c) => {
   const livewallets = await listLiveWallets(user.activeSpaceId);
   const walletPick = pickWallet(livewallets, null);
 
+  // Categorize from the extracted merchant/description so the draft (and an
+  // auto-logged row) carry a real category instead of "Other".
+  let categoryHint: string | null = null;
+  if (extracted.description) {
+    try {
+      const cat = await safeCategorize(user.activeSpaceId, extracted.description);
+      if (cat.category && cat.category !== 'Other') categoryHint = cat.category;
+    } catch {
+      categoryHint = null;
+    }
+  }
+
   // Build a parser-shaped draft from the vision result so the same UI works.
   const draft = {
     type: 'expense' as const,
     amount: extracted.amount,
     currency: extracted.currency,
     description: extracted.description,
-    categoryHint: null,
+    categoryHint,
     walletHint: walletPick.wallet?.name ?? null,
     date: extracted.date,
     splitPeople: null,
@@ -332,19 +350,45 @@ app.post('/image', requireUserOrBot, captureLimit, async (c) => {
     ] as ParsedExpense['needs'],
   } satisfies ParsedExpense;
 
-  const stored = storeDraft({
-    spaceId: user.activeSpaceId,
-    userId: user.id,
-    origin: 'image',
-    source: '[receipt photo]',
-    locale: typeof locale === 'string' ? locale : null,
-    draft,
-  });
-
   c.get('log').info('CAPTURE_IMAGE', {
     bytes: buffer.byteLength,
     visionSource: extracted.source,
     confidence: extracted.confidence,
+    category: categoryHint,
+  });
+
+  // High-confidence, complete extraction → log it straight away (no friction).
+  // A clear GPay "Paid ₹450 to Ola" screenshot shouldn't need a confirm tap.
+  const complete = extracted.amount !== null && Boolean(extracted.description) && Boolean(walletPick.wallet);
+  if (complete && extracted.confidence >= 0.7) {
+    const persistResult = await persistDraft({
+      userId: user.id,
+      spaceId: user.activeSpaceId,
+      source: c.req.header('x-bot-secret') ? 'whatsapp_image' : 'manual_web',
+      draft,
+      walletId: walletPick.wallet!.id,
+      date: extracted.date ?? TODAY(),
+    });
+    if (persistResult.ok) {
+      return c.json(
+        ok({
+          intent: 'expense' as const,
+          needsConfirmation: false,
+          queryResult: { transaction: persistResult.transaction },
+          echo: '[payment image]',
+        }),
+      );
+    }
+    // fall through to the confirm flow if persistence wasn't possible.
+  }
+
+  const stored = storeDraft({
+    spaceId: user.activeSpaceId,
+    userId: user.id,
+    origin: 'image',
+    source: extracted.description ?? '[payment image]',
+    locale: typeof locale === 'string' ? locale : null,
+    draft,
   });
 
   return c.json(
@@ -355,9 +399,9 @@ app.post('/image', requireUserOrBot, captureLimit, async (c) => {
       draft: serializeDraft(draft),
       followupQuestion:
         extracted.confidence < 0.5
-          ? 'Receipt was hard to read — please confirm the details.'
-          : 'Confirm or edit the receipt before saving.',
-      echo: '[receipt photo]',
+          ? 'That image was hard to read — please confirm the details.'
+          : 'Confirm or edit before saving.',
+      echo: extracted.description ?? '[payment image]',
     }),
   );
 });

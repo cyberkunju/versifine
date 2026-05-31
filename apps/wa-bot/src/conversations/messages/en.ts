@@ -53,6 +53,23 @@ export const en: MessagePack = {
 
   languageSet: (lang) => `Got it. I'll talk to you in ${lang}.`,
 
+  askEmail:
+    'One quick thing — what email should I link this to?\n\n' +
+    'If you ever sign in on the web with the same email, your WhatsApp and ' +
+    'web accounts join up automatically. No password needed here.\n\n' +
+    "Send your email, or reply SKIP to do it later.",
+
+  emailLinked: (email) =>
+    `Linked to ${email}. ✅ Sign in on the web with this email and it's the same account.`,
+
+  emailLinkedExisting: (email) =>
+    `Welcome back! This number is now connected to your ${email} account. ✅ Everything's in one place.`,
+
+  emailInvalid:
+    "That doesn't look like an email. Send a valid one (like you@example.com), or reply SKIP.",
+
+  emailSkipped: 'No problem — skipped. You can link an email later from the web app.',
+
   onboardingReady:
     "You're all set — no sign-up needed. ✅\n\n" +
     "Just tell me what you spent. For example:\n" +
@@ -121,6 +138,11 @@ export const en: MessagePack = {
 
   statusLine: (state, language) =>
     `Status: linked, language ${language}, current step: ${state.toLowerCase()}.`,
+
+  languageChanged: (label) => `✅ Done — I'll talk to you in ${label} from now on.`,
+  replyModeText: '✅ Got it — text replies only from now on.',
+  replyModeVoice: "✅ Done — I'll send you a voice note with each reply.",
+  replyModeAuto: "✅ Done — I'll mirror you: voice for voice, text for text.",
 
   resetDone: '🔄 Reset. Send HELP to see what I can do.',
 

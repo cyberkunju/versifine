@@ -40,7 +40,10 @@ Read the user's message and pick exactly ONE intent from this list:
   set_budget       — user wants to create or change a budget
   set_goal         — user wants to create or change a savings goal
   query_spending   — user asks how much they spent on something
-  query_summary    — user asks for an overall summary, this month, last month
+  query_summary    — user asks for an overall summary or total for a period
+                     (today, yesterday, this week, this month, last month, etc.),
+                     e.g. "today spend", "how much today", "this week total",
+                     "kitna kharch hua aaj", "ഇന്ന് എത്ര ചെലവായി"
   query_forecast   — user asks how much they'll spend next, projection, what's coming
   ask_advice       — user asks for advice or suggestions on their finances
   lend             — user lent money to someone (e.g. "lent Aman 2000")
@@ -157,7 +160,7 @@ function regexFallback(text: string): IntentResult {
     };
   }
   if (
-    /\b(summary|how much in total|net worth|this month|last month|total spent)\b/.test(lower) &&
+    /\b(summary|how much in total|net worth|this month|last month|this week|last week|today|yesterday|total spent|kitna kharch|how much did i spend|how much have i spent|spend today|spent today|today spend|month spend|week spend)\b/.test(lower) &&
     !/spent\s+\d/.test(lower)
   ) {
     return {

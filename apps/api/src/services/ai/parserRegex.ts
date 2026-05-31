@@ -31,10 +31,21 @@ const SPLIT_RE = /\b(?:split(?:\s+(?:with|among))?|divide(?:d)?\s+(?:by|with|amo
 const SPLIT_PEOPLE_RE =
   /\b(?:with|among|between)?\s*(\d{1,2})\s*(?:people|persons?|friends?|of\s+us)\b/i;
 
+/** Words that mark the number AFTER them as the price/amount, not a quantity. */
+const PRICE_MARKER = /\b(?:for|cost|costs|costing|worth|price|priced|paid|pay|payment|of|@|=|total|bill|amount|spent|spend)\s*$/i;
+/** Words/units that mark the number BEFORE them as a quantity, not a price. */
+const QUANTITY_UNIT = /^\s*(?:x|nos?|pcs?|pieces?|plates?|cups?|glasses?|kg|kgs?|g|grams?|litres?|liters?|l|ml|people|persons?|friends?|times?|months?|years?|days?|weeks?|hours?|hrs?|%|percent)\b/i;
+
 /**
  * Pull an amount out of a sentence. Recognises a leading currency
  * symbol/word, a trailing currency symbol/word, and bare numbers like
  * "450" or "3,200" or "1.5k".
+ *
+ * When the text has MULTIPLE bare numbers (e.g. "2 coffee for 560",
+ * "3 idli 50", "मാല ചായ രണ്ട് വട 140") the first number is usually a
+ * quantity and the price comes later. We score every candidate and pick
+ * the most price-like one rather than blindly taking the first — that bug
+ * logged "₹2" for "I had 2 coffee for 560".
  */
 export function extractAmount(text: string): AmountExtraction {
   if (!text) return { amount: null, currency: null };
@@ -53,7 +64,7 @@ export function extractAmount(text: string): AmountExtraction {
     }
   }
 
-  // 2) Amount followed by currency: "450 rs", "50 dollars".
+  // 2) Amount followed by currency: "450 rs", "50 dollars", "140 രൂപ".
   const trailing = new RegExp(
     `(\\d[\\d,]*(?:\\.\\d+)?)\\s*(k|thousand|lakh|crore)?\\s*(${CURRENCY_PATTERN})\\b`,
     'i',
@@ -66,13 +77,62 @@ export function extractAmount(text: string): AmountExtraction {
     }
   }
 
-  // 3) Bare number — accept the FIRST sensible figure.
-  const bare = /(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|lakh|crore)?/i.exec(cleaned);
-  if (bare) {
-    const amt = parseAmount(bare[1]!, bare[2] ?? null);
-    if (amt !== null) return { amount: amt, currency: null };
-  }
+  // 3) No currency attached — score every bare number and pick the price.
+  const amt = pickBareAmount(cleaned);
+  if (amt !== null) return { amount: amt, currency: null };
   return { amount: null, currency: null };
+}
+
+interface BareCandidate {
+  value: number;
+  index: number;
+  afterPriceMarker: boolean;
+  beforeQuantityUnit: boolean;
+}
+
+/**
+ * Choose the most price-like bare number from a sentence with one or more
+ * figures. Scoring, highest wins:
+ *   +5  preceded by a price marker ("for 560", "total 560", "@ 560")
+ *   -4  followed by a quantity unit ("2 kg", "3 plates", "4 people")
+ *   +1  it is the single largest figure (price usually ≫ quantity)
+ * Ties break toward the later number (price tends to come after the item).
+ */
+function pickBareAmount(text: string): number | null {
+  const re = /(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|lakh|crore)?/gi;
+  const candidates: BareCandidate[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const value = parseAmount(m[1]!, m[2] ?? null);
+    if (value === null) continue;
+    const before = text.slice(0, m.index);
+    const after = text.slice(m.index + m[0].length);
+    candidates.push({
+      value,
+      index: m.index,
+      afterPriceMarker: PRICE_MARKER.test(before),
+      beforeQuantityUnit: QUANTITY_UNIT.test(after),
+    });
+  }
+  if (candidates.length === 0) return null;
+  if (candidates.length === 1) return candidates[0]!.value;
+
+  const maxValue = Math.max(...candidates.map((c) => c.value));
+  let best: BareCandidate | null = null;
+  let bestScore = Number.NEGATIVE_INFINITY;
+  for (const c of candidates) {
+    let score = 0;
+    if (c.afterPriceMarker) score += 5;
+    if (c.beforeQuantityUnit) score -= 4;
+    if (c.value === maxValue) score += 1;
+    // Later position is a mild tiebreaker (price follows the item).
+    score += c.index / (text.length + 1);
+    if (score > bestScore) {
+      bestScore = score;
+      best = c;
+    }
+  }
+  return best ? best.value : null;
 }
 
 function parseAmount(numberToken: string, suffix: string | null): number | null {

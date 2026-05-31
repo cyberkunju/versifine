@@ -10,6 +10,7 @@ export type { Language };
 export const CONVERSATION_STATES = [
   'GREETING',
   'AWAITING_LANGUAGE',
+  'AWAITING_EMAIL',
   'AWAITING_LINK_CODE',
   'LINKED_MAIN',
   'CAPTURE_CONFIRM',

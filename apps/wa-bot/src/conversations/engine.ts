@@ -40,7 +40,7 @@ import { chunkText, parseLinkCommand, parseUniversal } from '../utils/text.ts';
 import { handleBudget, looksLikeBudgetTrigger } from './flows/budget.ts';
 import { handleCapture, handleConfirm } from './flows/capture.ts';
 import { handleCorrection, looksLikeCorrection } from './flows/correct.ts';
-import { handleLanguagePick, resolveFirstContact } from './flows/identity.ts';
+import { handleLanguagePick, handleEmailStep, resolveFirstContact } from './flows/identity.ts';
 import {
   handleHelp,
   handleLanguageSwitch,
@@ -49,6 +49,7 @@ import {
   handleStop,
 } from './flows/help.ts';
 import { handleLinkCommand, rePrompt } from './flows/link.ts';
+import { detectSettingsIntent } from './flows/settings.ts';
 import { hasNativePack, getMessages } from './messages/index.ts';
 import { getSession, setReplyMode, updateSession } from './state.ts';
 
@@ -150,6 +151,15 @@ async function dispatch(session: Session, message: IncomingMessage): Promise<Dis
     }
     const result = await handleConfirm(session, 'EDIT', message.body);
     return { text: result.text, speakable: true };
+  }
+
+  // Settings the user owns — change language / reply mode by natural language
+  // or voice ("change language to malayalam", "voice off", "speak in hindi").
+  // These are NOT finance questions, so we handle them here and never let
+  // them fall through to the copilot (which would refuse them as off-topic).
+  const settings = detectSettingsIntent(session, message.body);
+  if (settings) {
+    return { text: settings.text, speakable: false };
   }
 
   // Multi-step budget.
@@ -268,6 +278,11 @@ export async function runEngine(message: IncomingMessage): Promise<OutgoingReply
   if (!onboardingExempt && getSession(session.phone).state === 'AWAITING_LANGUAGE') {
     const picked = await handleLanguagePick(getSession(session.phone), message.body);
     const text = await localize(picked.text, getSession(session.phone).language);
+    return { text, state: getSession(session.phone).state };
+  }
+  if (!onboardingExempt && getSession(session.phone).state === 'AWAITING_EMAIL') {
+    const stepped = await handleEmailStep(getSession(session.phone), message.body);
+    const text = await localize(stepped.text, getSession(session.phone).language);
     return { text, state: getSession(session.phone).state };
   }
 

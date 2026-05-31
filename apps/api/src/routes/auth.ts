@@ -34,7 +34,7 @@ import {
   verifyRefreshToken,
 } from '../services/auth/jwt.ts';
 import { hashPassword, verifyPassword } from '../services/auth/password.ts';
-import { consumeOtp, createOtp } from '../services/auth/otp.ts';
+import { createOtp, getValidOtp } from '../services/auth/otp.ts';
 import { ok } from '../utils/envelope.ts';
 import { errors } from '../utils/errors.ts';
 import { normalizePhone } from '../utils/phone.ts';
@@ -83,12 +83,53 @@ app.post('/register', authLimit, validate('json', registerInput), async (c) => {
 
   const result = await db.transaction(async (tx) => {
     const [existing] = await tx
-      .select({ id: users.id })
+      .select({
+        id: users.id,
+        passwordHash: users.passwordHash,
+        googleSub: users.googleSub,
+        displayName: users.displayName,
+        activeSpaceId: users.activeSpaceId,
+        whatsappPhone: users.whatsappPhone,
+        whatsappPhoneVerifiedAt: users.whatsappPhoneVerifiedAt,
+        primaryLanguage: users.primaryLanguage,
+        baseCurrency: users.baseCurrency,
+        createdAt: users.createdAt,
+      })
       .from(users)
       .where(eq(users.email, email))
       .limit(1);
+
     if (existing) {
-      throw errors.conflict('Email already registered');
+      // A phone-first WhatsApp account (passwordless, no Google) that already
+      // claimed this real email is "claimable": registering on the web with
+      // the same address adopts it, so both surfaces share one account. Any
+      // account with a password or Google identity is a genuine collision.
+      const claimable = !existing.passwordHash && !existing.googleSub;
+      if (!claimable || !existing.activeSpaceId) {
+        throw errors.conflict('Email already registered');
+      }
+      const [adopted] = await tx
+        .update(users)
+        .set({
+          passwordHash,
+          displayName: existing.displayName ?? displayName ?? null,
+          primaryLanguage: existing.primaryLanguage ?? primaryLanguage,
+          lastLoginAt: new Date(),
+        })
+        .where(eq(users.id, existing.id))
+        .returning({
+          id: users.id,
+          email: users.email,
+          displayName: users.displayName,
+          primaryLanguage: users.primaryLanguage,
+          baseCurrency: users.baseCurrency,
+          activeSpaceId: users.activeSpaceId,
+          whatsappPhone: users.whatsappPhone,
+          whatsappPhoneVerifiedAt: users.whatsappPhoneVerifiedAt,
+          createdAt: users.createdAt,
+        });
+      if (!adopted || !adopted.activeSpaceId) throw errors.internal('Account claim failed');
+      return { user: adopted, spaceId: adopted.activeSpaceId };
     }
 
     const [space] = await tx
@@ -432,30 +473,55 @@ app.post('/phone-link/confirm', otpLimit, validate('json', phoneLinkConfirmInput
   const { code, phone } = c.req.valid('json');
   const normalized = normalizePhone(phone);
 
-  const otp = await consumeOtp(code);
+  const otp = await getValidOtp(code);
 
-  await db.transaction(async (tx) => {
+  const linked = await db.transaction(async (tx) => {
     const [conflict] = await tx
       .select({ id: users.id })
       .from(users)
       .where(eq(users.whatsappPhone, normalized))
       .limit(1);
     if (conflict && conflict.id !== otp.userId) {
-      throw errors.conflict('Phone already linked to another account');
+      // The LINK command proves both sides: the user is signed in on the web
+      // account that minted the code, and controls the WhatsApp number that
+      // sent it. Move the number to the web account instead of trapping them
+      // behind an older phone-first account.
+      await tx
+        .update(users)
+        .set({ whatsappPhone: null, whatsappPhoneVerifiedAt: null })
+        .where(eq(users.id, conflict.id));
     }
 
-    await tx
+    const [user] = await tx
       .update(users)
       .set({ whatsappPhone: normalized, whatsappPhoneVerifiedAt: new Date() })
-      .where(eq(users.id, otp.userId));
+      .where(eq(users.id, otp.userId))
+      .returning({ id: users.id, activeSpaceId: users.activeSpaceId });
+    if (!user?.activeSpaceId) throw errors.internal('Phone link target missing workspace');
+
+    const [consumed] = await tx
+      .update(phoneLinkOtps)
+      .set({ consumedAt: new Date() })
+      .where(
+        and(
+          eq(phoneLinkOtps.id, otp.id),
+          isNull(phoneLinkOtps.consumedAt),
+          gt(phoneLinkOtps.expiresAt, new Date()),
+        ),
+      )
+      .returning({ id: phoneLinkOtps.id });
+    if (!consumed) throw errors.notFound('OTP not found or expired');
+
     // Clean stale OTPs.
     await tx
       .update(phoneLinkOtps)
       .set({ consumedAt: drizzleSql`coalesce(${phoneLinkOtps.consumedAt}, now())` })
       .where(eq(phoneLinkOtps.userId, otp.userId));
+
+    return { userId: user.id, spaceId: user.activeSpaceId };
   });
 
-  return c.json(ok({ linked: true, phone: normalized }));
+  return c.json(ok({ linked: true, phone: normalized, ...linked }));
 });
 
 async function issueTokenPair(userId: string, activeSpaceId: string) {

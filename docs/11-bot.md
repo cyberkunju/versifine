@@ -238,6 +238,7 @@ Total perceived latency: ~300ms for the text, +1-3s for the voice. Without two-p
 ```
 GREETING                      first inbound from an unlinked number
 AWAITING_LANGUAGE             user picking en/hi/ml/ta/te/kn
+AWAITING_EMAIL                optional email-link step (send email or SKIP)
 AWAITING_LINK_CODE            pairing flow ("send LINK 482917 to link")
 LINKED_MAIN                   default state for a linked user
 CAPTURE_CONFIRM               draft pending CONFIRM/EDIT/CANCEL
@@ -247,6 +248,42 @@ QUERY_AWAITING_RANGE          "how much on food in ___"
 COPILOT_THREAD                multi-turn chat
 ERROR                         catch-all; surfaces RESET option
 ```
+
+## Onboarding (phone-first, with optional email link)
+
+A message from a WhatsApp number is proof the sender controls it, so there is
+no OTP and no web sign-up gate. First contact runs:
+
+```
+1. whoami → known number? adopt language + linkage, proceed (welcome back).
+2. new number → language menu (AWAITING_LANGUAGE).
+3. language picked → AWAITING_EMAIL:
+   "What email should I link this to? Send it, or reply SKIP."
+   - a valid email → /bot/ensure-user with the email:
+       • email already on a web/email account with no phone → attach this
+         phone to it (the WhatsApp and web accounts become one). No OTP.
+       • email free → provision a new account storing the REAL email, so a
+         later web register / Google sign-in with the same address adopts
+         this same account.
+   - SKIP / "no" / "later" (any of the 6 langs) → provision a phone-only
+     account under a synthetic placeholder email.
+4. → LINKED_MAIN, ready to capture.
+```
+
+The email link is **bidirectional and OTP-free for now** (intentional — OTP
+on the email side is a later addition). The API enforces safety: it only
+adopts a *passwordless, Google-less* account on the web `register`/`google`
+side, and only attaches a phone to an email account that has **no** phone yet,
+so two already-populated accounts are never silently merged.
+
+## RESET behaviour
+
+`RESET` (in any of the six languages) **fully restarts onboarding**: the
+session is wiped — linkage, resolution, drafts, and pending flow data are all
+dropped — and the user is dropped back at the language menu, then the email
+step. Only the last-used language is kept so the re-onboarding copy renders in
+a familiar script. (The account itself in the API is untouched; re-onboarding
+just re-resolves it.)
 
 ## Testing strategy
 

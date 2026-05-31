@@ -74,6 +74,32 @@ describe('extractAmount', () => {
     // text-only here and never produces a negative amount.
     expect(extractAmount('refund of 200 today')).toEqual({ amount: 200, currency: null });
   });
+
+  // --- multi-number "quantity vs price" disambiguation -----------------
+  // Regression for the "I had 2 coffee for 560 → logged ₹2" bug.
+  test('picks the price after "for", not the leading quantity', () => {
+    expect(extractAmount('I had 2 coffee for 560')).toEqual({ amount: 560, currency: null });
+  });
+
+  test('picks the price after "for" even with small price', () => {
+    expect(extractAmount('2 coffie for 50')).toEqual({ amount: 50, currency: null });
+  });
+
+  test('ignores a quantity with a unit and takes the standalone amount', () => {
+    expect(extractAmount('3 plates biryani 450')).toEqual({ amount: 450, currency: null });
+  });
+
+  test('prefers the currency-tagged figure over a leading quantity', () => {
+    expect(extractAmount('2 chai ₹40')).toEqual({ amount: 40, currency: 'INR' });
+  });
+
+  test('single number is unaffected', () => {
+    expect(extractAmount('auto 80')).toEqual({ amount: 80, currency: null });
+  });
+
+  test('Malayalam-style "2 vada 140" picks the price', () => {
+    expect(extractAmount('mala chaya randu vada 140')).toEqual({ amount: 140, currency: null });
+  });
 });
 
 describe('extractCurrency', () => {

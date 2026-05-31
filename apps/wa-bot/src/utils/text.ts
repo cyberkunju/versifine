@@ -112,6 +112,56 @@ export function parseLinkCommand(text: string): { code: string } | null {
   return { code: match[1]! };
 }
 
+/**
+ * Permissive email extractor for the onboarding "link your email" step.
+ * Returns the first email-shaped token (lowercased) or null. We keep this
+ * loose on purpose — the API re-validates with a strict schema, and a typo
+ * just re-prompts rather than blocking onboarding.
+ */
+const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
+
+export function parseEmail(text: string): string | null {
+  if (!text) return null;
+  const match = text.match(EMAIL_RE);
+  return match ? match[0].trim().toLowerCase() : null;
+}
+
+/**
+ * Whether the user is declining the optional email step. Recognises "skip",
+ * "no", "later", "no thanks" across the six supported languages so anyone
+ * can move past it without typing English.
+ */
+const SKIP_TOKENS = new Set(
+  [
+    'skip',
+    'no',
+    'nope',
+    'later',
+    'no thanks',
+    'not now',
+    'nahi',
+    'नहीं',
+    'बाद में',
+    'छोड़ें',
+    'വേണ്ട',
+    'ഇല്ല',
+    'പിന്നീട്',
+    'பின்னர்',
+    'வேண்டாம்',
+    'తర్వాత',
+    'వద్దు',
+    'ಬೇಡ',
+    'ನಂತರ',
+  ].map((s) => s.toLowerCase()),
+);
+
+export function looksLikeSkip(text: string): boolean {
+  if (!text) return false;
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return false;
+  return SKIP_TOKENS.has(normalized);
+}
+
 /** Chunk text into WhatsApp-friendly pieces; long bot replies get split. */
 export function chunkText(text: string, maxLen = 1500): string[] {
   if (text.length <= maxLen) return [text];

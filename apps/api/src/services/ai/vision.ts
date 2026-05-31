@@ -68,23 +68,37 @@ const visionSchema = z
   })
   .passthrough();
 
-const SYSTEM_PROMPT = `You read a single receipt photograph and extract a structured record.
+const SYSTEM_PROMPT = `You read ONE image related to a payment and extract a structured record.
+The image may be:
+- a paper/printed RECEIPT or invoice,
+- a UPI / payment-app SCREENSHOT (Google Pay / GPay, PhonePe, Paytm, BHIM,
+  Amazon Pay, bank app) showing "Paid ₹X to <merchant>" / "Payment successful",
+- a bank/credit-card SMS or notification screenshot ("debited by ₹X at <merchant>").
 
 Return JSON with these keys, no commentary:
 {
   "amount": positive number or null,
   "currency": ISO 4217 alpha-3 code (e.g. INR, USD) or null,
-  "description": one short line that names the merchant and what was bought, or null,
-  "date": "YYYY-MM-DD" if visible on the receipt, otherwise null,
+  "description": one short line naming the merchant/payee and what it was for, or null,
+  "date": "YYYY-MM-DD" if visible, otherwise null,
   "confidence": 0..1
 }
 
 Hard rules:
-- If the total/grand amount is unreadable, set amount = null and confidence < 0.5.
-- If no date is printed on the receipt, set date = null. Never invent today's date.
-- Default currency is INR ONLY when the symbol "₹" is visible or the receipt is clearly Indian. Otherwise null.
-- Description is one line: "<merchant> — <item or category>". No markdown, no emojis.
-- confidence reflects how sure you are about amount + merchant. If you can't see the receipt at all, return null fields and confidence ~ 0.1.`;
+- For UPI/payment screenshots, the amount is the big "₹X" near "Paid"/"Sent"/
+  "Payment successful"/"Debited". Use that. Ignore balances, cashback, and
+  "requesting" amounts.
+- The payee/merchant name (e.g. "Paid to Reliance Fresh", "to SWIGGY",
+  "UPI to ola") is the description. Prefer the human name over a UPI handle;
+  if only a handle/VPA is shown (e.g. q12@ybl), use it as the description.
+- If the total/paid amount is unreadable, set amount = null and confidence < 0.5.
+- If no date is printed/shown, set date = null. Never invent today's date.
+- Default currency is INR when "₹" / "Rs" / "INR" is visible or it's clearly an
+  Indian app/receipt. Otherwise null.
+- description is one line, no markdown, no emojis, e.g. "Swiggy — food order",
+  "Reliance Fresh — groceries", "Ola — ride".
+- confidence reflects how sure you are about amount + merchant. If you can't
+  read the image at all, return null fields and confidence ~ 0.1.`;
 
 function dataUrlFor(image: Buffer, mimetype: string): string {
   const safe = mimetype && mimetype.startsWith('image/') ? mimetype : 'image/jpeg';

@@ -27,7 +27,11 @@ export async function handleLinkCommand(session: Session, code: string): Promise
     // response — the next outbound API call will resolve the user via
     // X-Phone, and the engine populates userId/spaceId on first /capture.
     setState(session.phone, 'LINKED_MAIN');
-    updateSession(session.phone, { linked: true });
+    if (result.userId && result.spaceId) {
+      setLinked(session.phone, { userId: result.userId, spaceId: result.spaceId });
+    } else {
+      updateSession(session.phone, { linked: true });
+    }
     return {
       text: m.linkConfirmed(null),
       linked: true,
@@ -63,4 +67,3 @@ export function rePrompt(session: Session): { text: string } {
 
 // Reference setLinked so the linker doesn't strip the import; future code
 // will use it once the API returns userId/spaceId in the link response.
-void setLinked;

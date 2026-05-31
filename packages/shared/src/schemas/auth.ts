@@ -70,6 +70,13 @@ export type PhoneLinkConfirmInput = z.infer<typeof phoneLinkConfirmInput>;
 export const botEnsureUserInput = z.object({
   phone: z.string().regex(/^\d{10,15}$/),
   language: z.enum(LANGUAGES).default('en'),
+  /**
+   * Optional email the user typed during WhatsApp onboarding. When present
+   * the API links this phone to a pre-existing web/email account (or stores
+   * the real email so the web side can adopt the account later). No OTP — a
+   * WhatsApp message already proves control of the number.
+   */
+  email: z.string().email().max(254).optional(),
 });
 export type BotEnsureUserInput = z.infer<typeof botEnsureUserInput>;
 
@@ -79,6 +86,10 @@ export const botEnsureUserResult = z.object({
   isNew: z.boolean(),
   displayName: z.string().nullable(),
   language: z.enum(LANGUAGES),
+  /** The email now stored on the account (synthetic placeholder when skipped). */
+  email: z.string().nullable(),
+  /** True when the phone was attached to a pre-existing web/email account. */
+  linkedExisting: z.boolean(),
 });
 export type BotEnsureUserResult = z.infer<typeof botEnsureUserResult>;
 

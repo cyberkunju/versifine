@@ -21,7 +21,7 @@ import { z } from 'zod';
 import { env } from '../env.ts';
 import { rateLimit } from '../middleware/rateLimit.ts';
 import { validate } from '../middleware/validate.ts';
-import { ensureUserByPhone, findAccountByPhone } from '../services/auth/provision.ts';
+import { ensureUserByPhone, findAccountByPhone, isSyntheticEmail } from '../services/auth/provision.ts';
 import { ok } from '../utils/envelope.ts';
 import { errors } from '../utils/errors.ts';
 import { normalizePhone } from '../utils/phone.ts';
@@ -63,10 +63,15 @@ app.post('/whoami', validate('json', whoamiInput), async (c) => {
 });
 
 app.post('/ensure-user', provisionLimit, validate('json', botEnsureUserInput), async (c) => {
-  const { phone, language } = c.req.valid('json');
-  const account = await ensureUserByPhone(phone, language);
+  const { phone, language, email } = c.req.valid('json');
+  const account = await ensureUserByPhone(phone, language, email);
   const resolved = isLanguage(account.language) ? account.language : 'en';
-  c.get('log').info('BOT_ENSURE_USER', { userId: account.userId, isNew: account.isNew });
+  c.get('log').info('BOT_ENSURE_USER', {
+    userId: account.userId,
+    isNew: account.isNew,
+    linkedExisting: account.linkedExisting,
+    withEmail: Boolean(email),
+  });
   return c.json(
     ok({
       userId: account.userId,
@@ -74,6 +79,8 @@ app.post('/ensure-user', provisionLimit, validate('json', botEnsureUserInput), a
       isNew: account.isNew,
       displayName: account.displayName,
       language: resolved,
+      email: isSyntheticEmail(account.email) ? null : account.email,
+      linkedExisting: account.linkedExisting,
     }),
     account.isNew ? 201 : 200,
   );

@@ -106,20 +106,12 @@ export function setLinked(
 
 export function resetSession(phone: string): Session {
   const previous = sessions.get(phone);
+  // Keep the language only so the re-onboarding copy renders in the script
+  // the user was last using. Everything else is wiped: RESET means "start
+  // over from onboarding" (greeting → language → email), so we deliberately
+  // drop linkage, resolution, drafts, and pending flow data.
   const language = previous?.language ?? 'en';
-  const linked = previous?.linked ?? false;
-  const userId = previous?.userId ?? null;
-  const spaceId = previous?.spaceId ?? null;
   const fresh = blankSession(phone, language);
-  // Preserve linkage across resets — losing linkage on RESET would force
-  // the user to reauth which is a lousy UX for a "go back to main" command.
-  fresh.linked = linked;
-  fresh.userId = userId;
-  fresh.spaceId = spaceId;
-  // A linked/known account stays resolved across RESET so the user drops
-  // straight back to the main flow instead of the language menu.
-  fresh.accountResolved = linked;
-  if (linked) fresh.state = 'LINKED_MAIN';
   sessions.set(phone, fresh);
   return fresh;
 }

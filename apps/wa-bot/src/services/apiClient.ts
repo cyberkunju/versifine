@@ -238,6 +238,10 @@ export interface BotEnsuredUser {
   isNew: boolean;
   displayName: string | null;
   language: string;
+  /** Email now stored on the account (null when the user skipped). */
+  email: string | null;
+  /** True when the phone was attached to a pre-existing web/email account. */
+  linkedExisting: boolean;
 }
 
 /**
@@ -258,13 +262,19 @@ export async function botWhoami(phone: string): Promise<BotWhoami> {
 /**
  * Find-or-create the account for a WhatsApp phone (phone-first signup).
  * Idempotent; sending a language refreshes the stored primary language.
+ * An optional `email` links this phone to a pre-existing web/email account
+ * (or stores the real address so the web side can adopt it later) — no OTP.
  */
-export async function botEnsureUser(phone: string, language: string): Promise<BotEnsuredUser> {
+export async function botEnsureUser(
+  phone: string,
+  language: string,
+  email?: string,
+): Promise<BotEnsuredUser> {
   return await call<BotEnsuredUser>({
     method: 'POST',
     path: '/bot/ensure-user',
     unauthenticated: true,
-    body: { phone, language },
+    body: email ? { phone, language, email } : { phone, language },
     headers: { 'x-bot-secret': env.BOT_SECRET },
   });
 }
@@ -283,8 +293,15 @@ export async function askCopilot(phone: string, text: string): Promise<CopilotAs
   });
 }
 
-export async function phoneLinkConfirm(code: string, phone: string): Promise<{ linked: boolean; phone: string }> {
-  return await call<{ linked: boolean; phone: string }>({
+export interface PhoneLinkConfirmResult {
+  linked: boolean;
+  phone: string;
+  userId?: string;
+  spaceId?: string;
+}
+
+export async function phoneLinkConfirm(code: string, phone: string): Promise<PhoneLinkConfirmResult> {
+  return await call<PhoneLinkConfirmResult>({
     method: 'POST',
     path: '/auth/phone-link/confirm',
     unauthenticated: true,

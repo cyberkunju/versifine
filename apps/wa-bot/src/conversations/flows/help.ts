@@ -22,8 +22,16 @@ export function handleStatus(session: Session): { text: string } {
 }
 
 export function handleReset(session: Session): { text: string } {
+  // RESET means "start over from onboarding". Wipe the session, then drop
+  // the user at the language menu directly. We mark accountResolved so the
+  // engine's first-contact whoami shortcut doesn't immediately pull a known
+  // user back into LINKED_MAIN — RESET must always re-run onboarding
+  // (language → email), even for an already-provisioned number.
   resetSession(session.phone);
-  return { text: getMessages(session.language).resetDone };
+  setState(session.phone, 'AWAITING_LANGUAGE');
+  updateSession(session.phone, { accountResolved: true });
+  const m = getMessages(session.language);
+  return { text: `${m.resetDone}\n\n${m.greeting}` };
 }
 
 export function handleStop(session: Session): { text: string } {

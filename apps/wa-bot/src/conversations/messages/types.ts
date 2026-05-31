@@ -25,6 +25,24 @@ export interface MessagePack {
   languageSet: (englishLanguageName: string) => string;
 
   /**
+   * Onboarding step 2: ask for an email so the WhatsApp account and the web
+   * account link automatically. Optional — the user can SKIP.
+   */
+  askEmail: string;
+
+  /** Confirmation after the user gives an email that we'll link. */
+  emailLinked: (email: string) => string;
+
+  /** The user attached their phone to a pre-existing web/email account. */
+  emailLinkedExisting: (email: string) => string;
+
+  /** Couldn't read an email; re-prompt (still skippable). */
+  emailInvalid: string;
+
+  /** The user skipped the email step. */
+  emailSkipped: string;
+
+  /**
    * Shown right after a phone-first account is auto-provisioned. No link
    * step — the user can start logging money immediately. This is the
    * everyday onboarding success message.
@@ -82,6 +100,13 @@ export interface MessagePack {
 
   /** Status snapshot, replies to STATUS command. */
   statusLine: (state: string, language: string) => string;
+
+  /** Confirmation when the user changes their language via natural language. */
+  languageChanged?: (englishLanguageName: string) => string;
+  /** Reply-mode confirmations (text-only / voice / auto). */
+  replyModeText?: string;
+  replyModeVoice?: string;
+  replyModeAuto?: string;
 
   /** Reset feedback. */
   resetDone: string;

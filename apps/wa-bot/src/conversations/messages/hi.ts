@@ -47,6 +47,23 @@ export const hi: MessagePack = {
 
   languageSet: (lang) => `बढ़िया। अब मैं आपसे ${lang} में बात करूँगा।`,
 
+  askEmail:
+    'एक छोटी सी बात — इसे किस email से जोड़ूँ?\n\n' +
+    'अगर आप वेब पर उसी email से sign in करेंगे, तो आपका WhatsApp और वेब ' +
+    'अकाउंट अपने-आप जुड़ जाएगा। यहाँ password की ज़रूरत नहीं।\n\n' +
+    'अपना email भेजें, या बाद के लिए SKIP लिखें।',
+
+  emailLinked: (email) =>
+    `${email} से जोड़ दिया। ✅ वेब पर इसी email से sign in करें — वही अकाउंट रहेगा।`,
+
+  emailLinkedExisting: (email) =>
+    `वापसी पर स्वागत है! यह नंबर अब आपके ${email} अकाउंट से जुड़ गया है। ✅ सब कुछ एक ही जगह।`,
+
+  emailInvalid:
+    'यह email सही नहीं लग रहा। एक वैध email भेजें (जैसे you@example.com), या SKIP लिखें।',
+
+  emailSkipped: 'कोई बात नहीं — छोड़ दिया। आप बाद में वेब ऐप से email जोड़ सकते हैं।',
+
   onboardingReady:
     'आप तैयार हैं — कोई sign-up नहीं चाहिए। ✅\n\n' +
     'बस बताइए आपने क्या खर्च किया। जैसे:\n' +
@@ -115,6 +132,11 @@ export const hi: MessagePack = {
 
   statusLine: (state, language) =>
     `स्थिति: लिंक्ड, भाषा ${language}, वर्तमान चरण: ${state.toLowerCase()}।`,
+
+  languageChanged: (label) => `✅ हो गया — अब मैं आपसे ${label} में बात करूँगा।`,
+  replyModeText: '✅ ठीक है — अब से सिर्फ़ टेक्स्ट में जवाब दूँगा।',
+  replyModeVoice: '✅ हो गया — अब हर जवाब के साथ एक वॉइस नोट भेजूँगा।',
+  replyModeAuto: '✅ हो गया — आप जैसे भेजेंगे वैसे जवाब दूँगा: वॉइस का वॉइस, टेक्स्ट का टेक्स्ट।',
 
   resetDone: '🔄 रीसेट हो गया। HELP भेजें यह देखने के लिए कि मैं क्या कर सकता हूँ।',
 

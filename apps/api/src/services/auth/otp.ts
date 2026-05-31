@@ -40,7 +40,12 @@ export async function createOtp(userId: string): Promise<{ id: string; code: str
   return { id: row.id, code, expiresAt };
 }
 
-export async function consumeOtp(code: string): Promise<{ userId: string }> {
+export interface ValidPhoneLinkOtp {
+  id: string;
+  userId: string;
+}
+
+export async function getValidOtp(code: string): Promise<ValidPhoneLinkOtp> {
   const now = new Date();
   const hashed = hashCode(code);
   const [row] = await db
@@ -64,6 +69,13 @@ export async function consumeOtp(code: string): Promise<{ userId: string }> {
   if (!row || !safeEqualHex(row.code, hashed)) {
     throw errors.notFound('OTP not found or expired');
   }
+
+  return { id: row.id, userId: row.userId };
+}
+
+export async function consumeOtp(code: string): Promise<{ userId: string }> {
+  const now = new Date();
+  const row = await getValidOtp(code);
 
   await db
     .update(phoneLinkOtps)
