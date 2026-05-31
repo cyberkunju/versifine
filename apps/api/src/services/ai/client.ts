@@ -49,9 +49,11 @@ export function isAIConfigured(): boolean {
  * Typed as a transparent pass-through over the SDK param union so the
  * `.create()` overloads still resolve at the call site.
  */
-export function normalizeChatParams(
-  params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
-): OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming {
+export function normalizeChatParams<
+  T extends
+    | OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming
+    | OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming,
+>(params: T): T {
   const model = String(params.model ?? '');
   const isNextGen = /^(gpt-5|o1|o3|o4)/.test(model);
   if (!isNextGen) return params;
@@ -67,7 +69,7 @@ export function normalizeChatParams(
   if ('top_p' in next && next.top_p !== 1) {
     delete next.top_p;
   }
-  return next as unknown as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming;
+  return next as unknown as T;
 }
 
 /**

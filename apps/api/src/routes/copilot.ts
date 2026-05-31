@@ -26,7 +26,7 @@ import { copilotChatInput } from '@versifine/shared';
 import { env } from '../env.ts';
 import { requireBot, requireUser } from '../middleware/auth.ts';
 import { limits, rateLimit } from '../middleware/rateLimit.ts';
-import { getOpenAI, isAIConfigured, withLatency } from '../services/ai/client.ts';
+import { getOpenAI, isAIConfigured, normalizeChatParams, withLatency } from '../services/ai/client.ts';
 import { answerFinanceQuestion } from '../services/ai/copilotAnswer.ts';
 import { buildContext, renderContextBlock } from '../services/ai/copilotContext.ts';
 import {
@@ -151,14 +151,16 @@ app.post('/chat', requireUser, copilotLimit, async (c) => {
             const stream = await withLatency(
               `copilot.chat.round${round}`,
               async () =>
-                client.chat.completions.create({
-                  model: env.OPENAI_CHAT_MODEL,
-                  temperature: 0.4,
-                  stream: true,
-                  messages: conversation,
-                  tools,
-                  tool_choice: 'auto',
-                }),
+                client.chat.completions.create(
+                  normalizeChatParams({
+                    model: env.OPENAI_CHAT_MODEL,
+                    temperature: 0.4,
+                    stream: true,
+                    messages: conversation,
+                    tools,
+                    tool_choice: 'auto',
+                  }),
+                ),
             );
 
             const toolCalls: Array<{ id: string; name: string; args: string }> = [];

@@ -20,7 +20,7 @@
     Copy,
   } from 'lucide-svelte';
   import { LANGUAGES, LANGUAGE_META, type Language } from '@versifine/shared';
-  import { CURRENCIES } from '@versifine/shared';
+  import { CURRENCIES, type Currency } from '@versifine/shared';
   import { api } from '$lib/api/client';
   import { useQuery, invalidate } from '$lib/api/queries.svelte';
   import { auth } from '$lib/stores/auth.svelte';
@@ -206,7 +206,8 @@
           <Label for="s-lang" class="text-xs text-[hsl(var(--muted-foreground))]">{m.settings.language}</Label>
           <select
             id="s-lang"
-            bind:value={settings.language}
+            value={settings.language}
+            onchange={(e) => settings.setLanguage(e.currentTarget.value as Language)}
             class="mt-1 h-9 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 text-sm"
           >
             {#each LANGUAGES as lang (lang)}
@@ -220,7 +221,8 @@
           <Label for="s-cur" class="text-xs text-[hsl(var(--muted-foreground))]">{m.settings.baseCurrency}</Label>
           <select
             id="s-cur"
-            bind:value={settings.baseCurrency}
+            value={settings.baseCurrency}
+            onchange={(e) => settings.setBaseCurrency(e.currentTarget.value as Currency)}
             class="mt-1 h-9 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 text-sm"
           >
             {#each CURRENCIES as c (c)}

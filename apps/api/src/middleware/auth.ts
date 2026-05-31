@@ -7,7 +7,7 @@
  *     X-Phone (digits). We trust the secret to authenticate the bot itself
  *     and resolve the user by phone. The bot never holds a JWT.
  */
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { Context, MiddlewareHandler } from 'hono';
 import { db } from '../db/client.ts';
 import { spaceMembers } from '../db/schema/spaces.ts';
@@ -58,15 +58,23 @@ async function loadAuthedUser(userId: string, claimedSpaceId: string): Promise<A
 
   if (!row || !row.activeSpaceId) throw errors.unauthorized('Account not found');
 
-  // Confirm the JWT-claimed space is still a space the user belongs to.
+  // The DB's activeSpaceId is the source of truth (the JWT claim could be
+  // stale). Verify membership of THAT specific space — not just that the
+  // user belongs to some space — so a stale/forged claim or a revoked
+  // membership can never grant access to a space the user isn't in. This
+  // is what makes the check correct under multi-space (v2) without changing
+  // single-space behaviour today.
+  const resolvedSpaceId = row.activeSpaceId;
   const [member] = await db
     .select({ role: spaceMembers.role })
     .from(spaceMembers)
-    .where(eq(spaceMembers.userId, userId))
+    .where(and(eq(spaceMembers.userId, userId), eq(spaceMembers.spaceId, resolvedSpaceId)))
     .limit(1);
-  if (!member) throw errors.forbidden('No active space');
+  if (!member) throw errors.forbidden('Not a member of the active space');
 
-  const activeSpaceId = row.activeSpaceId === claimedSpaceId ? claimedSpaceId : row.activeSpaceId;
+  // Honour the JWT-claimed space only if it matches the membership we just
+  // verified; otherwise fall back to the verified active space.
+  const activeSpaceId = claimedSpaceId === resolvedSpaceId ? claimedSpaceId : resolvedSpaceId;
 
   return {
     id: row.id,

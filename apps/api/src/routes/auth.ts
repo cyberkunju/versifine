@@ -44,6 +44,18 @@ const authLimit = rateLimit({
   key: (c) => c.req.header('x-forwarded-for') ?? c.req.header('cf-connecting-ip') ?? 'auth-anon',
 });
 
+// OTP confirm is an unauthenticated route that checks a 6-digit code, so it
+// is the brute-force target. Keep it tight: ~5 attempts/minute per client.
+// Keyed by IP (the body's phone is attacker-controlled, so IP is the honest
+// throttle dimension; we fall back to a shared bucket if no IP header).
+const otpLimit = rateLimit({
+  capacity: 5,
+  refillTokens: 5,
+  refillIntervalMs: 60_000,
+  key: (c) =>
+    `otp:${c.req.header('x-forwarded-for') ?? c.req.header('cf-connecting-ip') ?? 'anon'}`,
+});
+
 app.post('/register', authLimit, zValidator('json', registerInput), async (c) => {
   const { email, password, displayName, primaryLanguage } = c.req.valid('json');
 
@@ -294,7 +306,7 @@ app.post('/phone-link/start', requireUser, async (c) => {
   );
 });
 
-app.post('/phone-link/confirm', zValidator('json', phoneLinkConfirmInput), async (c) => {
+app.post('/phone-link/confirm', otpLimit, zValidator('json', phoneLinkConfirmInput), async (c) => {
   const { code, phone } = c.req.valid('json');
   const normalized = normalizePhone(phone);
 
