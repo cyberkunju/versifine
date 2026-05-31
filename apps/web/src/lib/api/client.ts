@@ -89,12 +89,19 @@ function buildUrl(path: string, query?: RequestOptions['query']): string {
   // Otherwise: prepend `/api` to every relative API path so requests
   // route through nginx (`/api/* -> api`) in production and the Vite
   // dev proxy in local dev. This keeps the client bundle host-free.
+  //
+  // PUBLIC_API_URL is ONLY for cross-origin dev where the web talks to the
+  // API directly (e.g. http://localhost:5000) — the API mounts its routes at
+  // the root (/auth, /bot, …), so we must NOT add /api in that case. In
+  // production the web is same-origin behind nginx and PUBLIC_API_URL MUST be
+  // empty so the /api prefix is added (nginx strips it before proxying).
+  // Setting PUBLIC_API_URL to the nginx origin (https://versifine.com) is a
+  // misconfiguration: it skips the /api prefix and the POST lands on the
+  // SvelteKit 404 page → "Response was not JSON".
   let base: string;
   if (path.startsWith('http')) {
     base = path;
   } else if (PUBLIC_API_URL) {
-    // Explicit override (cross-origin dev). Path must already include
-    // any prefix the override expects; we don't add /api.
     base = `${PUBLIC_API_URL}${path}`;
   } else {
     // Same-origin behind a proxy. The web routes also use `/login`,
