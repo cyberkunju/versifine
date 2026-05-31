@@ -27,8 +27,13 @@ export interface AnomalyInput {
 
 export interface AnomalyResult {
   date: string;
+  /** Actual spend on the anomalous day. */
   amount: number;
-  zscore: number;
+  /** The 14-day rolling mean the day was measured against (what we'd "expect"). */
+  expected: number;
+  /** Z-score: how many standard deviations from the rolling mean. */
+  z: number;
+  /** Human-readable narrative, e.g. "3.2× the rolling mean". */
   reason: string;
 }
 
@@ -68,7 +73,8 @@ export function detectAnomalies(daySeries: AnomalyInput[]): AnomalyResult[] {
     anomalies.push({
       date: target.date,
       amount: round2(target.amount),
-      zscore: round2(zscore),
+      expected: round2(mean),
+      z: round2(zscore),
       reason,
     });
   }

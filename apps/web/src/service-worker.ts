@@ -81,6 +81,12 @@ self.addEventListener('fetch', (event) => {
   // Pass through cross-origin requests untouched.
   if (url.origin !== self.location.origin) return;
 
+  // Never touch the API. These responses are per-user and auth-scoped;
+  // caching them risks serving one account's private data to another
+  // after logout or an account switch (the cache key is URL-only and
+  // ignores the Authorization header). Always go straight to the network.
+  if (url.pathname === '/api' || url.pathname.startsWith('/api/')) return;
+
   if (isModelAsset(url)) {
     event.respondWith(cacheFirst(request, MODELS_CACHE));
     return;

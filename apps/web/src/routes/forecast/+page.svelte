@@ -191,6 +191,9 @@
                   <p class="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
                     {formatCurrency(a.amount)} · expected ~{formatCurrency(a.expected)}
                   </p>
+                  {#if a.reason}
+                    <p class="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">{a.reason}</p>
+                  {/if}
                 </li>
               {/each}
             </ul>

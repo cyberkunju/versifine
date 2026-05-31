@@ -13,6 +13,7 @@
   import { api } from '$lib/api/client';
   import { useQuery } from '$lib/api/queries.svelte';
   import { settings } from '$lib/stores/settings.svelte';
+  import { toast } from '$lib/stores/toast.svelte';
   import { getMessages } from '$lib/i18n';
   import { formatCurrency } from '$lib/utils/format';
   import {
@@ -77,8 +78,12 @@
     }
   }
 
-  function exportCsv() {
-    window.open(api.reports.summaryCsvUrl(range), '_blank');
+  async function exportCsv() {
+    try {
+      await api.reports.summaryCsv(range);
+    } catch (err) {
+      toast.error('Export failed', err instanceof Error ? err.message : 'Please try again.');
+    }
   }
 
   const totals = $derived(

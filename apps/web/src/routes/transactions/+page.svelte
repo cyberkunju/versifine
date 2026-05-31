@@ -146,9 +146,12 @@
     else toast.warning(`Deleted ${ok}, failed ${fail}`);
   }
 
-  function exportCsv() {
-    const url = api.transactions.exportCsvUrl(filters);
-    window.open(url, '_blank');
+  async function exportCsv() {
+    try {
+      await api.transactions.exportCsv(filters);
+    } catch (err) {
+      toast.error('Export failed', err instanceof Error ? err.message : 'Please try again.');
+    }
   }
 
   let importInput = $state<HTMLInputElement | null>(null);

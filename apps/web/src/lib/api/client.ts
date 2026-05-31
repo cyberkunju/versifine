@@ -73,12 +73,14 @@ export function attachTokenSource(source: TokenSource): void {
 }
 
 interface RequestOptions extends RequestInit {
-  /** Skip the auto-refresh path; used by the refresh call itself. */
+  /** Skip the auto-refresh path AND token attachment; used by auth endpoints (login/register/refresh). */
   skipAuth?: boolean;
   /** Skip envelope unwrap; used for export/CSV downloads. */
   raw?: boolean;
   /** Already-stringified query params. */
   query?: Record<string, string | number | boolean | undefined | null>;
+  /** Internal: marks the single post-refresh retry so we never loop refreshes. */
+  _retried?: boolean;
 }
 
 function buildUrl(path: string, query?: RequestOptions['query']): string {
@@ -109,7 +111,7 @@ function buildUrl(path: string, query?: RequestOptions['query']): string {
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { skipAuth, raw, query, headers, body, ...rest } = options;
+  const { skipAuth, raw, query, headers, body, _retried, ...rest } = options;
   const token = !skipAuth && tokenSource ? tokenSource.getAccessToken() : null;
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
   const finalHeaders = new Headers(headers);
@@ -124,19 +126,29 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     body,
   });
 
-  if (response.status === 401 && !skipAuth && tokenSource && tokenSource.getRefreshToken()) {
+  if (
+    response.status === 401 &&
+    !skipAuth &&
+    !_retried &&
+    tokenSource &&
+    tokenSource.getRefreshToken()
+  ) {
     const refreshed = await tokenSource.refresh();
     if (refreshed) {
-      // retry once with the new token
-      return request<T>(path, { ...options, skipAuth: true }).catch((err) => {
-        // If retry still 401, hard logout.
-        if (err instanceof ApiError && err.status === 401) {
-          tokenSource?.forceLogout();
-        }
-        throw err;
-      });
+      // Retry exactly once, WITH the freshly-minted access token attached.
+      // `_retried` guards against an infinite refresh loop; we deliberately
+      // do NOT set `skipAuth` here (that would drop the Authorization header
+      // and guarantee another 401 → false logout).
+      return request<T>(path, { ...options, _retried: true });
     }
     tokenSource.forceLogout();
+    throw new ApiError('UNAUTHORIZED', 'Session expired', 401);
+  }
+
+  // A 401 on the post-refresh retry (or when no refresh token exists) is a
+  // genuine auth failure — clear state and bounce to login.
+  if (response.status === 401 && !skipAuth) {
+    tokenSource?.forceLogout();
     throw new ApiError('UNAUTHORIZED', 'Session expired', 401);
   }
 
@@ -170,9 +182,24 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   return parsed.data;
 }
 
-/** Build the absolute URL for a CSV download (token query param appended). */
-function downloadUrl(path: string, query?: RequestOptions['query']): string {
-  return buildUrl(path, query);
+/**
+ * Trigger a browser "Save As" for an in-memory blob. Used by authenticated
+ * CSV exports — the bytes come back through {@link request} (which attaches
+ * the Bearer token and rides the refresh path), so unlike a bare
+ * `window.open` this can never 401.
+ */
+function saveBlob(blob: Blob, filename: string): void {
+  if (!browser) return;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // Revoke on the next tick so the click has a chance to start the download.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /**
@@ -251,15 +278,19 @@ export const api = {
         body: JSON.stringify({ category }),
       });
     },
-    exportCsvUrl(query: Partial<TransactionListQuery> = {}): string {
-      return downloadUrl('/transactions/export', query as Record<string, string | number>);
-    },
+    /**
+     * Authenticated CSV export. Fetches the file as a blob (Bearer token
+     * attached via {@link request}) and triggers a download. Returns the
+     * blob too, for callers that want to handle it themselves.
+     */
     async exportCsv(query: Partial<TransactionListQuery> = {}): Promise<Blob> {
       const res = await request<Response>('/transactions/export', {
         query: query as Record<string, string | number>,
         raw: true,
       });
-      return res.blob();
+      const blob = await res.blob();
+      saveBlob(blob, `versifine-transactions-${new Date().toISOString().slice(0, 10)}.csv`);
+      return blob;
     },
     import(formData: FormData): Promise<{ imported: number; skipped: number; errors: unknown[] }> {
       return request('/transactions/import', {
@@ -409,12 +440,12 @@ export const api = {
     summary(range: { from: string; to: string }): Promise<{ summary: ReportSummary }> {
       return request('/reports/summary', { query: range });
     },
-    summaryCsvUrl(range: { from: string; to: string }): string {
-      return downloadUrl('/reports/summary.csv', range);
-    },
+    /** Authenticated CSV export of the report summary; triggers a download. */
     async summaryCsv(range: { from: string; to: string }): Promise<Blob> {
       const res = await request<Response>('/reports/summary.csv', { query: range, raw: true });
-      return res.blob();
+      const blob = await res.blob();
+      saveBlob(blob, `versifine-summary-${range.from}-${range.to}.csv`);
+      return blob;
     },
   },
   advice: {

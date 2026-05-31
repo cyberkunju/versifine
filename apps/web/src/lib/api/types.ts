@@ -101,6 +101,7 @@ export interface ForecastAnomaly {
   amount: number;
   expected: number;
   z: number;
+  reason: string;
 }
 
 export interface ForecastResult {
