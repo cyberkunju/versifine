@@ -76,18 +76,16 @@ log "Building web (SvelteKit + adapter-node)"
 # extends path.
 #
 # Vite only inlines `import.meta.env.PUBLIC_*` from a `.env` FILE in the
-# web project root (exported shell vars / process.env are not reliably
-# exposed to the client bundle). So we materialise an `apps/web/.env` from
-# the PUBLIC_/VITE_ keys in the deployment web.env before building. This is
-# what gets the Google client ID (and any future public config) into the
-# client bundle deterministically.
+# web project root. We materialise `apps/web/.env` from the PUBLIC_* keys in
+# the deployment web.env so public config (e.g. the Google client ID) lands
+# in the client bundle deterministically.
+#
+# IMPORTANT: web.env is mode 0640 root:versifine and the deploy user (fedora)
+# is NOT in the versifine group, so it must be read via sudo — a plain
+# `source` silently yields nothing and the client bundle ends up unconfigured.
+sudo grep -E '^PUBLIC_[A-Z0-9_]+=' "$ENV_DIR/web.env" > apps/web/.env 2>/dev/null || : > apps/web/.env
 (
-    set -a
-    [ -f "$ENV_DIR/web.env" ] && source "$ENV_DIR/web.env"
-    set +a
     cd apps/web
-    : > .env
-    [ -n "${PUBLIC_GOOGLE_CLIENT_ID:-}" ] && echo "PUBLIC_GOOGLE_CLIENT_ID=${PUBLIC_GOOGLE_CLIENT_ID}" >> .env
     /usr/local/bin/bun x svelte-kit sync
     /usr/local/bin/bun x vite build
 )
