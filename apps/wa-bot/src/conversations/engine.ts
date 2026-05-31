@@ -270,8 +270,12 @@ export async function runEngine(message: IncomingMessage): Promise<OutgoingReply
   }
   if (!onboardingExempt && getSession(session.phone).state === 'AWAITING_EMAIL') {
     const stepped = await handleEmailStep(getSession(session.phone), message.body);
-    const text = await localize(stepped.text, getSession(session.phone).language);
-    return { text, state: getSession(session.phone).state };
+    if (stepped.consumed) {
+      const text = await localize(stepped.text, getSession(session.phone).language);
+      return { text, state: getSession(session.phone).state };
+    }
+    // Not consumed: the user typed a real action at the email prompt. The
+    // account is now provisioned — fall through and dispatch the message.
   }
 
   // Re-read the session: onboarding may have changed language/state/linkage.

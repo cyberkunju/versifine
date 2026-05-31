@@ -128,38 +128,64 @@ export function parseEmail(text: string): string | null {
 
 /**
  * Whether the user is declining the optional email step. Recognises "skip",
- * "no", "later", "no thanks" across the six supported languages so anyone
- * can move past it without typing English.
+ * "no", "later", "don't need", typos ("skipp"), and full sentences like
+ * "bro i dont need to link that" across the six supported languages — the
+ * email step is OPTIONAL, so we err strongly toward "they want to move on".
+ * Only a message that actually contains an email address is NOT a skip.
  */
-const SKIP_TOKENS = new Set(
-  [
-    'skip',
-    'no',
-    'nope',
-    'later',
-    'no thanks',
-    'not now',
-    'nahi',
-    'नहीं',
-    'बाद में',
-    'छोड़ें',
-    'വേണ്ട',
-    'ഇല്ല',
-    'പിന്നീട്',
-    'பின்னர்',
-    'வேண்டாம்',
-    'తర్వాత',
-    'వద్దు',
-    'ಬೇಡ',
-    'ನಂತರ',
-  ].map((s) => s.toLowerCase()),
-);
+const SKIP_TOKENS = [
+  'skip',
+  'skipp',
+  'no',
+  'nope',
+  'naw',
+  'nah',
+  'later',
+  'no thanks',
+  'no thank',
+  'not now',
+  'dont',
+  "don't",
+  'do not',
+  'no need',
+  'not needed',
+  'dont need',
+  "don't need",
+  'dont want',
+  "don't want",
+  'leave it',
+  'forget it',
+  'pass',
+  'ignore',
+  'cancel',
+  'next',
+  'continue',
+  'proceed',
+  'move on',
+  'nahi',
+  'नहीं',
+  'बाद में',
+  'छोड़ें',
+  'വേണ്ട',
+  'ഇല്ല',
+  'പിന്നീട്',
+  'பின்னர்',
+  'வேண்டாம்',
+  'తర్వాత',
+  'వద్దు',
+  'ಬೇಡ',
+  'ನಂತರ',
+].map((s) => s.toLowerCase());
 
 export function looksLikeSkip(text: string): boolean {
   if (!text) return false;
   const normalized = text.trim().toLowerCase();
   if (!normalized) return false;
-  return SKIP_TOKENS.has(normalized);
+  // A message carrying an actual email is never a skip.
+  if (EMAIL_RE.test(normalized)) return false;
+  // Any skip token appearing as a word/substring counts — covers typos and
+  // full sentences ("bro i dont need to link that shit").
+  return SKIP_TOKENS.some((tok) => normalized.includes(tok));
 }
 
 /** Chunk text into WhatsApp-friendly pieces; long bot replies get split. */

@@ -169,35 +169,47 @@ export async function handleLanguagePick(session: Session, body: string): Promis
 export interface EmailStepResult {
   text: string;
   state: Session['state'];
+  /**
+   * When true the email step fully handled the message (gave/skipped email)
+   * and the engine should reply with `text`. When false the message was a
+   * real action (an expense, a question, a command) typed at the email
+   * prompt — the account has been provisioned and the engine should CONTINUE
+   * to dispatch the original message instead of replying here. We never trap.
+   */
+  consumed: boolean;
 }
 
 /**
  * Onboarding step 2 — optional email linking, then provisioning.
  *
- *   - SKIP / "no" / "later"  → provision a phone-only account (placeholder
- *     email), drop into LINKED_MAIN.
- *   - a valid email          → provision with the email so the WhatsApp and
- *     web accounts auto-join (no OTP). If the email already belongs to a
- *     web account the phone is attached to it ("welcome back").
- *   - anything else          → re-prompt (still skippable).
+ * The email is OPTIONAL and must NEVER trap the user. Resolution:
+ *   - a valid email            → link it, provision, drop into LINKED_MAIN.
+ *   - an explicit skip          → provision phone-only, LINKED_MAIN.
+ *   - anything else (a real     → provision phone-only, LINKED_MAIN, and tell
+ *     expense/question/command)   the engine to go process that message.
  *
  * Provisioning failures keep the user in AWAITING_EMAIL so the next message
  * retries rather than stranding them.
  */
 export async function handleEmailStep(session: Session, body: string): Promise<EmailStepResult> {
   const m = getMessages(session.language);
-  const skipping = looksLikeSkip(body);
-  const email = skipping ? null : parseEmail(body);
-
-  if (!skipping && !email) {
-    return { text: m.emailInvalid, state: 'AWAITING_EMAIL' };
-  }
+  const email = parseEmail(body);
+  const skipping = !email && looksLikeSkip(body);
+  // A non-email, non-skip message at the email prompt is a real action the
+  // user wants done now (e.g. "spent 200 on tea", "today spend"). We still
+  // provision phone-only, then let the engine handle the original message.
+  const isAction = !email && !skipping;
 
   try {
     const account = await botEnsureUser(session.phone, session.language, email ?? undefined);
     setLinked(session.phone, { userId: account.userId, spaceId: account.spaceId });
     updateSession(session.phone, { accountResolved: true });
     setState(session.phone, 'LINKED_MAIN');
+
+    if (isAction) {
+      // Don't reply here — the engine continues to dispatch `body`.
+      return { text: '', state: 'LINKED_MAIN', consumed: false };
+    }
 
     let head: string;
     if (skipping) {
@@ -207,7 +219,7 @@ export async function handleEmailStep(session: Session, body: string): Promise<E
     } else {
       head = m.emailLinked(account.email ?? email ?? '');
     }
-    return { text: `${head}\n\n${m.onboardingReady}`, state: 'LINKED_MAIN' };
+    return { text: `${head}\n\n${m.onboardingReady}`, state: 'LINKED_MAIN', consumed: true };
   } catch (err) {
     log.warn('ENSURE_USER_FAIL', {
       phone: session.phone,
@@ -215,6 +227,6 @@ export async function handleEmailStep(session: Session, body: string): Promise<E
     });
     // Stay in AWAITING_EMAIL so the next message retries provisioning.
     setState(session.phone, 'AWAITING_EMAIL');
-    return { text: m.error, state: 'AWAITING_EMAIL' };
+    return { text: m.error, state: 'AWAITING_EMAIL', consumed: true };
   }
 }
