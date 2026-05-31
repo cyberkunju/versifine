@@ -65,3 +65,15 @@ test('the allowlist persists to disk and reloads after a restart', () => {
   mod._resetAllowlistForTests();
   expect(mod.isDynamicallyAllowed('919876543210')).toBe(true);
 });
+
+test('removeFromAllowlist removes a number and reports presence', () => {
+  // Present after the persistence test reload.
+  expect(mod.isDynamicallyAllowed('919876543210')).toBe(true);
+  expect(mod.removeFromAllowlist('+91 98765 43210')).toBe(true);
+  expect(mod.isDynamicallyAllowed('919876543210')).toBe(false);
+  // Removing again is a no-op.
+  expect(mod.removeFromAllowlist('919876543210')).toBe(false);
+  // And the removal persists across a reload.
+  mod._resetAllowlistForTests();
+  expect(mod.isDynamicallyAllowed('919876543210')).toBe(false);
+});

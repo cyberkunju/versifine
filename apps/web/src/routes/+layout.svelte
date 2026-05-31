@@ -51,6 +51,9 @@
   const path = $derived($page.url.pathname);
   const isAuthRoute = $derived(path.startsWith('/login') || path.startsWith('/register'));
   const isLandingRoute = $derived(path === '/');
+  // Operator-only console: renders standalone (its own token gate), never the
+  // app shell, regardless of web-app auth state.
+  const isStandaloneRoute = $derived(path === '/allowlist' || path.startsWith('/allowlist/'));
   const isAppRoute = $derived(APP_ROUTES.some((r) => path === r || path.startsWith(`${r}/`)));
   const isPublicRoute = $derived(PUBLIC_ROUTES.some((r) => r === '/' ? path === '/' : path.startsWith(r)));
 
@@ -152,7 +155,7 @@
   <div class="grid min-h-screen place-items-center text-sm text-[hsl(var(--muted-foreground))]">
     {m.common.loading}
   </div>
-{:else if isLandingRoute || isAuthRoute || !auth.isAuthenticated}
+{:else if isLandingRoute || isAuthRoute || isStandaloneRoute || !auth.isAuthenticated}
   {@render children?.()}
 {:else}
   <div class="flex min-h-screen w-full">

@@ -17,7 +17,11 @@ import { dispatchSimulator } from '../openwa/handlers.ts';
 import { getQrSnapshot, isClientReady, QR_FILE } from '../openwa/createClient.ts';
 import { getSharedClient } from '../openwa/sharedClient.ts';
 import { listSessions } from '../conversations/state.ts';
-import { listDynamicAllowlist } from '../services/allowlist.ts';
+import {
+  addToAllowlist,
+  listDynamicAllowlist,
+  removeFromAllowlist,
+} from '../services/allowlist.ts';
 import { log, maskPhone } from '../utils/logger.ts';
 import { normalizePhone } from '../utils/phone.ts';
 
@@ -130,6 +134,75 @@ app.get('/sessions', (c) => {
       phones: listDynamicAllowlist().map((p) => maskPhone(p)),
     },
   });
+});
+
+/* ------------------------------------------------------------------ *
+ * Allowlist management (operator). Gated by the bot secret; the web
+ * `/api/allowlist` proxy keeps the secret server-side and adds its own
+ * admin-token check before forwarding here.
+ *
+ *   GET    /allowlist            list seed (static) + dynamic numbers
+ *   POST   /allowlist {phone}    add a number to the dynamic allowlist
+ *   DELETE /allowlist {phone}    remove a number from the dynamic allowlist
+ *
+ * Numbers are returned UNMASKED here (operator-only surface) so the admin
+ * can see and manage exact numbers. Static seed numbers are read-only.
+ * ------------------------------------------------------------------ */
+app.get('/allowlist', (c) => {
+  if (!requireBotSecret(c.req.header('x-bot-secret'))) {
+    return c.json({ error: 'unauthorised' }, 401);
+  }
+  return c.json({
+    seed: env.ALLOWED_TEST_NUMBERS,
+    dynamic: listDynamicAllowlist(),
+    demoMode: env.DEMO_MODE,
+  });
+});
+
+app.post('/allowlist', async (c) => {
+  if (!requireBotSecret(c.req.header('x-bot-secret'))) {
+    return c.json({ error: 'unauthorised' }, 401);
+  }
+  let body: { phone?: string };
+  try {
+    body = (await c.req.json()) as { phone?: string };
+  } catch {
+    return c.json({ error: 'invalid_json' }, 400);
+  }
+  const phone = normalizePhone(body.phone ?? '');
+  if (!phone || phone.length < 10 || phone.length > 15) {
+    return c.json({ error: 'invalid_phone' }, 400);
+  }
+  // Already covered by the static seed → nothing to add, report as present.
+  if (env.ALLOWED_TEST_NUMBERS.includes(phone)) {
+    return c.json({ added: false, phone, reason: 'seed' });
+  }
+  const added = addToAllowlist(phone);
+  log.info('ALLOWLIST_ADD', { phone: maskPhone(phone), added });
+  return c.json({ added, phone });
+});
+
+app.delete('/allowlist', async (c) => {
+  if (!requireBotSecret(c.req.header('x-bot-secret'))) {
+    return c.json({ error: 'unauthorised' }, 401);
+  }
+  let body: { phone?: string };
+  try {
+    body = (await c.req.json()) as { phone?: string };
+  } catch {
+    return c.json({ error: 'invalid_json' }, 400);
+  }
+  const phone = normalizePhone(body.phone ?? '');
+  if (!phone) {
+    return c.json({ error: 'invalid_phone' }, 400);
+  }
+  if (env.ALLOWED_TEST_NUMBERS.includes(phone)) {
+    // Static seed numbers live in the env and can't be removed at runtime.
+    return c.json({ removed: false, phone, reason: 'seed_readonly' }, 409);
+  }
+  const removed = removeFromAllowlist(phone);
+  log.info('ALLOWLIST_REMOVE', { phone: maskPhone(phone), removed });
+  return c.json({ removed, phone });
 });
 
 app.post('/send', async (c) => {

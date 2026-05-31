@@ -133,6 +133,22 @@ export function addToAllowlist(phoneRaw: string): boolean {
   return true;
 }
 
+/**
+ * Remove a phone from the dynamic allowlist and flush to disk. Returns true
+ * when the number was present (and removed), false when it wasn't there.
+ * Note: numbers seeded via the static ALLOWED_TEST_NUMBERS env cannot be
+ * removed here — they live in config and would require an env change.
+ */
+export function removeFromAllowlist(phoneRaw: string): boolean {
+  load();
+  const phone = normalizePhone(phoneRaw);
+  if (!phone) return false;
+  if (!dynamicNumbers.has(phone)) return false;
+  dynamicNumbers.delete(phone);
+  persist();
+  return true;
+}
+
 /** Snapshot of the dynamic numbers (for the /sessions admin view). */
 export function listDynamicAllowlist(): string[] {
   load();

@@ -188,6 +188,25 @@ dropped, so the operator's personal WhatsApp keeps working normally for real
 contacts. The phrase string is kept byte-identical on both ends
 (`apps/web/src/lib/whatsapp.ts` ⇄ `apps/wa-bot/src/services/allowlist.ts`).
 
+### Operator console (`/allowlist`)
+
+`versifine.com/allowlist` is an operator-only page to view and manage the
+allowlist live. It lists the **seed** numbers (from `ALLOWED_TEST_NUMBERS`,
+read-only) and the **dynamic** numbers, and supports add/remove of dynamic
+entries. Flow:
+
+```
+browser  ──(x-admin-token)──►  web /allowlist/api  ──(x-bot-secret)──►  bot /allowlist
+```
+
+The bot secret never reaches the browser: the page sends only an admin token,
+which the SvelteKit server route (`/allowlist/api`) checks against
+`ADMIN_TOKEN` (falling back to `BOT_SECRET`) before forwarding to the bot's
+internal `/allowlist` endpoint with `X-Bot-Secret`. Runtime config lives in
+the web env (`BOT_SECRET`, `WABOT_INTERNAL_URL`, `ADMIN_TOKEN`) — server-side
+only, never `PUBLIC_*`. The page is `noindex` and renders standalone (its own
+token gate), independent of web-app login.
+
 For the hackathon: the user uses their personal number as the bot, paired once. They use a SECOND phone (typed digits-only into `ALLOWED_TEST_NUMBERS`) to test. Other incoming messages from real contacts get ignored, so the bot doesn't accidentally reply to a friend.
 
 ## Multilingual strategy
@@ -255,6 +274,9 @@ Total perceived latency: ~300ms for the text, +1-3s for the voice. Without two-p
 | GET | `/qr` | none | HTML pairing page |
 | GET | `/qr.png` | none | PNG QR |
 | GET | `/sessions` | bot secret | active session count + last-seen per phone |
+| GET | `/allowlist` | bot secret | list seed + dynamic demo numbers |
+| POST | `/allowlist` | bot secret | `{ phone }` — add to the dynamic allowlist |
+| DELETE | `/allowlist` | bot secret | `{ phone }` — remove from the dynamic allowlist |
 | POST | `/send` | bot secret | `{ phone, text, voice? }` — push a message (e.g., budget alert from api) |
 | POST | `/broadcast/budget-alert` | bot secret | typed alert structure |
 | POST | `/broadcast/forecast-anomaly` | bot secret | typed anomaly notification |
