@@ -138,11 +138,12 @@ async function dispatch(session: Session, message: IncomingMessage): Promise<Dis
     return { text: result.text, speakable: true };
   }
 
-  // Settings the user owns — change language / reply mode by natural language
-  // or voice ("change language to malayalam", "voice off", "speak in hindi").
-  // These are NOT finance questions, so we handle them here and never let
-  // them fall through to the copilot (which would refuse them as off-topic).
-  const settings = detectSettingsIntent(session, message.body);
+  // Settings / account actions the user owns — change language / reply mode
+  // by natural language or voice ("change language to malayalam", "voice
+  // off", "speak in hindi"), and link an email on demand ("link my email",
+  // "now i need to link email", a bare address). Handled here BEFORE the
+  // copilot so these are never refused as out-of-scope.
+  const settings = await detectSettingsIntent(session, message.body);
   if (settings) {
     return { text: settings.text, speakable: false };
   }

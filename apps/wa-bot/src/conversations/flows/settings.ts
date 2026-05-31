@@ -1,33 +1,37 @@
 /**
- * Natural-language settings flow.
+ * Natural-language settings / account-actions flow.
  *
  * Users say things like "change language to malayalam", "speak in hindi",
- * "reply in english", "voice off", "send me text only", "talk to me",
- * "switch to tamil" — in any of the six languages, by text or voice. These
- * are SETTINGS the user owns, so the bot must act on them directly. They
- * must NOT be routed to the finance copilot (which would refuse them as
- * "outside my lane"). The engine calls `detectSettingsIntent` before the
- * capture/chat dispatch.
+ * "reply in english", "voice off", "talk to me", "switch to tamil", and
+ * account actions like "link my email", "now i need to link email",
+ * "connect asha@gmail.com" — in any of the six languages, by text or voice.
+ * These are things the USER OWNS, so the bot acts on them directly. They must
+ * NOT be routed to the finance copilot (which would refuse them as "outside
+ * my lane"). The engine calls `detectSettingsIntent` before capture/chat.
  *
- * Two settings are supported today:
- *   - language       → en/hi/ml/ta/te/kn
- *   - reply mode     → text | voice | auto
+ * Handled here:
+ *   - language        → en/hi/ml/ta/te/kn
+ *   - reply mode      → text | voice | auto
+ *   - email linking   → "link my email", a bare email address, or a follow-up
+ *                       email after we asked for one (pending.awaitingEmailLink)
  */
 import { LANGUAGES, LANGUAGE_META, type Language } from '@versifine/shared';
 import type { ReplyMode, Session } from '../../types.ts';
+import { botEnsureUser } from '../../services/apiClient.ts';
+import { log } from '../../utils/logger.ts';
+import { parseEmail, looksLikeSkip } from '../../utils/text.ts';
 import { getMessages } from '../messages/index.ts';
 import { setLanguage, setReplyMode, updateSession } from '../state.ts';
 
 export interface SettingsOutcome {
   text: string;
-  /** When the language changed, the reply should be rendered in the NEW language. */
+  /** The reply should be rendered in this language (new one if it changed). */
   language: Language;
 }
 
 /**
  * Map a wide range of spoken/written language names (English + native
  * script + common transliterations across all six languages) to our codes.
- * Order matters only for substring safety — we match whole words.
  */
 const LANGUAGE_ALIASES: Record<Language, string[]> = {
   en: ['english', 'angl', 'ingles', 'ഇംഗ്ലീഷ്', 'इंग्लिश', 'अंग्रेज', 'ஆங்கில', 'ఇంగ్లీష్', 'ಇಂಗ್ಲಿಷ್'],
@@ -50,13 +54,16 @@ const VOICE_OFF =
   /\b(voice off|no voice|stop voice|text only|only text|reply (in |with )?text|text mode|don'?t speak|no audio|silent|mute)\b/i;
 const AUTO_MODE = /\b(auto( mode)?|mirror|match (my )?input|both)\b/i;
 
+/** Intent to link/connect an email to the account. */
+const EMAIL_INTENT =
+  /\b(link|connect|attach|add|set|register|sync|join)\b[^.\n]{0,30}\b(e[\s-]?mail|account|gmail|web)\b/i;
+const EMAIL_WORD = /\b(e[\s-]?mail|gmail)\b/i;
+
 function detectLanguage(text: string): Language | null {
   const lower = text.toLowerCase();
   for (const code of LANGUAGES) {
     for (const alias of LANGUAGE_ALIASES[code]) {
       if (!alias) continue;
-      // Native-script aliases: substring match (scripts are unambiguous).
-      // Latin aliases: word-ish boundary match to avoid false hits.
       const isLatin = /^[a-z ]+$/i.test(alias);
       if (isLatin) {
         const re = new RegExp(`\\b${alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
@@ -69,20 +76,79 @@ function detectLanguage(text: string): Language | null {
   return null;
 }
 
+async function linkEmail(session: Session, email: string): Promise<SettingsOutcome> {
+  const m = getMessages(session.language);
+  try {
+    const account = await botEnsureUser(session.phone, session.language, email);
+    updateSession(session.phone, { pending: { ...session.pending, awaitingEmailLink: false } });
+    const head = account.linkedExisting
+      ? m.emailLinkedExisting?.(account.email ?? email) ?? `✅ Linked to your existing account (${email}).`
+      : m.emailLinked?.(account.email ?? email) ?? `✅ Linked your email (${email}).`;
+    return { text: head, language: session.language };
+  } catch (err) {
+    log.warn('EMAIL_LINK_FAIL', {
+      phone: session.phone,
+      error: err instanceof Error ? err.message.slice(0, 160) : String(err),
+    });
+    return {
+      text: m.error ?? "Couldn't link that right now — try again in a moment.",
+      language: session.language,
+    };
+  }
+}
+
 /**
- * Decide whether `text` is a settings command and, if so, apply it.
- * Returns null when the message is not a settings request (the engine then
- * continues to capture/chat). Never touches finance data.
+ * Decide whether `text` is a settings / account action and, if so, apply it.
+ * Returns null when the message is not one (the engine then continues to
+ * capture/chat). Never touches finance data.
  */
-export function detectSettingsIntent(session: Session, text: string): SettingsOutcome | null {
+export async function detectSettingsIntent(
+  session: Session,
+  text: string,
+): Promise<SettingsOutcome | null> {
   const raw = text.trim();
   if (!raw) return null;
   const lower = raw.toLowerCase();
+  const email = parseEmail(raw);
+
+  // --- Email linking ---------------------------------------------------
+  // (a) We previously asked for the email → this message should be it (or a skip).
+  if (session.pending?.awaitingEmailLink) {
+    if (email) return await linkEmail(session, email);
+    if (looksLikeSkip(raw)) {
+      updateSession(session.phone, { pending: { ...session.pending, awaitingEmailLink: false } });
+      const m = getMessages(session.language);
+      return { text: m.emailSkipped ?? 'No problem — skipped.', language: session.language };
+    }
+    // Not an email and not a skip while we're waiting: only treat as the
+    // email step if it still looks email-ish; otherwise fall through so a
+    // real expense/question isn't swallowed.
+    if (EMAIL_WORD.test(lower)) {
+      const m = getMessages(session.language);
+      return {
+        text: m.emailInvalid ?? "That doesn't look like an email. Send a valid one, or reply SKIP.",
+        language: session.language,
+      };
+    }
+    // Anything else → drop the pending flag and let the engine handle it.
+    updateSession(session.phone, { pending: { ...session.pending, awaitingEmailLink: false } });
+  }
+
+  // (b) A bare email or an explicit "link my email" request.
+  if (email && (EMAIL_INTENT.test(lower) || EMAIL_WORD.test(lower) || raw.split(/\s+/).length <= 2)) {
+    return await linkEmail(session, email);
+  }
+  if (!email && EMAIL_INTENT.test(lower)) {
+    // User wants to link but didn't give the address yet — ask for it.
+    updateSession(session.phone, { pending: { ...session.pending, awaitingEmailLink: true } });
+    const m = getMessages(session.language);
+    return {
+      text: m.askEmail ?? 'Sure — what email should I link? Send it here, or reply SKIP.',
+      language: session.language,
+    };
+  }
 
   // --- Language change -------------------------------------------------
-  // Trigger when the message mentions a language name AND either a change
-  // verb or the word "language" — e.g. "change language to malayalam",
-  // "speak in hindi", "malayalam please", "reply in tamil".
   const targetLang = detectLanguage(raw);
   const wordCount = raw.split(/\s+/).filter(Boolean).length;
   const hasDigit = /\d/.test(raw);
@@ -92,12 +158,10 @@ export function detectSettingsIntent(session: Session, text: string): SettingsOu
     (CHANGE_VERB.test(lower) ||
       LANGUAGE_WORD.test(raw) ||
       /\b(in|to|please|plz)\b/i.test(lower) ||
-      // bare language name essentially on its own ("malayalam", "tamil please")
       wordCount <= 2);
 
   if (targetLang && looksLikeLangChange) {
     setLanguage(session.phone, targetLang);
-    // The confirmation should be in the NEW language so the user sees it worked.
     const m = getMessages(targetLang);
     const label = LANGUAGE_META[targetLang].englishName;
     return { text: m.languageChanged?.(label) ?? `✅ Language set to ${label}.`, language: targetLang };
