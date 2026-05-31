@@ -15,7 +15,7 @@
  * uses to decide whether to confirm or persist directly.
  */
 import { z } from 'zod';
-import { type Currency, isCurrency } from '@versifine/shared';
+import { CURRENCY_ALIASES, type Currency, isCurrency } from '@versifine/shared';
 import { env } from '../../env.ts';
 import { log } from '../../utils/logger.ts';
 import { getOpenAI, isAIConfigured, normalizeChatParams, withLatency } from './client.ts';
@@ -167,6 +167,101 @@ function emptyParse(): ParsedExpense {
   };
 }
 
+const DESCRIPTION_STOPWORDS = new Set([
+  'i',
+  'me',
+  'my',
+  'we',
+  'us',
+  'had',
+  'have',
+  'got',
+  'get',
+  'bought',
+  'buy',
+  'paid',
+  'pay',
+  'spent',
+  'spend',
+  'expense',
+  'expenses',
+  'cost',
+  'costs',
+  'for',
+  'on',
+  'at',
+  'to',
+  'from',
+  'in',
+  'of',
+  'the',
+  'a',
+  'an',
+  'and',
+  'with',
+  'pe',
+  'par',
+  'ka',
+  'ki',
+  'ke',
+  'ko',
+  'inu',
+  'ku',
+  'aayi',
+  'panninen',
+  'maadide',
+  'kharch',
+  'rs',
+  'rupee',
+  'rupees',
+  'inr',
+]);
+
+const DESCRIPTION_NORMALIZATIONS: Record<string, string> = {
+  coffe: 'coffee',
+  cofee: 'coffee',
+  coffie: 'coffee',
+  caffee: 'coffee',
+};
+
+const CURRENCY_WORDS = new Set(
+  Object.keys(CURRENCY_ALIASES)
+    .flatMap((key) => key.toLowerCase().replace(/[^a-z]+/g, ' ').split(/\s+/))
+    .filter(Boolean),
+);
+const CURRENCY_TOKEN_PATTERN = Object.keys(CURRENCY_ALIASES)
+  .sort((a, b) => b.length - a.length)
+  .map((token) => token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  .join('|');
+
+function normalizeDescriptionToken(token: string): string {
+  return DESCRIPTION_NORMALIZATIONS[token] ?? token;
+}
+
+function inferDescriptionFallback(text: string): string | null {
+  const amountPattern = String.raw`\d[\d,]*(?:\.\d+)?\s*(?:k|thousand|lakh|crore)?`;
+  const cleaned = text
+    .toLowerCase()
+    .replace(new RegExp(String.raw`(?:^|[^a-z])(?:${CURRENCY_TOKEN_PATTERN})\s*${amountPattern}\b`, 'gi'), ' ')
+    .replace(new RegExp(String.raw`\b${amountPattern}\s*(?:${CURRENCY_TOKEN_PATTERN})(?:[^a-z]|$)`, 'gi'), ' ')
+    .replace(new RegExp(String.raw`\b${amountPattern}\b`, 'gi'), ' ')
+    .replace(/[^a-z]+/g, ' ');
+
+  const tokens = cleaned
+    .split(/\s+/)
+    .map((token) => normalizeDescriptionToken(token.trim()))
+    .filter((token) => {
+      if (!token) return false;
+      if (token.length <= 1) return false;
+      if (DESCRIPTION_STOPWORDS.has(token)) return false;
+      if (CURRENCY_WORDS.has(token)) return false;
+      return true;
+    });
+
+  if (tokens.length === 0) return null;
+  return Array.from(new Set(tokens)).slice(0, 5).join(' ');
+}
+
 function computeNeeds(p: Omit<ParsedExpense, 'needs'>): MissingField[] {
   const needs: MissingField[] = [];
   if (p.amount === null) needs.push('amount');
@@ -264,8 +359,9 @@ export async function parseExpense(input: ParseInput): Promise<ParsedExpense> {
       : 'expense';
 
   const mergedType: ExpenseType = (llmType as ExpenseType | null) ?? fallbackType;
-  const mergedDescription = llm?.description ?? null;
-  const mergedCategoryHint = llm?.categoryHint ?? null;
+  const fallbackDescription = inferDescriptionFallback(text);
+  const mergedDescription = llm?.description ?? fallbackDescription;
+  const mergedCategoryHint = llm?.categoryHint ?? fallbackDescription;
   const mergedWalletHint = llm?.walletHint ?? null;
 
   // Foreign-currency mirroring: if the LLM didn't surface originalCurrency
@@ -277,7 +373,7 @@ export async function parseExpense(input: ParseInput): Promise<ParsedExpense> {
     originalCurrency = mergedCurrency;
   }
 
-  const baseConfidence = llm?.confidence ?? 0;
+  const baseConfidence = llm?.confidence ?? (fallbackDescription ? 0.5 : 0);
   // Regex hits boost confidence even when the LLM missed; this is the
   // signal the route layer trusts to skip confirmation.
   const regexBoost =
@@ -302,6 +398,10 @@ export async function parseExpense(input: ParseInput): Promise<ParsedExpense> {
 
   return { ...draft, needs: computeNeeds(draft) };
 }
+
+export const __parserFallbacksForTests = {
+  inferDescriptionFallback,
+};
 
 /* -----------------------------------------------------------------------
  * Reference test cases (50). These are documentation only — the Phase 17

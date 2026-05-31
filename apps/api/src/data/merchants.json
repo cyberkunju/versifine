@@ -299,6 +299,10 @@
     { "pattern": "tea trails", "category": "Coffee & Beverages", "match": "contains" },
     { "pattern": "boba bhai", "category": "Coffee & Beverages", "match": "contains" },
     { "pattern": "subko", "category": "Coffee & Beverages", "match": "contains" },
+    { "pattern": "coffee", "category": "Coffee & Beverages", "match": "contains" },
+    { "pattern": "coffie", "category": "Coffee & Beverages", "match": "contains" },
+    { "pattern": "chai", "category": "Coffee & Beverages", "match": "contains" },
+    { "pattern": "tea", "category": "Coffee & Beverages", "match": "exact" },
 
     { "pattern": "mcdonalds", "category": "Fast Food", "match": "contains" },
     { "pattern": "mcdonald s", "category": "Fast Food", "match": "contains" },
@@ -322,6 +326,12 @@
 
     { "pattern": "barbeque nation", "category": "Restaurants", "match": "contains" },
     { "pattern": "absolute barbecues", "category": "Restaurants", "match": "contains" },
+    { "pattern": "breakfast", "category": "Restaurants", "match": "contains" },
+    { "pattern": "lunch", "category": "Restaurants", "match": "contains" },
+    { "pattern": "dinner", "category": "Restaurants", "match": "contains" },
+    { "pattern": "meal", "category": "Restaurants", "match": "contains" },
+    { "pattern": "food", "category": "Restaurants", "match": "exact" },
+    { "pattern": "snacks", "category": "Fast Food", "match": "contains" },
     { "pattern": "social offline", "category": "Restaurants", "match": "contains" },
     { "pattern": "the social", "category": "Restaurants", "match": "contains" },
     { "pattern": "punjab grill", "category": "Restaurants", "match": "contains" },

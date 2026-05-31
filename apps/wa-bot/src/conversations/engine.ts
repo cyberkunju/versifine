@@ -133,6 +133,21 @@ async function dispatch(session: Session, message: IncomingMessage): Promise<Dis
 
   // CAPTURE_CONFIRM with free-form follow-up.
   if (session.state === 'CAPTURE_CONFIRM') {
+    const m = getMessages(session.language);
+    if (message.hasImage && message.imageBuffer) {
+      // Treat a receipt/photo as a fresh capture instead of shoving an
+      // empty caption through the text-only draft-confirm endpoint.
+      updateSession(session.phone, { lastDraftId: null, state: 'LINKED_MAIN' });
+      const active = getSession(session.phone);
+      const result = await handleCapture(active, message);
+      return { text: result.text, speakable: true };
+    }
+    if (!message.body.trim()) {
+      return {
+        text: m.captureFollowup('I need one missing detail. Type it here, or send CANCEL to discard this draft.'),
+        speakable: true,
+      };
+    }
     const result = await handleConfirm(session, 'EDIT', message.body);
     return { text: result.text, speakable: true };
   }

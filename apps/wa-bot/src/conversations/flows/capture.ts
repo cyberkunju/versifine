@@ -241,6 +241,25 @@ export async function handleConfirm(
     }
     return renderCaptureResponse(session, response);
   } catch (err) {
+    if (err instanceof ApiClientError && err.code === 'NOT_FOUND') {
+      const active = updateSession(session.phone, { lastDraftId: null, state: 'LINKED_MAIN' });
+      if (command === 'EDIT' && followupBody?.trim()) {
+        return await handleCapture(active, {
+          phone: active.phone,
+          body: followupBody,
+          hasAudio: false,
+          audioBuffer: null,
+          audioMimetype: null,
+          hasImage: false,
+          imageBuffer: null,
+          imageMimetype: null,
+          source: 'whatsapp',
+        });
+      }
+      return {
+        text: m.captureFollowup('That draft expired. Send the expense again when ready.'),
+      };
+    }
     log.warn('CONFIRM_FAIL', {
       phone: session.phone,
       error: err instanceof Error ? err.message.slice(0, 200) : String(err),

@@ -282,3 +282,90 @@ test('CANCEL on a draft routes through draft pending state', async () => {
   expect(cancelled.text).toMatch(/Cancel/i);
   expect(cancelled.state).toBe('LINKED_MAIN');
 });
+
+test('expired draft reprocesses the follow-up instead of trapping the user', async () => {
+  _resetAllSessions();
+
+  class NotFoundApiClientError extends Error {
+    constructor(
+      public code: string,
+      message: string,
+      public status: number,
+    ) {
+      super(message);
+    }
+  }
+
+  mock.module('../src/services/apiClient.ts', () => ({
+    ApiClientError: NotFoundApiClientError,
+    captureText: async (phone: string, text: string) => {
+      calls.push({ method: 'POST', path: '/capture/text', body: { phone, text } });
+      if (/spent\s+90/i.test(text)) {
+        return {
+          intent: 'expense',
+          needsConfirmation: false,
+          queryResult: {
+            transaction: { id: 'tx_recovered', amount: 90, currency: 'INR', category: 'Coffee & Beverages' },
+          },
+          echo: text,
+        };
+      }
+      return {
+        intent: 'expense',
+        needsConfirmation: true,
+        draftId: 'draft_expired',
+        draft: {
+          type: 'expense',
+          amount: 50,
+          currency: 'INR',
+          description: null,
+          category: null,
+          walletHint: null,
+          date: null,
+          splitPeople: null,
+          originalAmount: null,
+          originalCurrency: null,
+          confidence: 0.4,
+          needs: ['description'],
+        },
+        followupQuestion: 'What did you spend it on?',
+        echo: text,
+      };
+    },
+    captureVoice: async () => ({ intent: 'unknown', needsConfirmation: false, echo: '' }),
+    captureImage: async () => ({ intent: 'unknown', needsConfirmation: false, echo: '' }),
+    captureConfirm: async () => {
+      calls.push({ method: 'POST', path: '/capture/confirm', body: { draftId: 'draft_expired' } });
+      throw new NotFoundApiClientError('NOT_FOUND', 'Draft expired or unknown', 404);
+    },
+    askCopilot: async () => ({ answer: 'mock copilot answer', outcome: 'answered' }),
+    botWhoami: async () => ({ exists: false, displayName: null, language: 'en', webLinked: false }),
+    botEnsureUser: async (phone: string, language: string) => ({
+      userId: 'u_expired',
+      spaceId: 's_expired',
+      isNew: true,
+      displayName: null,
+      language,
+    }),
+    phoneLinkConfirm: async () => ({ linked: true, phone: PHONE }),
+    createBudget: async () => ({ budget: { id: 'b', name: 'b' } }),
+    patchTransactionCategory: async () => ({ transaction: { id: 't', category: null } }),
+  }));
+
+  const enginePath = '../src/conversations/engine.ts';
+  delete (require.cache as unknown as Record<string, unknown>)[require.resolve(enginePath)];
+  const fresh = (await import('../src/conversations/engine.ts')).runEngine;
+  const phone = '919999900099';
+
+  await fresh(inbound(phone, 'hi'));
+  await fresh(inbound(phone, '1'));
+
+  const drafted = await fresh(inbound(phone, 'something'));
+  expect(drafted.text).toContain('What did you spend it on?');
+  expect(drafted.state).toBe('CAPTURE_CONFIRM');
+
+  const recovered = await fresh(inbound(phone, 'spent 90 on tea'));
+  expect(recovered.text).toContain('Logged');
+  expect(recovered.text).toContain('90');
+  expect(recovered.state).toBe('LINKED_MAIN');
+});

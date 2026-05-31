@@ -91,6 +91,13 @@ test('merchant DB returns null for empty / unknown strings', () => {
   expect(categorizeFromMerchantDB('zzqq totally unknown vendor')).toBeNull();
 });
 
+test('merchant DB categorizes common WhatsApp item words', () => {
+  expect(categorizeFromMerchantDB(normalizeMerchant('coffee'))?.category).toBe('Coffee & Beverages');
+  expect(categorizeFromMerchantDB(normalizeMerchant('coffie'))?.category).toBe('Coffee & Beverages');
+  expect(categorizeFromMerchantDB(normalizeMerchant('lunch'))?.category).toBe('Restaurants');
+  expect(categorizeFromMerchantDB(normalizeMerchant('food'))?.category).toBe('Restaurants');
+});
+
 // --- Tier 3 (MiniLM) -----------------------------------------------------
 
 test('MiniLM tier returns null when no ONNX artifact is available', async () => {

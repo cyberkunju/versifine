@@ -20,7 +20,7 @@ import { classifyIntent } from '../services/ai/intent.ts';
 import { parseExpense, type ParsedExpense } from '../services/ai/parser.ts';
 import { transcribe } from '../services/ai/transcribe.ts';
 import { extractFromReceipt } from '../services/ai/vision.ts';
-import { storeDraft, consumeDraft, type DraftRecord } from '../services/capture/drafts.ts';
+import { storeDraft, getDraft, consumeDraft, type DraftRecord } from '../services/capture/drafts.ts';
 import { persistDraft } from '../services/capture/persist.ts';
 import { answerQuery } from '../services/capture/queryStubs.ts';
 import { listLiveWallets, pickWallet } from '../services/capture/wallet.ts';
@@ -228,6 +228,15 @@ function serializeDraft(d: ParsedExpense): Record<string, unknown> {
   };
 }
 
+function shortClarifierAsDescription(text: string): string | null {
+  const clean = text.trim().replace(/\s+/g, ' ');
+  if (!clean) return null;
+  if (clean.length > 80) return null;
+  if (/\d/.test(clean)) return null;
+  if (/^(confirm|cancel|edit|help|menu|reset|stop|status)$/i.test(clean)) return null;
+  return clean;
+}
+
 function maybeLanguage(input: string | undefined): Language | undefined {
   if (!input) return undefined;
   return isLanguage(input) ? (input as Language) : undefined;
@@ -376,7 +385,7 @@ app.post(
     const { draftId } = body;
     const text = body.text ?? '';
     const user = c.get('user');
-    const record = consumeDraft(draftId);
+    const record = getDraft(draftId);
     if (!record) throw errors.notFound('Draft expired or unknown');
     if (record.spaceId !== user.activeSpaceId || record.userId !== user.id) {
       throw errors.forbidden('Draft does not belong to this user');
@@ -401,11 +410,12 @@ app.post(
           text: `${record.source}. ${text}`,
           locale: record.locale ?? undefined,
         });
+        const clarifierDescription = shortClarifierAsDescription(text);
         edits = {
           amount: merged.amount ?? followup.amount,
           currency: merged.currency ?? followup.currency,
-          description: merged.description ?? followup.description,
-          categoryHint: merged.categoryHint ?? followup.categoryHint,
+          description: merged.description ?? clarifierDescription ?? followup.description,
+          categoryHint: merged.categoryHint ?? followup.categoryHint ?? clarifierDescription,
           walletHint: merged.walletHint ?? followup.walletHint,
           date: merged.date ?? followup.date,
           splitPeople: merged.splitPeople ?? followup.splitPeople,
@@ -416,6 +426,7 @@ app.post(
       }
     }
     merged = { ...merged, ...edits } as ParsedExpense;
+    merged.needs = missingFields(merged);
 
     if (merged.amount === null || !merged.description) {
       // Still missing — re-stash and ask again.
@@ -427,6 +438,7 @@ app.post(
         locale: record.locale ?? null,
         draft: merged,
       });
+      consumeDraft(draftId);
       return c.json(
         ok({
           intent: 'expense',
@@ -467,6 +479,7 @@ app.post(
       });
       throw errors.internal(persistResult.message);
     }
+    consumeDraft(draftId);
 
     return c.json(
       ok({
@@ -496,6 +509,7 @@ function sanitizeEdits(edits: Record<string, unknown>): Partial<ParsedExpense> {
     out.description = edits.description.trim();
   }
   if (typeof edits.categoryHint === 'string') out.categoryHint = edits.categoryHint;
+  if (typeof edits.category === 'string') out.categoryHint = edits.category;
   if (typeof edits.walletHint === 'string') out.walletHint = edits.walletHint;
   if (typeof edits.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(edits.date)) {
     out.date = edits.date;
