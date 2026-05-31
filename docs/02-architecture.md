@@ -123,27 +123,34 @@ src/
     └── text.ts               universal commands (6 langs), parseLink, chunkText
 ```
 
-**Still to write**: `index.ts`, `supervisor.ts`, `openwa/{createClient,handlers,media,sharedClient}.ts`, `server/internalServer.ts`, `services/apiClient.ts`, `conversations/{engine,state}.ts`, `conversations/messages/{en,hi,ml,index}.ts`, `conversations/flows/{identity,link,capture,confirm,query,budget,correct,help}.ts`.
+**Status**: fully implemented. `index.ts`, `supervisor.ts`, the `openwa/*` client wrappers, `server/internalServer.ts`, `services/apiClient.ts`, the conversation `engine`/`state`, the message packs (`en`, `hi`, `ml`, plus runtime-translated `ta`/`te`/`kn`), and every flow under `conversations/flows/` (identity, link, capture, confirm, query, budget, correct, help) are in place. `tests/flow.test.ts` exercises the greeting → link → capture path end-to-end.
 
-### `apps/web` — the SvelteKit dashboard (foundation only)
+### `apps/web` — the SvelteKit dashboard
 
 ```
 src/
-├── app.html                  SvelteKit shell
-├── app.css                   Tailwind v4 entry + shadcn-svelte CSS vars
+├── app.html                  SvelteKit shell (Outfit font, indigo theme-color, favicon links)
+├── app.css                   Tailwind v4 entry + design tokens (indigo brand)
 ├── app.d.ts                  $env types
+├── service-worker.ts         PWA caching (cache-first shell, SWR pages, API never cached)
+├── routes/                   landing, login, register, dashboard, transactions,
+│                             budgets, goals, forecast, reports, settings
 └── lib/
-    ├── config.ts             env-driven public config (PUBLIC_API_URL, etc.)
-    └── utils/
-        ├── cn.ts             classnames merge for shadcn variants
-        └── format.ts         currency/date/number helpers
+    ├── api/                  fetch client (token refresh + auth), query cache, ws, types
+    ├── ai/                   in-browser MiniLM client (Privacy Mode)
+    ├── components/           brand marks, layout (sidebar/topbar), omnibar, copilot,
+    │                         forecast card, transactions drawer, shadcn-svelte ui/*
+    ├── i18n/                 en/hi/ml message packs
+    ├── stores/               auth, settings, panels, toast, pendingCaptures (runes)
+    └── utils/                cn, format
 static/
-├── favicon.svg
+├── favicon.svg               indigo V-mark
+├── icon-{180,192,512}.png    PWA + apple-touch icons
 ├── manifest.webmanifest
-└── models/                   tokenizer + label_map + manifest fetched
+└── models/                   tokenizer + label_map + manifest (ONNX fetched on demand)
 ```
 
-**Still to write**: every route, every store, every component, the omnibar, the copilot panel, the privacy mode loader, the PWA service worker, the IndexedDB offline queue.
+**Status**: fully implemented — all routes, runes-based stores, the omnibar, the copilot panel, the Privacy-Mode loader, the PWA service worker, and the IndexedDB offline capture queue are in place.
 
 ## Request lifecycle (web → API)
 
