@@ -16,7 +16,10 @@ log() { printf "\033[1;32m[deploy]\033[0m %s\n" "$*"; }
 REPO="${REPO:-https://github.com/cyberkunju/versifine.git}"
 BRANCH="${BRANCH:-main}"
 DEPLOY_USER="${DEPLOY_USER:-versifine}"
-WORK="/home/fedora/versifine-build"
+# Build dir lives in the login user's home. On the Fedora box the deploy runs
+# as 'fedora' (HOME=/home/fedora, unchanged). On the Ubuntu clone it runs as
+# 'reticule' (HOME=/home/reticule). Deriving from $HOME keeps both identical.
+WORK="${HOME}/versifine-build"
 BASE="/opt/versifine"
 APP="$BASE/repo"            # deployed monorepo lives here
 ENV_DIR="/etc/versifine"
