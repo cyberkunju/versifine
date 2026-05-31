@@ -122,16 +122,24 @@
   }
 
   /**
-   * Privacy-mode text capture: parse a simple "spent N on description"
-   * pattern, run the local model, and post a fully-formed transaction so
-   * the server never sees the raw text.
+   * Privacy-mode text capture. The contract: your text is never sent to the
+   * server-side AI parser/categorizer. We parse a structured "spent N on X"
+   * locally and categorize on-device, then persist the finished transaction.
+   * (The description is still stored in your own database — that's data
+   * persistence, not an AI round-trip.)
+   *
+   * Anything we can't parse on-device would require the server AI parser,
+   * which would mean sending the raw text off-device. Rather than silently
+   * defeating Privacy Mode, we stop and tell the user so they can either
+   * rephrase as a structured expense or turn Privacy Mode off deliberately.
    */
   async function handleLocalExpense(text: string) {
     const parsed = parseExpenseText(text);
     if (!parsed) {
-      // Falls back to the server pipeline for non-expense intents.
-      const result = await api.capture.text(text, settings.language);
-      handleResult(text, result);
+      toast.warning(
+        'Privacy mode is on',
+        'This needs server-side understanding. Rephrase as “spent 450 on groceries”, or turn off Privacy mode to use the AI parser.',
+      );
       return;
     }
     const classifier = await loadMinilm();
@@ -157,7 +165,10 @@
       categorizedBy: 'client',
       tags: [],
     });
-    toast.success('Logged privately', `${formatCurrency(parsed.amount)} — ${parsed.description}`);
+    const note = classifier
+      ? `${formatCurrency(parsed.amount)} — ${parsed.description}`
+      : `${formatCurrency(parsed.amount)} — ${parsed.description} · categorized on the server (local model unavailable)`;
+    toast.success('Logged privately', note);
     invalidate(['transactions']);
     invalidate(['wallets']);
     invalidate(['budgets']);
