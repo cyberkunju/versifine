@@ -108,7 +108,7 @@ let watchdogFails = 0;
 let readyTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** How long to wait for `ready` after `authenticated` before self-restarting. */
-const READY_TIMEOUT_MS = 45_000;
+const READY_TIMEOUT_MS = 90_000;
 
 const BROWSER_CANDIDATES_WIN = [
   'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
