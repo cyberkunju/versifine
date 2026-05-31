@@ -48,6 +48,9 @@ export interface RequestOptions {
   body?: unknown;
   /** Optional timeout; defaults to 30s. */
   timeoutMs?: number;
+  /** Extra headers merged last (e.g. bot secret on the unauthenticated
+   * /bot routes that need the secret but not an X-Phone user). */
+  headers?: Record<string, string>;
 }
 
 interface InternalRequest extends RequestOptions {
@@ -62,6 +65,9 @@ async function call<T>(req: InternalRequest): Promise<T> {
   if (!req.unauthenticated) {
     headers['x-bot-secret'] = env.BOT_SECRET;
     if (req.phone) headers['x-phone'] = req.phone;
+  }
+  if (req.headers) {
+    Object.assign(headers, req.headers);
   }
 
   let body: BodyInit | undefined;
@@ -213,6 +219,50 @@ export async function captureConfirm(
 export interface CopilotAskResult {
   answer: string;
   outcome: string;
+}
+
+export interface BotWhoami {
+  exists: boolean;
+  displayName: string | null;
+  language: string;
+  webLinked: boolean;
+}
+
+export interface BotEnsuredUser {
+  userId: string;
+  spaceId: string;
+  isNew: boolean;
+  displayName: string | null;
+  language: string;
+}
+
+/**
+ * Read-only check on first contact: does an account already exist for this
+ * phone? Uses the bot-secret /bot route (no X-Phone resolution) so it works
+ * for numbers that aren't provisioned yet.
+ */
+export async function botWhoami(phone: string): Promise<BotWhoami> {
+  return await call<BotWhoami>({
+    method: 'POST',
+    path: '/bot/whoami',
+    unauthenticated: true,
+    body: { phone },
+    headers: { 'x-bot-secret': env.BOT_SECRET },
+  });
+}
+
+/**
+ * Find-or-create the account for a WhatsApp phone (phone-first signup).
+ * Idempotent; sending a language refreshes the stored primary language.
+ */
+export async function botEnsureUser(phone: string, language: string): Promise<BotEnsuredUser> {
+  return await call<BotEnsuredUser>({
+    method: 'POST',
+    path: '/bot/ensure-user',
+    unauthenticated: true,
+    body: { phone, language },
+    headers: { 'x-bot-secret': env.BOT_SECRET },
+  });
 }
 
 /**

@@ -40,6 +40,7 @@ function blankSession(phone: string, language: Language): Session {
     lastTransactionId: null,
     replyMode: 'auto',
     pending: {},
+    accountResolved: false,
     lastSeenAt: Date.now(),
   };
 }
@@ -115,6 +116,9 @@ export function resetSession(phone: string): Session {
   fresh.linked = linked;
   fresh.userId = userId;
   fresh.spaceId = spaceId;
+  // A linked/known account stays resolved across RESET so the user drops
+  // straight back to the main flow instead of the language menu.
+  fresh.accountResolved = linked;
   if (linked) fresh.state = 'LINKED_MAIN';
   sessions.set(phone, fresh);
   return fresh;

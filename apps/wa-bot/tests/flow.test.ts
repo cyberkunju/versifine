@@ -62,6 +62,15 @@ mock.module('../src/services/apiClient.ts', () => {
       throw new Error('captureConfirm not exercised in this test');
     },
     askCopilot: async () => ({ answer: 'mock copilot answer', outcome: 'answered' }),
+    botWhoami: async (phone: string) => {
+      calls.push({ method: 'POST', path: '/bot/whoami', body: { phone } });
+      // Default: brand-new number → onboarding.
+      return { exists: false, displayName: null, language: 'en', webLinked: false };
+    },
+    botEnsureUser: async (phone: string, language: string) => {
+      calls.push({ method: 'POST', path: '/bot/ensure-user', body: { phone, language } });
+      return { userId: 'u_test_1', spaceId: 's_test_1', isNew: true, displayName: null, language };
+    },
     phoneLinkConfirm: async (code: string, phone: string) => {
       calls.push({ method: 'POST', path: '/auth/phone-link/confirm', body: { code, phone } });
       if (code === '482917') return { linked: true, phone };
@@ -116,23 +125,20 @@ function inbound(phone: string, body: string) {
 
 const PHONE = '919999900001';
 
-test('greeting → language pick → link → capture happy path', async () => {
-  // 1. First touch.
+test('greeting → language pick → auto-provision → capture happy path', async () => {
+  // 1. First touch → whoami says new → language menu.
   const greet = await runEngine(inbound(PHONE, 'hi'));
   expect(greet.text).toContain('Versifine');
   expect(greet.state).toBe('AWAITING_LANGUAGE');
+  expect(calls.find((c) => c.path === '/bot/whoami')).toBeTruthy();
 
-  // 2. Language pick (English via "1").
+  // 2. Language pick (English via "1") → auto-provision, straight to LINKED_MAIN.
   const langSet = await runEngine(inbound(PHONE, '1'));
   expect(langSet.text.toLowerCase()).toContain('english');
-  expect(langSet.state).toBe('AWAITING_LINK_CODE');
+  expect(langSet.state).toBe('LINKED_MAIN');
+  expect(calls.find((c) => c.path === '/bot/ensure-user')).toBeTruthy();
 
-  // 3. LINK 482917 → success.
-  const linked = await runEngine(inbound(PHONE, 'LINK 482917'));
-  expect(linked.text).toMatch(/Linked/);
-  expect(calls.find((c) => c.path === '/auth/phone-link/confirm')).toBeTruthy();
-
-  // 4. Capture: "spent 450 on auto".
+  // 3. Capture: "spent 450 on auto" — no LINK step needed.
   const capture = await runEngine(inbound(PHONE, 'spent 450 on auto'));
   expect(capture.text).toContain('Logged');
   expect(capture.text).toContain('450');
@@ -141,21 +147,69 @@ test('greeting → language pick → link → capture happy path', async () => {
   expect(captureCall).toBeTruthy();
   expect((captureCall?.body as { text: string }).text).toBe('spent 450 on auto');
 
-  // 5. STATUS.
+  // 4. STATUS.
   const status = await runEngine(inbound(PHONE, 'STATUS'));
   expect(status.text.toLowerCase()).toContain('linked');
 
-  // 6. RESET.
+  // 5. RESET.
   const reset = await runEngine(inbound(PHONE, 'RESET'));
   expect(reset.text).toMatch(/Reset/i);
 });
 
+test('returning user: first message is processed, not discarded', async () => {
+  _resetAllSessions();
+  // Swap whoami to report an EXISTING account for this number.
+  mock.module('../src/services/apiClient.ts', () => ({
+    ApiClientError: class ApiClientError extends Error {
+      constructor(
+        public code: string,
+        message: string,
+        public status: number,
+      ) {
+        super(message);
+      }
+    },
+    captureText: async (phone: string, text: string) => {
+      calls.push({ method: 'POST', path: '/capture/text', body: { phone, text } });
+      return {
+        intent: 'expense',
+        needsConfirmation: false,
+        queryResult: {
+          transaction: { id: 'tx_rt', amount: 200, currency: 'INR', category: 'Coffee & Beverages' },
+        },
+        echo: text,
+      };
+    },
+    captureVoice: async () => ({ intent: 'unknown', needsConfirmation: false, echo: '' }),
+    captureImage: async () => ({ intent: 'unknown', needsConfirmation: false, echo: '' }),
+    captureConfirm: async () => ({ intent: 'unknown', needsConfirmation: false, echo: '' }),
+    askCopilot: async () => ({ answer: 'a', outcome: 'answered' }),
+    botWhoami: async () => ({ exists: true, displayName: 'Asha', language: 'en', webLinked: false }),
+    botEnsureUser: async (phone: string, language: string) => ({
+      userId: 'u_rt',
+      spaceId: 's_rt',
+      isNew: false,
+      displayName: 'Asha',
+      language,
+    }),
+    phoneLinkConfirm: async () => ({ linked: true, phone: PHONE }),
+    createBudget: async () => ({ budget: { id: 'b', name: 'b' } }),
+    patchTransactionCategory: async () => ({ transaction: { id: 't', category: null } }),
+  }));
+  const enginePath = '../src/conversations/engine.ts';
+  delete (require.cache as unknown as Record<string, unknown>)[require.resolve(enginePath)];
+  const fresh = (await import('../src/conversations/engine.ts')).runEngine;
+
+  // First message is an actionable expense — should be logged, NOT swallowed
+  // by a greeting, and prefixed with a welcome-back.
+  const out = await fresh(inbound('919999900002', 'spent 200 on coffee'));
+  expect(out.state).toBe('LINKED_MAIN');
+  expect(out.text).toContain('Logged');
+  expect(out.text).toMatch(/Welcome back/i);
+});
+
 test('CANCEL on a draft routes through draft pending state', async () => {
   _resetAllSessions();
-  // Bring the session up to LINKED_MAIN by replaying the link flow.
-  await runEngine(inbound(PHONE, 'hi'));
-  await runEngine(inbound(PHONE, '1'));
-  await runEngine(inbound(PHONE, 'LINK 482917'));
 
   // Now switch the apiClient mock to return a draft instead.
   mock.module('../src/services/apiClient.ts', () => ({
@@ -198,6 +252,14 @@ test('CANCEL on a draft routes through draft pending state', async () => {
       echo: '',
     }),
     askCopilot: async () => ({ answer: 'mock copilot answer', outcome: 'answered' }),
+    botWhoami: async () => ({ exists: false, displayName: null, language: 'en', webLinked: false }),
+    botEnsureUser: async (phone: string, language: string) => ({
+      userId: 'u_test_2',
+      spaceId: 's_test_2',
+      isNew: true,
+      displayName: null,
+      language,
+    }),
     phoneLinkConfirm: async () => ({ linked: true, phone: PHONE }),
     createBudget: async () => ({ budget: { id: 'b', name: 'b' } }),
     patchTransactionCategory: async () => ({ transaction: { id: 't', category: null } }),
@@ -207,6 +269,10 @@ test('CANCEL on a draft routes through draft pending state', async () => {
   const enginePath = '../src/conversations/engine.ts';
   delete (require.cache as unknown as Record<string, unknown>)[require.resolve(enginePath)];
   const fresh = (await import('../src/conversations/engine.ts')).runEngine;
+
+  // Onboard: hi → language pick → auto-provisioned into LINKED_MAIN.
+  await fresh(inbound(PHONE, 'hi'));
+  await fresh(inbound(PHONE, '1'));
 
   const drafted = await fresh(inbound(PHONE, 'something'));
   expect(drafted.text).toContain('How much');

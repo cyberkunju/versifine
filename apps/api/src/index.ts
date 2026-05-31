@@ -16,6 +16,7 @@ import { errorMiddleware } from './middleware/error.ts';
 import { requestId } from './middleware/requestId.ts';
 import { adviceRoutes } from './routes/advice.ts';
 import { authRoutes } from './routes/auth.ts';
+import { botRoutes } from './routes/bot.ts';
 import { budgetRoutes } from './routes/budgets.ts';
 import { captureRoutes } from './routes/capture.ts';
 import { copilotRoutes } from './routes/copilot.ts';
@@ -56,6 +57,7 @@ app.use(
 
 app.route('/health', healthRoutes);
 app.route('/auth', authRoutes);
+app.route('/bot', botRoutes);
 app.route('/capture', captureRoutes);
 app.route('/wallets', walletRoutes);
 app.route('/transactions', transactionRoutes);

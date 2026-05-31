@@ -40,7 +40,7 @@ import { chunkText, parseLinkCommand, parseUniversal } from '../utils/text.ts';
 import { handleBudget, looksLikeBudgetTrigger } from './flows/budget.ts';
 import { handleCapture, handleConfirm } from './flows/capture.ts';
 import { handleCorrection, looksLikeCorrection } from './flows/correct.ts';
-import { handleGreetingOrLanguage } from './flows/identity.ts';
+import { handleLanguagePick, resolveFirstContact } from './flows/identity.ts';
 import {
   handleHelp,
   handleLanguageSwitch,
@@ -49,7 +49,7 @@ import {
   handleStop,
 } from './flows/help.ts';
 import { handleLinkCommand, rePrompt } from './flows/link.ts';
-import { hasNativePack } from './messages/index.ts';
+import { hasNativePack, getMessages } from './messages/index.ts';
 import { getSession, setReplyMode, updateSession } from './state.ts';
 
 interface DispatchOutcome {
@@ -116,20 +116,17 @@ async function dispatch(session: Session, message: IncomingMessage): Promise<Dis
     }
   }
 
-  // Link command always honored.
+  // Link command always honored — binds this number to a pre-existing web
+  // account (the advanced path). The common case never needs it.
   const link = parseLinkCommand(message.body);
   if (link) {
     const out = await handleLinkCommand(session, link.code);
     return { text: out.text, speakable: true };
   }
 
-  // Greeting / language-pick.
-  if (session.state === 'GREETING' || session.state === 'AWAITING_LANGUAGE') {
-    const out = handleGreetingOrLanguage(session, message.body);
-    return { text: out.text, state: out.state, speakable: false };
-  }
-
-  // Awaiting LINK code — anything else gets the link prompt back.
+  // Safety guard: if we somehow reach here without a linked account (e.g. the
+  // legacy web-claim AWAITING_LINK_CODE state), re-prompt for linking. The
+  // onboarding gate in runEngine normally provisions the account first.
   if (session.state === 'AWAITING_LINK_CODE' || !session.linked) {
     return { text: rePrompt(session).text, speakable: false };
   }
@@ -216,26 +213,54 @@ export async function runEngine(message: IncomingMessage): Promise<OutgoingReply
     });
   }
 
+  // Onboarding gate — phone-first sign-up.
+  //
+  // Before normal dispatch we make sure the account is resolved. RESET/STOP
+  // are allowed through so a user is never trapped. Otherwise:
+  //   - first contact (not yet resolved) → whoami: returning user proceeds
+  //     (we keep their message), new user gets the language menu;
+  //   - AWAITING_LANGUAGE → provision the account, then drop into the main flow.
+  const onboardCmd = parseUniversal(message.body)?.command;
+  const onboardingExempt = onboardCmd === 'RESET' || onboardCmd === 'STOP';
+  let welcomePrefix: string | undefined;
+  if (!onboardingExempt && (session.state === 'GREETING' || !session.accountResolved)) {
+    const first = await resolveFirstContact(session, message.body);
+    if (!first.proceed) {
+      const text = await localize(first.reply ?? getMessages(session.language).greeting, session.language);
+      return { text, state: getSession(session.phone).state };
+    }
+    welcomePrefix = first.welcomePrefix;
+  }
+  if (!onboardingExempt && getSession(session.phone).state === 'AWAITING_LANGUAGE') {
+    const picked = await handleLanguagePick(getSession(session.phone), message.body);
+    const text = await localize(picked.text, getSession(session.phone).language);
+    return { text, state: getSession(session.phone).state };
+  }
+
+  // Re-read the session: onboarding may have changed language/state/linkage.
+  const active = getSession(session.phone);
+
   let outcome: DispatchOutcome;
   try {
-    outcome = await dispatch(session, message);
+    outcome = await dispatch(active, message);
   } catch (err) {
     log.warn('ENGINE_FAIL', {
-      phone: session.phone,
+      phone: active.phone,
       error: err instanceof Error ? err.message.slice(0, 200) : String(err),
     });
     outcome = { text: 'Something went wrong. Try again or send RESET.' };
   }
 
-  const localized = await localize(outcome.text, session.language);
-  const speakable = outcome.speakable !== false && session.replyMode !== 'text' && message.hasAudio;
+  const body = welcomePrefix ? `${welcomePrefix}\n\n${outcome.text}` : outcome.text;
+  const localized = await localize(body, active.language);
+  const speakable = outcome.speakable !== false && active.replyMode !== 'text' && message.hasAudio;
   const voicePromise: Promise<OutgoingVoice | null> | undefined = speakable
-    ? speak(localized, session.language)
+    ? speak(localized, active.language)
     : undefined;
 
   const final: OutgoingReply = {
     text: localized,
-    state: getSession(session.phone).state,
+    state: getSession(active.phone).state,
     ...(voicePromise ? { voicePromise } : {}),
   };
 

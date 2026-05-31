@@ -24,6 +24,19 @@ export interface MessagePack {
   /** Sent after the user picks a language. */
   languageSet: (englishLanguageName: string) => string;
 
+  /**
+   * Shown right after a phone-first account is auto-provisioned. No link
+   * step — the user can start logging money immediately. This is the
+   * everyday onboarding success message.
+   */
+  onboardingReady: string;
+
+  /**
+   * Greets a returning, already-provisioned user in their saved language.
+   * Kept to one short line so it never crowds out the actual reply.
+   */
+  welcomeBack: (displayName: string | null) => string;
+
   /** Asks an unlinked user to register on the web and send LINK. */
   linkPrompt: string;
 

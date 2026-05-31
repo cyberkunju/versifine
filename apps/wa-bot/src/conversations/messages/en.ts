@@ -53,6 +53,16 @@ export const en: MessagePack = {
 
   languageSet: (lang) => `Got it. I'll talk to you in ${lang}.`,
 
+  onboardingReady:
+    "You're all set — no sign-up needed. ✅\n\n" +
+    "Just tell me what you spent. For example:\n" +
+    '• "spent 200 on tea"\n' +
+    '• send a photo of a bill\n' +
+    '• or send a voice note in your language\n\n' +
+    'Send HELP anytime to see everything I can do.',
+
+  welcomeBack: (name) => (name ? `Welcome back, ${name}! 👋` : 'Welcome back! 👋'),
+
   linkPrompt:
     "I don't know this number yet. Quick steps:\n" +
     '1. Register on the web at versifine.com\n' +

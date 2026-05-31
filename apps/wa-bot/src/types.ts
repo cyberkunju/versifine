@@ -46,6 +46,11 @@ export interface Session {
   replyMode: ReplyMode;
   /** Free-form scratchpad for multi-step flows (set-budget, etc). */
   pending: Record<string, unknown>;
+  /**
+   * True once we've asked the API whether this phone already has an account
+   * (the whoami check on first contact). Prevents re-checking every message.
+   */
+  accountResolved: boolean;
   /** Last activity timestamp used for the 12h sweep. */
   lastSeenAt: number;
 }
