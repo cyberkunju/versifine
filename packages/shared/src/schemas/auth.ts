@@ -32,6 +32,18 @@ export const loginInput = z.object({
 });
 export type LoginInput = z.infer<typeof loginInput>;
 
+export const googleAuthInput = z.object({
+  /**
+   * Google Identity Services ID token. The API verifies signature, issuer,
+   * audience, expiry, subject, and verified email before minting Versifine
+   * tokens.
+   */
+  credential: z.string().min(20).max(4096),
+  /** Used only when a brand-new account is created from the Google flow. */
+  primaryLanguage: z.enum(LANGUAGES).default('en'),
+});
+export type GoogleAuthInput = z.infer<typeof googleAuthInput>;
+
 export const refreshInput = z.object({
   refreshToken: z.string().min(20),
 });
@@ -48,6 +60,37 @@ export const phoneLinkConfirmInput = z.object({
   phone: z.string().regex(/^\d{10,15}$/),
 });
 export type PhoneLinkConfirmInput = z.infer<typeof phoneLinkConfirmInput>;
+
+/**
+ * Bot → API: find-or-create an account for a WhatsApp number.
+ * Auth is the bot secret (X-Bot-Secret); the phone travels in the body so
+ * this one call can provision a number that isn't linked yet (unlike the
+ * X-Phone middleware path which requires an existing user).
+ */
+export const botEnsureUserInput = z.object({
+  phone: z.string().regex(/^\d{10,15}$/),
+  language: z.enum(LANGUAGES).default('en'),
+});
+export type BotEnsureUserInput = z.infer<typeof botEnsureUserInput>;
+
+export const botEnsureUserResult = z.object({
+  userId: z.string().uuid(),
+  spaceId: z.string().uuid(),
+  isNew: z.boolean(),
+  displayName: z.string().nullable(),
+  language: z.enum(LANGUAGES),
+});
+export type BotEnsureUserResult = z.infer<typeof botEnsureUserResult>;
+
+/** Bot → API: read-only "is this number known?" check on first contact. */
+export const botWhoamiResult = z.object({
+  exists: z.boolean(),
+  displayName: z.string().nullable(),
+  language: z.enum(LANGUAGES),
+  /** Account originated from web/Google (has password or Google identity). */
+  webLinked: z.boolean(),
+});
+export type BotWhoamiResult = z.infer<typeof botWhoamiResult>;
 
 export const tokenPair = z.object({
   accessToken: z.string(),

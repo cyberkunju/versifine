@@ -11,6 +11,7 @@ import { defineConfig } from 'vite';
  */
 export default defineConfig({
   plugins: [tailwindcss(), sveltekit()],
+  envPrefix: ['VITE_', 'PUBLIC_'],
   server: {
     port: 5173,
     strictPort: false,

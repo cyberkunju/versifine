@@ -25,6 +25,29 @@ const schema = z.object({
 
   BOT_SECRET: z.string().min(8, 'BOT_SECRET must be at least 8 chars'),
 
+  GOOGLE_CLIENT_ID: z
+    .string()
+    .trim()
+    .transform((v) => (v.length > 0 ? v : undefined))
+    .pipe(z.string().min(10).optional())
+    .optional(),
+  /**
+   * Optional comma-separated allowlist for backends that accept multiple web
+   * client IDs during a migration. GOOGLE_CLIENT_ID is enough for most installs.
+   */
+  GOOGLE_CLIENT_IDS: z
+    .string()
+    .trim()
+    .transform((v) => (v.length > 0 ? v : undefined))
+    .pipe(z.string().min(10).optional())
+    .optional(),
+  GOOGLE_ALLOWED_DOMAINS: z
+    .string()
+    .trim()
+    .transform((v) => (v.length > 0 ? v : undefined))
+    .pipe(z.string().optional())
+    .optional(),
+
   OPENAI_API_KEY: z
     .string()
     .transform((v) => (v && v.length > 0 ? v : undefined))

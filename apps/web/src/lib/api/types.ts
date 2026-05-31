@@ -8,6 +8,7 @@ export type {
   TokenPair,
   RegisterInput,
   LoginInput,
+  GoogleAuthInput,
   TransactionSummary,
   TransactionType,
   TransactionCreateInput,

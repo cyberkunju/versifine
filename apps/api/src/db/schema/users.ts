@@ -37,7 +37,10 @@ export const users = pgTable(
   {
     id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
     email: citext('email').notNull(),
-    passwordHash: text('password_hash').notNull(),
+    passwordHash: text('password_hash'),
+    googleSub: varchar('google_sub', { length: 64 }),
+    googlePictureUrl: text('google_picture_url'),
+    googleEmailVerifiedAt: timestamp('google_email_verified_at', { withTimezone: true }),
     displayName: varchar('display_name', { length: 80 }),
     primaryLanguage: varchar('primary_language', { length: 4 }).notNull().default('en'),
     baseCurrency: char('base_currency', { length: 3 }).notNull().default('INR'),
@@ -45,6 +48,7 @@ export const users = pgTable(
     activeSpaceId: uuid('active_space_id'),
     whatsappPhone: varchar('whatsapp_phone', { length: 20 }),
     whatsappPhoneVerifiedAt: timestamp('whatsapp_phone_verified_at', { withTimezone: true }),
+    lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .notNull()
@@ -54,6 +58,9 @@ export const users = pgTable(
   },
   (t) => [
     uniqueIndex('users_email_unique').on(t.email),
+    uniqueIndex('users_google_sub_unique')
+      .on(t.googleSub)
+      .where(sql`${t.googleSub} IS NOT NULL`),
     uniqueIndex('users_whatsapp_phone_unique')
       .on(t.whatsappPhone)
       .where(sql`${t.whatsappPhone} IS NOT NULL`),

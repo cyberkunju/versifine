@@ -14,7 +14,13 @@ import { goto } from '$app/navigation';
 import type { TokenSource } from '$lib/api/client';
 import { api, attachTokenSource } from '$lib/api/client';
 import { socket } from '$lib/api/ws';
-import type { LoginInput, RegisterInput, TokenPair, UserSummary } from '$lib/api/types';
+import type {
+  GoogleAuthInput,
+  LoginInput,
+  RegisterInput,
+  TokenPair,
+  UserSummary,
+} from '$lib/api/types';
 
 const REFRESH_KEY = 'versifine.refresh';
 
@@ -70,6 +76,19 @@ class AuthStore {
     this.loading = true;
     try {
       const result = await api.auth.register(input);
+      this.applyTokens(result.tokens);
+      this.user = result.user;
+      this.connectRealtime();
+      return result.user;
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  async loginWithGoogle(input: GoogleAuthInput): Promise<UserSummary> {
+    this.loading = true;
+    try {
+      const result = await api.auth.google(input);
       this.applyTokens(result.tokens);
       this.user = result.user;
       this.connectRealtime();

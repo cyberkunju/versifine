@@ -12,27 +12,59 @@
   import { settings } from '$lib/stores/settings.svelte';
   import { getMessages } from '$lib/i18n';
   import { ApiError } from '$lib/api/types';
+  import GoogleSignInButton from '$lib/components/auth/GoogleSignInButton.svelte';
 
   let email = $state('');
   let password = $state('');
+  let confirmPassword = $state('');
   let displayName = $state('');
   let primaryLanguage = $state<Language>('en');
   let error = $state<string | null>(null);
   const m = $derived(getMessages(settings.language));
+  const passwordChecks = $derived([
+    { label: '12+ characters', ok: password.length >= 12 },
+    { label: 'Upper and lower case', ok: /[A-Z]/.test(password) && /[a-z]/.test(password) },
+    { label: 'Number', ok: /[0-9]/.test(password) },
+    { label: 'Special character', ok: /[^A-Za-z0-9]/.test(password) },
+  ]);
+  const passwordReady = $derived(passwordChecks.every((check) => check.ok));
 
   async function submit(e: SubmitEvent) {
     e.preventDefault();
     error = null;
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      error = 'Enter a valid email address.';
+      return;
+    }
+    if (!passwordReady) {
+      error = 'Choose a stronger password.';
+      return;
+    }
+    if (password !== confirmPassword) {
+      error = 'Passwords do not match.';
+      return;
+    }
     try {
       await auth.register({
-        email,
+        email: cleanEmail,
         password,
-        ...(displayName ? { displayName } : {}),
+        ...(displayName.trim() ? { displayName: displayName.trim() } : {}),
         primaryLanguage,
       });
       void goto('/dashboard');
     } catch (err) {
       error = err instanceof ApiError ? err.message : 'Registration failed';
+    }
+  }
+
+  async function handleGoogleCredential(credential: string) {
+    error = null;
+    try {
+      await auth.loginWithGoogle({ credential, primaryLanguage });
+      void goto('/dashboard');
+    } catch (err) {
+      error = err instanceof ApiError ? err.message : 'Google sign-up failed. Please try again.';
     }
   }
 </script>
@@ -67,7 +99,24 @@
       <h1 class="font-display text-3xl font-medium tracking-tight text-[hsl(var(--brand-navy))]">{m.auth.welcomeNew}</h1>
       <p class="mt-2 text-sm text-[hsl(var(--muted-foreground))]">{m.app.tagline}</p>
 
-      <form onsubmit={submit} novalidate class="mt-8 space-y-5">
+      <div class="mt-8">
+        <GoogleSignInButton
+          text="signup_with"
+          disabled={auth.loading}
+          onCredential={handleGoogleCredential}
+        />
+      </div>
+
+      <div class="relative my-6">
+        <div class="absolute inset-0 flex items-center">
+          <div class="w-full border-t border-[hsl(var(--border))]"></div>
+        </div>
+        <div class="relative flex justify-center">
+          <span class="bg-[hsl(var(--brand-paper))] px-3 text-xs text-[hsl(var(--muted-foreground))]">or create with email</span>
+        </div>
+      </div>
+
+      <form onsubmit={submit} novalidate class="space-y-5">
         <div class="space-y-1.5">
           <label for="display" class="text-sm font-medium text-[hsl(var(--foreground))]">{m.auth.displayName}</label>
           <input
@@ -98,7 +147,24 @@
             bind:value={password}
             class="h-11 w-full rounded-xl border border-[hsl(var(--input))] bg-white px-4 text-sm text-[hsl(var(--foreground))] outline-none transition-colors focus:border-[hsl(var(--brand-navy))] focus:ring-2 focus:ring-[hsl(var(--brand-navy)/0.12)]"
           />
-          <p class="text-xs text-[hsl(var(--muted-foreground))]">12+ chars, mixed case, a number, and a symbol.</p>
+          <div class="grid grid-cols-2 gap-x-3 gap-y-1 pt-1 text-xs text-[hsl(var(--muted-foreground))]">
+            {#each passwordChecks as check (check.label)}
+              <span class:font-medium={check.ok} class:text-emerald-700={check.ok}>
+                {check.ok ? '✓' : '·'} {check.label}
+              </span>
+            {/each}
+          </div>
+        </div>
+        <div class="space-y-1.5">
+          <label for="confirm-password" class="text-sm font-medium text-[hsl(var(--foreground))]">Confirm password</label>
+          <input
+            id="confirm-password"
+            type="password"
+            autocomplete="new-password"
+            required
+            bind:value={confirmPassword}
+            class="h-11 w-full rounded-xl border border-[hsl(var(--input))] bg-white px-4 text-sm text-[hsl(var(--foreground))] outline-none transition-colors focus:border-[hsl(var(--brand-navy))] focus:ring-2 focus:ring-[hsl(var(--brand-navy)/0.12)]"
+          />
         </div>
         <div class="space-y-1.5">
           <label for="lang" class="text-sm font-medium text-[hsl(var(--foreground))]">{m.auth.primaryLanguage}</label>

@@ -49,6 +49,7 @@ import type {
   BudgetUpdateInput,
   BudgetProgress,
   Language,
+  GoogleAuthInput,
 } from './types';
 import { ApiError } from './types';
 
@@ -217,6 +218,13 @@ export const api = {
     },
     register(input: RegisterInput): Promise<{ user: UserSummary; tokens: TokenPair }> {
       return request('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify(input),
+        skipAuth: true,
+      });
+    },
+    google(input: GoogleAuthInput): Promise<{ user: UserSummary; tokens: TokenPair }> {
+      return request('/auth/google', {
         method: 'POST',
         body: JSON.stringify(input),
         skipAuth: true,

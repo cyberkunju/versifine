@@ -45,5 +45,8 @@ function defaultWsUrl(): string {
 
 export const PUBLIC_WS_URL: string = pick('WS_URL', defaultWsUrl());
 
+/** Google Identity Services web client ID. Empty means Google sign-in is hidden/disabled. */
+export const PUBLIC_GOOGLE_CLIENT_ID: string = pick('GOOGLE_CLIENT_ID', '');
+
 /** True when the running build embeds a non-default API URL (used by debug strips). */
 export const IS_LOCAL_API: boolean = PUBLIC_API_URL.includes('localhost');

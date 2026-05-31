@@ -3,6 +3,7 @@
  *
  *   POST /auth/register             create account + personal space + default wallet
  *   POST /auth/login                exchange credentials for token pair
+ *   POST /auth/google               verify Google ID token + exchange for token pair
  *   POST /auth/refresh              rotate refresh token, mint new access
  *   POST /auth/logout               revoke the presented refresh token
  *   GET  /auth/me                   current user
@@ -13,6 +14,7 @@ import { zValidator } from '@hono/zod-validator';
 import { and, eq, gt, isNull, sql as drizzleSql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import {
+  googleAuthInput,
   loginInput,
   phoneLinkConfirmInput,
   refreshInput,
@@ -36,6 +38,10 @@ import { consumeOtp, createOtp } from '../services/auth/otp.ts';
 import { ok } from '../utils/envelope.ts';
 import { errors } from '../utils/errors.ts';
 import { normalizePhone } from '../utils/phone.ts';
+import {
+  isAuthoritativeGoogleEmail,
+  verifyGoogleCredential,
+} from '../services/auth/google.ts';
 
 const app = new Hono();
 
@@ -55,6 +61,20 @@ const otpLimit = rateLimit({
   key: (c) =>
     `otp:${c.req.header('x-forwarded-for') ?? c.req.header('cf-connecting-ip') ?? 'anon'}`,
 });
+
+const authUserColumns = {
+  id: users.id,
+  email: users.email,
+  displayName: users.displayName,
+  primaryLanguage: users.primaryLanguage,
+  baseCurrency: users.baseCurrency,
+  activeSpaceId: users.activeSpaceId,
+  whatsappPhone: users.whatsappPhone,
+  whatsappPhoneVerifiedAt: users.whatsappPhoneVerifiedAt,
+  createdAt: users.createdAt,
+  passwordHash: users.passwordHash,
+  googleSub: users.googleSub,
+};
 
 app.post('/register', authLimit, zValidator('json', registerInput), async (c) => {
   const { email, password, displayName, primaryLanguage } = c.req.valid('json');
@@ -122,25 +142,14 @@ app.post('/register', authLimit, zValidator('json', registerInput), async (c) =>
     return { user, spaceId: space.id };
   });
 
-  const accessToken = await signAccessToken({ sub: result.user.id, asid: result.spaceId });
-  const { token: refreshToken, nonce } = await signRefreshToken({ sub: result.user.id });
-  await db.insert(refreshTokens).values({
-    userId: result.user.id,
-    tokenHash: hashRefreshToken(refreshToken),
-    expiresAt: new Date(Date.now() + env.JWT_REFRESH_TTL_SECONDS * 1000),
-  });
-  void nonce;
+  const tokens = await issueTokenPair(result.user.id, result.spaceId);
 
   c.get('log').info('AUTH_REGISTER_OK', { userId: result.user.id });
 
   return c.json(
     ok({
       user: serializeUser(result.user, result.spaceId),
-      tokens: {
-        accessToken,
-        refreshToken,
-        expiresIn: env.JWT_ACCESS_TTL_SECONDS,
-      },
+      tokens,
     }),
     201,
   );
@@ -172,25 +181,136 @@ app.post('/login', authLimit, zValidator('json', loginInput), async (c) => {
     throw errors.unauthorized('Invalid credentials');
   }
 
-  const accessToken = await signAccessToken({ sub: row.id, asid: row.activeSpaceId });
-  const { token: refreshToken } = await signRefreshToken({ sub: row.id });
-  await db.insert(refreshTokens).values({
-    userId: row.id,
-    tokenHash: hashRefreshToken(refreshToken),
-    expiresAt: new Date(Date.now() + env.JWT_REFRESH_TTL_SECONDS * 1000),
-  });
+  await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, row.id));
+  const tokens = await issueTokenPair(row.id, row.activeSpaceId);
 
   c.get('log').info('AUTH_LOGIN_OK', { userId: row.id });
 
   return c.json(
     ok({
       user: serializeUser(row, row.activeSpaceId),
-      tokens: {
-        accessToken,
-        refreshToken,
-        expiresIn: env.JWT_ACCESS_TTL_SECONDS,
-      },
+      tokens,
     }),
+  );
+});
+
+app.post('/google', authLimit, zValidator('json', googleAuthInput), async (c) => {
+  const { credential, primaryLanguage } = c.req.valid('json');
+  const profile = await verifyGoogleCredential(credential);
+  const now = new Date();
+
+  const result = await db.transaction(async (tx) => {
+    const [bySub] = await tx
+      .select(authUserColumns)
+      .from(users)
+      .where(eq(users.googleSub, profile.sub))
+      .limit(1);
+
+    if (bySub) {
+      if (!bySub.activeSpaceId) throw errors.unauthorized('User missing workspace');
+      const [updated] = await tx
+        .update(users)
+        .set({
+          displayName: bySub.displayName ?? profile.name,
+          googlePictureUrl: profile.picture,
+          googleEmailVerifiedAt: now,
+          lastLoginAt: now,
+        })
+        .where(eq(users.id, bySub.id))
+        .returning(authUserColumns);
+      if (!updated || !updated.activeSpaceId) throw errors.internal('Google login failed');
+      return { user: updated, spaceId: updated.activeSpaceId, created: false };
+    }
+
+    const [byEmail] = await tx
+      .select(authUserColumns)
+      .from(users)
+      .where(eq(users.email, profile.email))
+      .limit(1);
+
+    if (byEmail) {
+      if (byEmail.googleSub && byEmail.googleSub !== profile.sub) {
+        throw errors.conflict('This email is already linked to another Google account');
+      }
+      if (!byEmail.googleSub && !isAuthoritativeGoogleEmail(profile)) {
+        throw errors.conflict(
+          'Sign in with your password once before linking Google for this email',
+        );
+      }
+      if (!byEmail.activeSpaceId) throw errors.unauthorized('User missing workspace');
+
+      const [updated] = await tx
+        .update(users)
+        .set({
+          googleSub: profile.sub,
+          displayName: byEmail.displayName ?? profile.name,
+          googlePictureUrl: profile.picture,
+          googleEmailVerifiedAt: now,
+          lastLoginAt: now,
+        })
+        .where(eq(users.id, byEmail.id))
+        .returning(authUserColumns);
+      if (!updated || !updated.activeSpaceId) throw errors.internal('Google login failed');
+      return { user: updated, spaceId: updated.activeSpaceId, created: false };
+    }
+
+    const [space] = await tx
+      .insert(spaces)
+      .values({
+        name: 'Personal',
+        type: 'personal',
+        baseCurrency: 'INR',
+      })
+      .returning({ id: spaces.id });
+    if (!space) throw errors.internal('Space creation failed');
+
+    const [user] = await tx
+      .insert(users)
+      .values({
+        email: profile.email,
+        passwordHash: null,
+        googleSub: profile.sub,
+        googlePictureUrl: profile.picture,
+        googleEmailVerifiedAt: now,
+        displayName: profile.name,
+        primaryLanguage,
+        baseCurrency: 'INR',
+        activeSpaceId: space.id,
+        lastLoginAt: now,
+      })
+      .returning(authUserColumns);
+    if (!user) throw errors.internal('User creation failed');
+
+    await tx.update(spaces).set({ createdBy: user.id }).where(eq(spaces.id, space.id));
+
+    await tx.insert(spaceMembers).values({
+      spaceId: space.id,
+      userId: user.id,
+      role: 'owner',
+    });
+
+    await tx.insert(wallets).values({
+      spaceId: space.id,
+      name: 'Cash',
+      type: 'cash',
+      currency: 'INR',
+    });
+
+    return { user, spaceId: space.id, created: true };
+  });
+
+  const tokens = await issueTokenPair(result.user.id, result.spaceId);
+  c.get('log').info('AUTH_GOOGLE_OK', {
+    userId: result.user.id,
+    created: result.created,
+  });
+
+  return c.json(
+    ok({
+      user: serializeUser(result.user, result.spaceId),
+      tokens,
+    }),
+    result.created ? 201 : 200,
   );
 });
 
@@ -335,6 +455,21 @@ app.post('/phone-link/confirm', otpLimit, zValidator('json', phoneLinkConfirmInp
 
   return c.json(ok({ linked: true, phone: normalized }));
 });
+
+async function issueTokenPair(userId: string, activeSpaceId: string) {
+  const accessToken = await signAccessToken({ sub: userId, asid: activeSpaceId });
+  const { token: refreshToken } = await signRefreshToken({ sub: userId });
+  await db.insert(refreshTokens).values({
+    userId,
+    tokenHash: hashRefreshToken(refreshToken),
+    expiresAt: new Date(Date.now() + env.JWT_REFRESH_TTL_SECONDS * 1000),
+  });
+  return {
+    accessToken,
+    refreshToken,
+    expiresIn: env.JWT_ACCESS_TTL_SECONDS,
+  };
+}
 
 function serializeUser(
   row: {
