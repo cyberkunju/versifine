@@ -12,7 +12,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { env } from './env.ts';
-import { errorMiddleware } from './middleware/error.ts';
+import { errorMiddleware, onError } from './middleware/error.ts';
 import { requestId } from './middleware/requestId.ts';
 import { adviceRoutes } from './routes/advice.ts';
 import { authRoutes } from './routes/auth.ts';
@@ -41,6 +41,11 @@ import {
 import { log } from './utils/logger.ts';
 
 const app = new Hono();
+
+// Canonical error handler — fires for any throw anywhere in the chain,
+// including async route handlers and nested routers. This is what reliably
+// converts a thrown AppError into our JSON envelope in the bundled build.
+app.onError(onError);
 
 app.use('*', requestId);
 app.use('*', errorMiddleware);

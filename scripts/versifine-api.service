@@ -9,7 +9,13 @@ User=versifine
 Group=versifine
 WorkingDirectory=/opt/versifine/repo/apps/api
 EnvironmentFile=/etc/versifine/api.env
-ExecStart=/usr/local/bin/bun dist/index.js
+# Run the API straight from TypeScript source. Bun executes .ts natively, and
+# running from source (not a bundle) avoids two classes of bundler bugs we hit:
+#   - thrown AppErrors escaping to Bun's default text/plain 500, and
+#   - string-concatenated dynamic imports (cycle-breakers) resolving relative
+#     to a single bundled file and failing at runtime.
+# The whole monorepo + node_modules are deployed, so source-run has everything.
+ExecStart=/usr/local/bin/bun run src/index.ts
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal

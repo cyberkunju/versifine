@@ -41,17 +41,14 @@ log "Commit: $COMMIT_SHORT"
 log "Installing workspace dependencies"
 /usr/local/bin/bun install --frozen-lockfile
 
-log "Building API bundle"
-# Mark optional native/native-only deps external (e.g. @huggingface/transformers'
-# onnxruntime native bindings). Runtime resolution lets the deploy install
-# the right platform binary when needed.
-/usr/local/bin/bun build apps/api/src/index.ts \
-    --target=bun \
-    --outdir=apps/api/dist \
-    --external '@huggingface/transformers' \
-    --external 'onnxruntime-node' \
-    --external 'sharp'
-[ -f apps/api/dist/index.js ] || { echo "ERROR: apps/api/dist/index.js missing"; exit 1; }
+log "Type-checking API (runs from source; no bundle)"
+# The API runs straight from TypeScript source (see versifine-api.service):
+# Bun executes .ts natively. We don't bundle it — bundling caused thrown
+# AppErrors to escape to a text/plain 500 and broke string-concat dynamic
+# imports. A typecheck here keeps the deploy failing fast on a broken API.
+( cd apps/api && /usr/local/bin/bun run typecheck ) \
+    || { echo "ERROR: API typecheck failed"; exit 1; }
+[ -f apps/api/src/index.ts ] || { echo "ERROR: apps/api/src/index.ts missing"; exit 1; }
 
 log "Building wa-bot bundle"
 # Mark optional/native deps as external — these aren't actually used by our
@@ -99,7 +96,7 @@ hash_pre() {
         | awk '{print $1}' | sort | sha256sum | awk '{print $1}'
 }
 WEB_HASH_OLD=$(hash_pre   "$APP/apps/web/build")
-API_HASH_OLD=$(hash_pre   "$APP/apps/api/dist")
+API_HASH_OLD=$(hash_pre   "$APP/apps/api/src")
 WABOT_HASH_OLD=$(hash_pre "$APP/apps/wa-bot/dist")
 
 # ---- 4. Sync the whole monorepo into /opt/versifine/repo ------------------
@@ -177,7 +174,7 @@ restart_if_changed() {
         sudo systemctl is-active "$svc" >/dev/null || sudo systemctl start "$svc"
     fi
 }
-restart_if_changed versifine-api   "$APP/apps/api/dist"     /var/lib/versifine/api.dist.sha256   "$API_HASH_OLD"
+restart_if_changed versifine-api   "$APP/apps/api/src"      /var/lib/versifine/api.dist.sha256   "$API_HASH_OLD"
 restart_if_changed versifine-web   "$APP/apps/web/build"    /var/lib/versifine/web.dist.sha256   "$WEB_HASH_OLD"
 restart_if_changed versifine-wabot "$APP/apps/wa-bot/dist"  /var/lib/versifine/wabot.dist.sha256 "$WABOT_HASH_OLD"
 
