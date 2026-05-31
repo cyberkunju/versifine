@@ -9,13 +9,13 @@
  * The response shape mirrors `captureResponse` in @versifine/shared so the
  * omnibar and the bot can share a renderer.
  */
-import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { isLanguage, isTransactionIntent, type Language } from '@versifine/shared';
 import { captureTextInput } from '@versifine/shared';
 import { requireUserOrBot } from '../middleware/authEither.ts';
 import { limits, rateLimit } from '../middleware/rateLimit.ts';
+import { validate } from '../middleware/validate.ts';
 import { classifyIntent } from '../services/ai/intent.ts';
 import { parseExpense, type ParsedExpense } from '../services/ai/parser.ts';
 import { transcribe } from '../services/ai/transcribe.ts';
@@ -237,7 +237,7 @@ app.post(
   '/text',
   requireUserOrBot,
   captureLimit,
-  zValidator('json', captureTextInput),
+  validate('json', captureTextInput),
   async (c) => {
     const { text, locale } = c.req.valid('json');
     const sourceTag: 'whatsapp_text' | 'manual_web' = c.req.header('x-bot-secret')
@@ -370,7 +370,7 @@ app.post(
   '/confirm',
   requireUserOrBot,
   captureLimit,
-  zValidator('json', confirmInput),
+  validate('json', confirmInput),
   async (c) => {
     const body = c.req.valid('json');
     const { draftId } = body;

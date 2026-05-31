@@ -13,7 +13,6 @@
  * (CAPTURE_CONFIRM when the API returned a draft; LINKED_MAIN otherwise).
  */
 import type { Session, IncomingMessage } from '../../types.ts';
-import { LANGUAGE_META } from '@versifine/shared';
 import {
   ApiClientError,
   askCopilot,
@@ -153,7 +152,11 @@ export async function handleCapture(
   message: IncomingMessage,
 ): Promise<CaptureResult> {
   const m = getMessages(session.language);
-  const locale = LANGUAGE_META[session.language].bcp47;
+  // The API's /capture/* `locale` is the short language enum (en/hi/ml/ta/te/kn),
+  // NOT a BCP-47 tag. Sending `en-IN` here makes captureTextInput's zod enum
+  // reject every request with a 400 ZodError, which the bot rendered as the
+  // empty-error "Couldn't log that." Pass the short code the schema expects.
+  const locale = session.language;
 
   try {
     if (message.hasAudio && message.audioBuffer) {

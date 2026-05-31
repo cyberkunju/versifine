@@ -16,6 +16,7 @@
  */
 import { env } from '../config.ts';
 import { log } from '../utils/logger.ts';
+import { normalizeLocale } from '../utils/locale.ts';
 
 export interface ApiSuccess<T> {
   success: true;
@@ -158,11 +159,12 @@ export async function captureText(
   text: string,
   locale?: string,
 ): Promise<CaptureResponseShape> {
+  const loc = normalizeLocale(locale);
   return await call<CaptureResponseShape>({
     method: 'POST',
     path: '/capture/text',
     phone,
-    body: locale ? { text, locale } : { text },
+    body: loc ? { text, locale: loc } : { text },
   });
 }
 
@@ -175,7 +177,8 @@ export async function captureVoice(
   const form = new FormData();
   const blob = new Blob([audio], { type: mimetype });
   form.set('audio', blob, suffixForMime(mimetype, 'voice'));
-  if (locale) form.set('locale', locale);
+  const loc = normalizeLocale(locale);
+  if (loc) form.set('locale', loc);
   return await call<CaptureResponseShape>({
     method: 'POST',
     path: '/capture/voice',
@@ -194,7 +197,8 @@ export async function captureImage(
   const form = new FormData();
   const blob = new Blob([image], { type: mimetype });
   form.set('image', blob, suffixForMime(mimetype, 'receipt'));
-  if (locale) form.set('locale', locale);
+  const loc = normalizeLocale(locale);
+  if (loc) form.set('locale', loc);
   return await call<CaptureResponseShape>({
     method: 'POST',
     path: '/capture/image',
