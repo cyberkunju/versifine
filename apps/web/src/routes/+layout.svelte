@@ -160,14 +160,14 @@
   {@render children?.()}
 {:else}
   <div class="vf-shell relative flex h-screen w-full overflow-hidden">
-    <!-- Fine grain over the gradient — premium tactile ink, not flat digital. -->
-    <div aria-hidden="true" class="bg-grain pointer-events-none absolute inset-0 opacity-[0.5] mix-blend-soft-light"></div>
-    <!-- Aurora glow blobs over the gradient ground — periwinkle + navy only -->
-    <div aria-hidden="true" class="vf-aurora pointer-events-none absolute -left-40 -top-48 h-[560px] w-[560px] rounded-full" style="background:radial-gradient(closest-side, hsl(242 87% 74% / 0.55), transparent 70%); filter:blur(48px);"></div>
-    <div aria-hidden="true" class="vf-aurora pointer-events-none absolute -bottom-40 left-16 h-[460px] w-[460px] rounded-full" style="background:radial-gradient(closest-side, hsl(236 77% 50% / 0.4), transparent 70%); filter:blur(56px); animation-delay:-7s;"></div>
-    <div aria-hidden="true" class="vf-aurora pointer-events-none absolute -top-32 left-1/4 h-[380px] w-[380px] rounded-full" style="background:radial-gradient(closest-side, hsl(242 87% 74% / 0.3), transparent 70%); filter:blur(60px); animation-delay:-12s;"></div>
-    <!-- Faded V watermark, low in the rail -->
-    <VMark class="pointer-events-none absolute -bottom-28 -left-24 w-[420px] select-none opacity-[0.07]" />
+    <!-- Aurora glow blobs — ported 1:1 from the approved login brand rail. -->
+    <div aria-hidden="true" class="vf-aurora pointer-events-none absolute -left-40 -top-48 h-[560px] w-[560px] rounded-full" style="background:radial-gradient(closest-side, oklch(0.55 0.22 290 / 0.55), transparent 70%); filter:blur(44px);"></div>
+    <div aria-hidden="true" class="vf-aurora pointer-events-none absolute top-1/3 -left-24 h-[440px] w-[440px] rounded-full" style="background:radial-gradient(closest-side, oklch(0.6 0.2 230 / 0.45), transparent 70%); filter:blur(52px); animation-delay:-7s;"></div>
+    <div aria-hidden="true" class="vf-aurora pointer-events-none absolute -bottom-44 left-8 h-[420px] w-[420px] rounded-full" style="background:radial-gradient(closest-side, oklch(0.55 0.22 290 / 0.4), transparent 70%); filter:blur(56px); animation-delay:-12s;"></div>
+    <!-- Faded V watermark, drifting slowly low in the rail -->
+    <div class="vf-drift pointer-events-none absolute -bottom-28 -left-24 w-[420px] select-none opacity-[0.07]">
+      <VMark class="w-full" />
+    </div>
 
     <Sidebar mobileOpen={mobileSidebarOpen} onClose={() => (mobileSidebarOpen = false)} />
     <div class="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col lg:py-2.5 lg:pr-2.5">
@@ -202,37 +202,40 @@
 <Toaster />
 
 <style>
-  /* Living brand gradient ground — built ONLY from the three brand inks:
-     navy #121a8c (236 77% 31%), navy-deep #090069 (245 100% 21%), and the
-     periwinkle accent #8481f6 (242 87% 74%). A soft mesh of radial glows over
-     the base diagonal gives depth; the whole field drifts so the rail breathes.
-     No off-brand hues — every stop sits in the 236–245 indigo band. */
+  /* Brand gradient ground — the approved login rail's exact oklch ramp, so
+     the shell matches the login 1:1. A slim mesh drift keeps it subtly alive
+     without reading as "animated". */
   .vf-shell {
     background:
-      radial-gradient(90% 70% at 12% 8%, hsl(242 87% 74% / 0.42), transparent 55%),
-      radial-gradient(80% 70% at 88% 18%, hsl(236 77% 41% / 0.5), transparent 58%),
-      radial-gradient(120% 100% at 90% 100%, hsl(245 100% 14% / 0.7), transparent 62%),
       linear-gradient(
-        150deg,
-        hsl(236 77% 32%) 0%,
-        hsl(240 90% 24%) 48%,
-        hsl(245 100% 16%) 100%
+        160deg,
+        oklch(0.32 0.18 268) 0%,
+        oklch(0.22 0.16 268) 60%,
+        oklch(0.16 0.12 268) 100%
       );
-    background-size: 200% 200%, 200% 200%, 200% 200%, 180% 180%;
-    background-position: 0% 0%, 100% 0%, 100% 100%, 0% 0%;
-    animation: vf-shell-drift 24s ease-in-out infinite;
+    background-size: 140% 140%;
+    background-position: 0% 0%;
+    animation: vf-shell-drift 30s ease-in-out infinite;
   }
   @keyframes vf-shell-drift {
-    0%, 100% { background-position: 0% 0%, 100% 0%, 100% 100%, 0% 0%; }
-    50% { background-position: 35% 30%, 65% 25%, 70% 70%, 100% 60%; }
+    0%, 100% { background-position: 0% 0%; }
+    50% { background-position: 100% 50%; }
   }
-  /* Periwinkle accent blob breathes; the deep navy ones anchor the corners. */
+  /* Aurora blobs drift gently (login cadence) — subtle, but you can catch it. */
   .vf-aurora {
     animation: vf-aurora 14s ease-in-out infinite;
   }
   @keyframes vf-aurora {
-    0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.5; }
-    50% { transform: translate(40px, -30px) scale(1.16); opacity: 0.8; }
+    0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.55; }
+    50% { transform: translate(40px, -30px) scale(1.15); opacity: 0.8; }
+  }
+  /* The watermark V breathes ever so slightly, like the login's drift. */
+  .vf-drift {
+    animation: vf-vdrift 20s ease-in-out infinite;
+  }
+  @keyframes vf-vdrift {
+    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+    50% { transform: translate(-16px, -20px) rotate(-3deg); }
   }
   /* Soft inner highlight where the white sheet meets the gradient — turns the
      plain edge into a lit bevel that subtly pulses. */
@@ -257,6 +260,7 @@
   @media (prefers-reduced-motion: reduce) {
     .vf-shell { animation: none; }
     .vf-aurora { animation: none; }
+    .vf-drift { animation: none; }
     .vf-panel::before { animation: none; }
   }
 </style>
