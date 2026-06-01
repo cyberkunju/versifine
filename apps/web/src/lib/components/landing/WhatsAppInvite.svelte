@@ -81,8 +81,8 @@
     <div class="relative overflow-hidden rounded-[1.25rem] border border-[hsl(var(--border))] bg-white shadow-[0_30px_60px_-24px_rgba(18,26,140,0.45)] ring-1 ring-black/[0.03]">
       <!-- Navy header strip — echoes the demo chat header -->
       <div class="flex items-center gap-3 bg-[hsl(var(--brand-navy))] px-4 py-3 text-[hsl(var(--brand-paper))]">
-        <span class="grid h-9 w-9 shrink-0 place-items-center rounded-[0.7rem] bg-gradient-to-br from-[#25D366] to-[#12a84e] text-white shadow-[0_4px_12px_-4px_rgba(18,168,78,0.9)]">
-          <WhatsAppGlyph class="h-5 w-5" />
+        <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#25D366] text-white">
+          <WhatsAppGlyph class="h-[18px] w-[18px]" />
         </span>
         <div class="min-w-0 flex-1">
           <p class="text-sm font-semibold leading-tight">Versifine</p>
@@ -118,7 +118,7 @@
           target="_blank"
           rel="noopener"
           onclick={openWhatsApp}
-          class="group mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2.5 rounded-full bg-gradient-to-br from-[#25D366] to-[#12a84e] px-5 text-sm font-semibold text-white shadow-[0_12px_28px_-12px_rgba(18,168,78,0.85)] transition-all hover:-translate-y-0.5 hover:shadow-[0_16px_34px_-12px_rgba(18,168,78,0.95)]"
+          class="group mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2.5 rounded-full bg-[#25D366] px-5 text-sm font-semibold text-white shadow-[0_12px_28px_-12px_rgba(37,168,85,0.85)] transition-all hover:-translate-y-0.5 hover:bg-[#20bd5a] hover:shadow-[0_16px_34px_-12px_rgba(37,168,85,0.95)]"
         >
           <WhatsAppGlyph class="h-[18px] w-[18px]" />
           Start chatting
