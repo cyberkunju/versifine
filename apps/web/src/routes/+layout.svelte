@@ -158,11 +158,11 @@
 {:else if isLandingRoute || isAuthRoute || isStandaloneRoute || !auth.isAuthenticated}
   {@render children?.()}
 {:else}
-  <div class="flex min-h-screen w-full bg-[hsl(var(--brand-ivory))]">
+  <div class="flex min-h-screen w-full bg-[hsl(var(--brand-navy-deep))]">
     <Sidebar mobileOpen={mobileSidebarOpen} onClose={() => (mobileSidebarOpen = false)} />
-    <div class="flex min-w-0 flex-1 flex-col lg:py-3 lg:pr-3">
-      <!-- Framed content panel: rounded, hairline-bordered white surface on the soft ground -->
-      <div class="flex min-h-0 flex-1 flex-col overflow-hidden bg-[hsl(var(--background))] lg:rounded-2xl lg:border lg:border-[hsl(var(--border))] lg:shadow-[0_1px_2px_rgba(18,26,140,0.04),0_18px_40px_-28px_rgba(18,26,140,0.22)]">
+    <div class="flex min-w-0 flex-1 flex-col lg:py-2.5 lg:pr-2.5">
+      <!-- Framed content panel: white sheet set into the navy ground -->
+      <div class="flex min-h-0 flex-1 flex-col overflow-hidden bg-[hsl(var(--background))] lg:rounded-2xl lg:shadow-[0_10px_40px_-12px_rgba(0,0,0,0.35)] lg:ring-1 lg:ring-black/10">
         <Topbar
           onMenu={() => (mobileSidebarOpen = true)}
           onOpenCommand={() => panels.setCommandOpen(true)}
