@@ -99,6 +99,15 @@ export function extractAmount(text: string): AmountExtraction {
   // 3) No currency attached — score every bare number and pick the price.
   const amt = pickBareAmount(cleaned);
   if (amt !== null) return { amount: amt, currency: null };
+
+  // 4) No digits anywhere — fall back to spelled-out / worded numbers in
+  //    English and the supported Indian languages ("നൂറ് രൂപ" → 100,
+  //    "five hundred" → 500, "दो सौ" → 200). Digits always win, so this
+  //    only runs when steps 1–3 found nothing. This is the fix for the
+  //    voice-note bug where "ചായ കുടിച്ചു നൂറ് രൂപായ്" stalled the bot.
+  const worded = pickWordedAmount(cleaned);
+  if (worded) return { amount: worded.value, currency: worded.currency };
+
   return { amount: null, currency: null };
 }
 
@@ -171,6 +180,177 @@ function parseAmount(numberToken: string, suffix: string | null): number | null 
 function normalizeCurrencyToken(token: string): Currency | null {
   const lookup = token.trim().toLowerCase();
   return CURRENCY_ALIASES[lookup] ?? null;
+}
+
+/* -----------------------------------------------------------------------
+ * Worded / spelled-out numbers.
+ *
+ * Voice notes often carry the amount as a WORD rather than a digit:
+ *   "ചായ കുടിച്ചു നൂറ് രൂപായ്"  (Malayalam: drank tea, hundred rupees) → 100
+ *   "five hundred for groceries"                                      → 500
+ *   "दो सौ का सामान"            (Hindi: two hundred worth of goods)    → 200
+ *
+ * This is a deterministic fallback that ONLY runs after the digit-based
+ * extractors (steps 1–3 in extractAmount) come up empty, so a literal
+ * digit always wins over a spelled-out one.
+ *
+ * Coverage is the common/round numbers and small integers in English plus
+ * the six supported languages (English, Hindi, Malayalam, Tamil, Telugu,
+ * Kannada): the units 0–20, the round tens (20,30,…,90) and the scale
+ * words hundred / thousand / lakh / crore. That is enough to compose the
+ * everyday amounts people speak — "two hundred", "fifteen hundred",
+ * "five thousand", "one lakh", "twenty five", "നൂറ്", "रണ്ടായിരം"-style
+ * round figures — without trying to enumerate every integer.
+ */
+interface WordedToken {
+  value: number;
+  /** A scale multiplier (hundred/thousand/lakh/crore) vs an additive unit. */
+  scale: boolean;
+}
+
+/** Additive units (value < 100), keyed by lower-cased word in every language. */
+const WORDED_UNITS: Record<string, number> = {
+  // --- English ---------------------------------------------------------
+  zero: 0,
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8,
+  nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14,
+  fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19,
+  twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70,
+  eighty: 80, ninety: 90,
+  // --- Hindi (Devanagari) ---------------------------------------------
+  शून्य: 0,
+  एक: 1, दो: 2, तीन: 3, चार: 4, पाँच: 5, पांच: 5, छह: 6, छः: 6, सात: 7,
+  आठ: 8, नौ: 9, दस: 10, बीस: 20, तीस: 30, चालीस: 40, पचास: 50, साठ: 60,
+  सत्तर: 70, अस्सी: 80, नब्बे: 90,
+  // --- Malayalam -------------------------------------------------------
+  പൂജ്യം: 0,
+  ഒന്ന്: 1, രണ്ട്: 2, മൂന്ന്: 3, നാല്: 4, അഞ്ച്: 5, ആറ്: 6, ഏഴ്: 7,
+  എട്ട്: 8, ഒമ്പത്: 9, ഒൻപത്: 9, പത്ത്: 10, ഇരുപത്: 20, മുപ്പത്: 30,
+  നാല്പത്: 40, നാൽപത്: 40, അമ്പത്: 50, അറുപത്: 60, എഴുപത്: 70,
+  എൺപത്: 80, എണ്പത്: 80, തൊണ്ണൂറ്: 90,
+  // --- Tamil -----------------------------------------------------------
+  பூஜ்ஜியம்: 0,
+  ஒன்று: 1, இரண்டு: 2, மூன்று: 3, நான்கு: 4, ஐந்து: 5, ஆறு: 6, ஏழு: 7,
+  எட்டு: 8, ஒன்பது: 9, பத்து: 10, இருபது: 20, முப்பது: 30, நாற்பது: 40,
+  ஐம்பது: 50, அறுபது: 60, எழுபது: 70, எண்பது: 80, தொண்ணூறு: 90,
+  // --- Telugu ----------------------------------------------------------
+  సున్నా: 0,
+  ఒకటి: 1, రెండు: 2, మూడు: 3, నాలుగు: 4, ఐదు: 5, ఆరు: 6, ఏడు: 7,
+  ఎనిమిది: 8, తొమ్మిది: 9, పది: 10, ఇరవై: 20, ముప్పై: 30, నలభై: 40,
+  యాభై: 50, అరవై: 60, డెబ్బై: 70, ఎనభై: 80, తొంభై: 90,
+  // --- Kannada ---------------------------------------------------------
+  ಸೊನ್ನೆ: 0,
+  ಒಂದು: 1, ಎರಡು: 2, ಮೂರು: 3, ನಾಲ್ಕು: 4, ಐದು: 5, ಆರು: 6, ಏಳು: 7,
+  ಎಂಟು: 8, ಒಂಬತ್ತು: 9, ಹತ್ತು: 10, ಇಪ್ಪತ್ತು: 20, ಮೂವತ್ತು: 30,
+  ನಲವತ್ತು: 40, ಐವತ್ತು: 50, ಅರವತ್ತು: 60, ಎಪ್ಪತ್ತು: 70, ಎಂಬತ್ತು: 80,
+  ತೊಂಬತ್ತು: 90,
+};
+
+/** Scale multipliers, keyed by lower-cased word in every language. */
+const WORDED_SCALES: Record<string, number> = {
+  // --- English ---------------------------------------------------------
+  hundred: 100, thousand: 1_000, lakh: 100_000, lac: 100_000, lakhs: 100_000,
+  crore: 10_000_000, crores: 10_000_000, million: 1_000_000, billion: 1_000_000_000,
+  // --- Hindi -----------------------------------------------------------
+  सौ: 100, हज़ार: 1_000, हजार: 1_000, लाख: 100_000, करोड़: 10_000_000, करोड: 10_000_000,
+  // --- Malayalam -------------------------------------------------------
+  നൂറ്: 100, നൂറു: 100, ആയിരം: 1_000, ലക്ഷം: 100_000, കോടി: 10_000_000,
+  // --- Tamil -----------------------------------------------------------
+  நூறு: 100, ஆயிரம்: 1_000, இலட்சம்: 100_000, லட்சம்: 100_000, கோடி: 10_000_000,
+  // --- Telugu ----------------------------------------------------------
+  వంద: 100, వెయ్యి: 1_000, వేయి: 1_000, లక్ష: 100_000, కోటి: 10_000_000,
+  // --- Kannada ---------------------------------------------------------
+  ನೂರು: 100, ಸಾವಿರ: 1_000, ಲಕ್ಷ: 100_000, ಕೋಟಿ: 10_000_000,
+};
+
+/** Connector words that join number words without breaking a run or adding value. */
+const WORDED_CONNECTORS = new Set(['and']);
+
+const WORDED_LOOKUP: Map<string, WordedToken> = (() => {
+  const map = new Map<string, WordedToken>();
+  for (const [word, value] of Object.entries(WORDED_UNITS)) {
+    map.set(word, { value, scale: false });
+  }
+  for (const [word, value] of Object.entries(WORDED_SCALES)) {
+    // Scale words take precedence if a key ever collides with a unit.
+    map.set(word, { value, scale: true });
+  }
+  return map;
+})();
+
+/**
+ * Split text into word tokens while KEEPING combining marks (vowel signs,
+ * the Malayalam/Indic virama "chandrakkala", etc.) attached to their base
+ * letter. A naive split on \p{L} alone would tear "നൂറ്" into "നൂ" + "റ"
+ * because the virana U+0D4D is a non-spacing mark (\p{M}), not a letter.
+ */
+function tokenizeWords(text: string): string[] {
+  return text
+    .toLowerCase()
+    .split(/[^\p{L}\p{M}\p{N}]+/u)
+    .filter(Boolean);
+}
+
+/**
+ * Fold a left-to-right sequence of unit/scale tokens into a single number.
+ *   two hundred fifty  → 2 → 200 → 250
+ *   five thousand      → 5 → 5000
+ *   one lakh           → 1 → 100000
+ *   twenty five        → 20 → 25
+ *   നൂറ് (alone)        → 100
+ */
+function composeWordedNumber(parts: WordedToken[]): number {
+  let result = 0;
+  let current = 0;
+  for (const part of parts) {
+    if (!part.scale) {
+      current += part.value;
+    } else if (part.value === 100) {
+      // "hundred" multiplies the group built so far (defaulting to one).
+      current = (current === 0 ? 1 : current) * 100;
+    } else {
+      // thousand / lakh / crore flush the current group and scale it up.
+      const group = current === 0 ? 1 : current;
+      result += group * part.value;
+      current = 0;
+    }
+  }
+  return result + current;
+}
+
+/**
+ * Last-resort amount extractor for spelled-out numbers. Scans the text for
+ * runs of consecutive number words (connectors like "and" are allowed
+ * inside a run) and returns the largest composed value — the price is
+ * almost always the biggest figure spoken. Currency is filled in from any
+ * alias present in the text, mirroring extractCurrency.
+ */
+function pickWordedAmount(text: string): { value: number; currency: Currency | null } | null {
+  const tokens = tokenizeWords(text);
+  const runs: WordedToken[][] = [];
+  let current: WordedToken[] | null = null;
+  for (const token of tokens) {
+    const hit = WORDED_LOOKUP.get(token);
+    if (hit) {
+      if (current === null) current = [];
+      current.push(hit);
+    } else if (WORDED_CONNECTORS.has(token) && current !== null) {
+      // Keep the run open across "two hundred AND fifty"; adds no value.
+    } else if (current !== null) {
+      runs.push(current);
+      current = null;
+    }
+  }
+  if (current !== null) runs.push(current);
+  if (runs.length === 0) return null;
+
+  let best: number | null = null;
+  for (const run of runs) {
+    const value = composeWordedNumber(run);
+    if (value > 0 && (best === null || value > best)) best = value;
+  }
+  if (best === null) return null;
+  return { value: Math.round(best * 100) / 100, currency: extractCurrency(text) };
 }
 
 /**

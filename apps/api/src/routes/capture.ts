@@ -17,7 +17,8 @@ import { requireUserOrBot } from '../middleware/authEither.ts';
 import { limits, rateLimit } from '../middleware/rateLimit.ts';
 import { validate } from '../middleware/validate.ts';
 import { classifyIntent } from '../services/ai/intent.ts';
-import { parseExpense, type ParsedExpense } from '../services/ai/parser.ts';
+import { parseExpense, type ParsedExpense, type MissingField } from '../services/ai/parser.ts';
+import { extractAmount, extractCurrency } from '../services/ai/parserRegex.ts';
 import { transcribe } from '../services/ai/transcribe.ts';
 import { extractFromReceipt } from '../services/ai/vision.ts';
 import { storeDraft, getDraft, consumeDraft, type DraftRecord } from '../services/capture/drafts.ts';
@@ -30,6 +31,15 @@ import { errors } from '../utils/errors.ts';
 import { log } from '../utils/logger.ts';
 
 const app = new Hono();
+
+/**
+ * Hard cap on clarifier rounds for a single draft. A fresh capture starts at
+ * 0; every re-stash after an unanswered clarifier bumps it. Once we cross the
+ * cap we stop re-asking and drop the draft instead of looping forever. With
+ * the deterministic regex clarifier path a valid answer always makes progress,
+ * so this only ever trips on genuinely unparseable replies.
+ */
+const MAX_CLARIFY_ROUNDS = 5;
 
 const captureLimit = rateLimit({
   ...limits.capture,
@@ -54,13 +64,33 @@ function summarizeForLog(text: string): string {
   return `${text.length}c/${words}w`;
 }
 
+/**
+ * Which field the next clarifier question is about, following the same
+ * priority the user-facing question uses. Returns null when nothing is
+ * missing. Shared by `followupQuestionFor` and the confirm anti-loop guard so
+ * "what we asked" and "what we ask next" are computed identically.
+ */
+function askedField(needs: ParsedExpense['needs']): MissingField | null {
+  if (needs.includes('amount')) return 'amount';
+  if (needs.includes('description')) return 'description';
+  if (needs.includes('wallet')) return 'wallet';
+  if (needs.includes('currency')) return 'currency';
+  return null;
+}
+
 function followupQuestionFor(needs: ParsedExpense['needs']): string | undefined {
-  if (needs.length === 0) return undefined;
-  if (needs.includes('amount')) return 'How much was it?';
-  if (needs.includes('description')) return 'What did you spend it on?';
-  if (needs.includes('wallet')) return 'Which wallet did you use?';
-  if (needs.includes('currency')) return 'Which currency was that?';
-  return undefined;
+  switch (askedField(needs)) {
+    case 'amount':
+      return 'How much was it?';
+    case 'description':
+      return 'What did you spend it on?';
+    case 'wallet':
+      return 'Which wallet did you use?';
+    case 'currency':
+      return 'Which currency was that?';
+    default:
+      return undefined;
+  }
 }
 
 interface RunPipelineInput {
@@ -241,6 +271,79 @@ function shortClarifierAsDescription(text: string): string | null {
   if (/\d/.test(clean)) return null;
   if (/^(confirm|cancel|edit|help|menu|reset|stop|status)$/i.test(clean)) return null;
   return clean;
+}
+
+/**
+ * Apply a free-form clarifier ("100", "rs 100", "₹100", "groceries", "auto")
+ * to a pending draft and return the fields to merge in.
+ *
+ * This is the deterministic anti-loop guarantee. It runs the regex extractors
+ * directly on the clarifier text so a bare number ALWAYS fills the amount and
+ * a bare noun ALWAYS fills the description — no LLM required. The previous
+ * implementation only re-parsed when the text failed `JSON.parse`, but a bare
+ * "100" is valid JSON (it parses to the number 100, not an object), so the
+ * re-parse branch never ran and the amount stayed null → the bot re-asked
+ * "How much was it?" forever.
+ *
+ * `followup` is the optional LLM re-parse of `${source}. ${text}`; we only
+ * consult it for fields the deterministic extractors and the existing draft
+ * can't supply. Existing non-null draft fields are never overwritten.
+ */
+function clarifierEdits(
+  draft: ParsedExpense,
+  clarifierText: string,
+  followup: ParsedExpense | null,
+): Partial<ParsedExpense> {
+  const regexAmount = extractAmount(clarifierText);
+  const regexCurrency = regexAmount.currency ?? extractCurrency(clarifierText);
+  // A noun-only clarifier ("groceries", "auto") has no digits — treat it as
+  // the description/category the user is supplying for the missing field.
+  const noun = shortClarifierAsDescription(clarifierText);
+
+  return {
+    // Regex wins on amount/currency; only fall back to the LLM when the
+    // deterministic pass found nothing.
+    amount: draft.amount ?? regexAmount.amount ?? followup?.amount ?? null,
+    currency: draft.currency ?? regexCurrency ?? followup?.currency ?? null,
+    description: draft.description ?? noun ?? followup?.description ?? null,
+    categoryHint: draft.categoryHint ?? followup?.categoryHint ?? noun ?? null,
+    walletHint: draft.walletHint ?? followup?.walletHint ?? null,
+    date: draft.date ?? followup?.date ?? null,
+    splitPeople: draft.splitPeople ?? followup?.splitPeople ?? null,
+    originalAmount: draft.originalAmount ?? followup?.originalAmount ?? null,
+    originalCurrency: draft.originalCurrency ?? followup?.originalCurrency ?? null,
+    confidence: Math.max(draft.confidence, followup?.confidence ?? 0),
+  };
+}
+
+export interface ClarifierResolution {
+  /** True when `text` was a JSON edits object (web omnibar), false for a
+   *  free-form clarifier (WhatsApp bot). */
+  isJsonEdits: boolean;
+  edits: Partial<ParsedExpense>;
+}
+
+/**
+ * Decide whether a `confirm` text payload is a structured JSON edits object
+ * or a free-form clarifier, and produce the edits either way.
+ *
+ * Critically, a bare number ("100") parses as valid JSON to a NUMBER — NOT a
+ * plain object — so it is correctly routed to the deterministic clarifier
+ * path, not silently dropped. This pure function is the unit under test for
+ * the infinite-loop regression.
+ */
+export function resolveClarifier(draft: ParsedExpense, text: string): ClarifierResolution {
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return { isJsonEdits: true, edits: sanitizeEdits(parsed as Record<string, unknown>) };
+    }
+  } catch {
+    // Not JSON — fall through to the clarifier path.
+  }
+  // Deterministic regex pass (no LLM). A `followup` re-parse is layered on by
+  // the route only if this leaves a required field unfilled.
+  return { isJsonEdits: false, edits: clarifierEdits(draft, text, null) };
 }
 
 function maybeLanguage(input: string | undefined): Language | undefined {
@@ -436,44 +539,65 @@ app.post(
     }
 
     // Apply edits as a JSON patch if the user sent one, otherwise treat
-    // the whole `text` field as a new clarifier and re-run the parser.
+    // the whole `text` field as a free-form clarifier and fill missing fields
+    // deterministically (regex first, LLM only if a gap remains).
     let merged: ParsedExpense = record.draft;
     let edits: Partial<ParsedExpense> = {};
     if (body.edits) {
       edits = sanitizeEdits(body.edits);
     } else if (text) {
-      try {
-        const parsed = JSON.parse(text);
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-          edits = sanitizeEdits(parsed as Record<string, unknown>);
+      // The web omnibar may POST a JSON edits object in the `text` field, but
+      // the WhatsApp bot sends free-form clarifiers ("100", "groceries").
+      // `resolveClarifier` decides which it is and runs the deterministic
+      // regex pass for clarifiers — a bare number ALWAYS fills the amount.
+      //
+      // This is the infinite-loop fix: a bare "100" is itself valid JSON (it
+      // parses to the NUMBER 100, not an object), so the old code's
+      // `JSON.parse(text)` succeeded, the "is it an object?" guard failed, and
+      // the clarifier was silently dropped — `amount` stayed null and the bot
+      // re-asked "How much was it?" forever.
+      const resolution = resolveClarifier(merged, text);
+      edits = resolution.edits;
+      if (!resolution.isJsonEdits) {
+        const afterDeterministic = { ...merged, ...edits } as ParsedExpense;
+        const stillMissing =
+          afterDeterministic.amount === null || !afterDeterministic.description;
+        // Only spend an LLM round-trip when the deterministic pass left a gap
+        // (e.g. a wordy clarifier whose description the regex can't see).
+        if (stillMissing) {
+          const followup = await parseExpense({
+            text: `${record.source}. ${text}`,
+            locale: record.locale ?? undefined,
+          });
+          edits = clarifierEdits(merged, text, followup);
         }
-      } catch {
-        // Not JSON — re-parse to fill missing fields. We keep the originals
-        // for fields the user already had and only replace nulls.
-        const followup = await parseExpense({
-          text: `${record.source}. ${text}`,
-          locale: record.locale ?? undefined,
-        });
-        const clarifierDescription = shortClarifierAsDescription(text);
-        edits = {
-          amount: merged.amount ?? followup.amount,
-          currency: merged.currency ?? followup.currency,
-          description: merged.description ?? clarifierDescription ?? followup.description,
-          categoryHint: merged.categoryHint ?? followup.categoryHint ?? clarifierDescription,
-          walletHint: merged.walletHint ?? followup.walletHint,
-          date: merged.date ?? followup.date,
-          splitPeople: merged.splitPeople ?? followup.splitPeople,
-          originalAmount: merged.originalAmount ?? followup.originalAmount,
-          originalCurrency: merged.originalCurrency ?? followup.originalCurrency,
-          confidence: Math.max(merged.confidence, followup.confidence),
-        };
       }
     }
     merged = { ...merged, ...edits } as ParsedExpense;
     merged.needs = missingFields(merged);
 
     if (merged.amount === null || !merged.description) {
-      // Still missing — re-stash and ask again.
+      // Still missing a required field. Re-stash and ask for whatever is
+      // genuinely missing NEXT — never re-ask for what the user just supplied
+      // (the priority order in `followupQuestionFor` advances past any field
+      // the clarifier filled). A monotonic round counter rides along on the
+      // draft so a stream of unparseable replies can't loop forever.
+      const round = record.clarifyRounds + 1;
+      const nextField = askedField(merged.needs);
+
+      if (round > MAX_CLARIFY_ROUNDS) {
+        // Give up gracefully instead of bricking: drop the draft so the user
+        // starts fresh rather than being trapped in an endless clarifier.
+        consumeDraft(draftId);
+        return c.json(
+          ok({
+            intent: 'unknown',
+            needsConfirmation: false,
+            echo: text,
+          }),
+        );
+      }
+
       const next = storeDraft({
         spaceId: record.spaceId,
         userId: record.userId,
@@ -481,6 +605,8 @@ app.post(
         source: record.source,
         locale: record.locale ?? null,
         draft: merged,
+        clarifyRounds: round,
+        lastAsked: nextField,
       });
       consumeDraft(draftId);
       return c.json(
@@ -489,7 +615,7 @@ app.post(
           needsConfirmation: true,
           draftId: next.id,
           draft: serializeDraft(merged),
-          followupQuestion: followupQuestionFor(missingFields(merged)),
+          followupQuestion: followupQuestionFor(merged.needs),
           echo: text,
         }),
       );

@@ -15,7 +15,7 @@
  * a stray draftId from another tenant cannot be redeemed.
  */
 import { isLanguage, type Language } from '@versifine/shared';
-import { type ParsedExpense } from '../ai/parser.ts';
+import { type MissingField, type ParsedExpense } from '../ai/parser.ts';
 
 export interface DraftRecord {
   id: string;
@@ -28,6 +28,18 @@ export interface DraftRecord {
   draft: ParsedExpense;
   createdAt: number;
   expiresAt: number;
+  /**
+   * How many clarifier rounds this draft has already been through. A fresh
+   * capture starts at 0; every re-stash after an unanswered clarifier bumps
+   * it. The confirm route caps this so a draft can never loop forever.
+   */
+  clarifyRounds: number;
+  /**
+   * The field we last asked the user to supply ("amount" / "description").
+   * Lets the confirm route avoid re-asking for the exact same thing twice in
+   * a row when a clarifier failed to fill it.
+   */
+  lastAsked: MissingField | null;
 }
 
 const TTL_MS = 5 * 60_000;
@@ -58,6 +70,10 @@ export interface DraftSeed {
   source: string;
   locale?: string | null;
   draft: ParsedExpense;
+  /** Carried forward across re-stashes so the loop cap survives a new id. */
+  clarifyRounds?: number;
+  /** The field we asked for when handing this draft back to the user. */
+  lastAsked?: MissingField | null;
 }
 
 export function storeDraft(seed: DraftSeed): DraftRecord {
@@ -75,6 +91,8 @@ export function storeDraft(seed: DraftSeed): DraftRecord {
     draft: seed.draft,
     createdAt: now,
     expiresAt: now + TTL_MS,
+    clarifyRounds: seed.clarifyRounds ?? 0,
+    lastAsked: seed.lastAsked ?? null,
   };
   drafts.set(id, record);
   return record;

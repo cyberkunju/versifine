@@ -120,6 +120,178 @@ describe('extractAmount', () => {
   });
 });
 
+// --- worded / spelled-out numbers --------------------------------------
+// Production bug: a voice note "ചായ കുടിച്ചു നൂറ് രൂപായ്" carried the
+// amount as the WORD നൂറ് (= 100), not a digit, so extractAmount returned
+// null and the bot looped asking "How much was it?". Worded numbers in
+// English and all six supported languages must parse, while digits keep
+// priority whenever both appear.
+describe('extractAmount — worded numbers', () => {
+  // Exact production regression.
+  test('parses the failing Malayalam voice note "നൂറ് രൂപായ്" → 100', () => {
+    expect(extractAmount('ചായ കുടിച്ചു നൂറ് രൂപായ്')).toEqual({ amount: 100, currency: null });
+  });
+
+  // --- English ---------------------------------------------------------
+  test('English small integer word', () => {
+    expect(extractAmount('paid seven for chai')).toEqual({ amount: 7, currency: null });
+  });
+
+  test('English teen word', () => {
+    expect(extractAmount('fifteen on snacks')).toEqual({ amount: 15, currency: null });
+  });
+
+  test('English round ten', () => {
+    expect(extractAmount('fifty for the auto')).toEqual({ amount: 50, currency: null });
+  });
+
+  test('English compound tens "twenty five"', () => {
+    expect(extractAmount('lunch twenty five')).toEqual({ amount: 25, currency: null });
+  });
+
+  test('English "two hundred"', () => {
+    expect(extractAmount('two hundred on groceries')).toEqual({ amount: 200, currency: null });
+  });
+
+  test('English "five hundred" with following words', () => {
+    expect(extractAmount('five hundred for groceries')).toEqual({ amount: 500, currency: null });
+  });
+
+  test('English "fifteen hundred"', () => {
+    expect(extractAmount('fifteen hundred rent advance')).toEqual({ amount: 1500, currency: null });
+  });
+
+  test('English "two hundred fifty" composition', () => {
+    expect(extractAmount('dinner two hundred fifty')).toEqual({ amount: 250, currency: null });
+  });
+
+  test('English "two hundred and fifty" with connector', () => {
+    expect(extractAmount('two hundred and fifty for dinner')).toEqual({ amount: 250, currency: null });
+  });
+
+  test('English "five thousand"', () => {
+    expect(extractAmount('five thousand on the phone')).toEqual({ amount: 5000, currency: null });
+  });
+
+  test('English "one lakh"', () => {
+    expect(extractAmount('one lakh investment')).toEqual({ amount: 100_000, currency: null });
+  });
+
+  test('English "two crore"', () => {
+    expect(extractAmount('two crore property')).toEqual({ amount: 20_000_000, currency: null });
+  });
+
+  test('English worded amount keeps an attached currency word', () => {
+    expect(extractAmount('five thousand rupees rent')).toEqual({ amount: 5000, currency: 'INR' });
+  });
+
+  // --- Malayalam -------------------------------------------------------
+  test('Malayalam നൂറ് (100)', () => {
+    expect(extractAmount('നൂറ്')).toEqual({ amount: 100, currency: null });
+  });
+
+  test('Malayalam ആയിരം (1000)', () => {
+    expect(extractAmount('വാടക ആയിരം')).toEqual({ amount: 1000, currency: null });
+  });
+
+  test('Malayalam small integer അഞ്ച് (5)', () => {
+    expect(extractAmount('ചായ അഞ്ച്')).toEqual({ amount: 5, currency: null });
+  });
+
+  test('Malayalam അമ്പത് (50)', () => {
+    expect(extractAmount('ഓട്ടോ അമ്പത്')).toEqual({ amount: 50, currency: null });
+  });
+
+  test('Malayalam ലക്ഷം (100000)', () => {
+    // രൂപ is not a recognised currency alias (only rupee/rupees/rs/₹/inr are),
+    // so currency stays null — same as the production regression input.
+    expect(extractAmount('ലക്ഷം രൂപ')).toEqual({ amount: 100_000, currency: null });
+  });
+
+  // --- Hindi -----------------------------------------------------------
+  test('Hindi सौ (100)', () => {
+    expect(extractAmount('चाय सौ')).toEqual({ amount: 100, currency: null });
+  });
+
+  test('Hindi दो सौ (200)', () => {
+    expect(extractAmount('दो सौ का सामान')).toEqual({ amount: 200, currency: null });
+  });
+
+  test('Hindi हज़ार (1000)', () => {
+    expect(extractAmount('किराया हज़ार')).toEqual({ amount: 1000, currency: null });
+  });
+
+  test('Hindi लाख (100000)', () => {
+    expect(extractAmount('एक लाख')).toEqual({ amount: 100_000, currency: null });
+  });
+
+  test('Hindi करोड़ (10000000)', () => {
+    expect(extractAmount('दो करोड़')).toEqual({ amount: 20_000_000, currency: null });
+  });
+
+  test('Hindi पचास (50)', () => {
+    expect(extractAmount('ऑटो पचास')).toEqual({ amount: 50, currency: null });
+  });
+
+  // --- Tamil -----------------------------------------------------------
+  test('Tamil நூறு (100)', () => {
+    expect(extractAmount('நூறு')).toEqual({ amount: 100, currency: null });
+  });
+
+  test('Tamil ஆயிரம் (1000)', () => {
+    expect(extractAmount('வாடகை ஆயிரம்')).toEqual({ amount: 1000, currency: null });
+  });
+
+  test('Tamil ஐம்பது (50)', () => {
+    expect(extractAmount('டீ ஐம்பது')).toEqual({ amount: 50, currency: null });
+  });
+
+  // --- Telugu ----------------------------------------------------------
+  test('Telugu వంద (100)', () => {
+    expect(extractAmount('వంద')).toEqual({ amount: 100, currency: null });
+  });
+
+  test('Telugu వెయ్యి (1000)', () => {
+    expect(extractAmount('అద్దె వెయ్యి')).toEqual({ amount: 1000, currency: null });
+  });
+
+  test('Telugu యాభై (50)', () => {
+    expect(extractAmount('ఆటో యాభై')).toEqual({ amount: 50, currency: null });
+  });
+
+  // --- Kannada ---------------------------------------------------------
+  test('Kannada ನೂರು (100)', () => {
+    expect(extractAmount('ನೂರು')).toEqual({ amount: 100, currency: null });
+  });
+
+  test('Kannada ಸಾವಿರ (1000)', () => {
+    expect(extractAmount('ಬಾಡಿಗೆ ಸಾವಿರ')).toEqual({ amount: 1000, currency: null });
+  });
+
+  test('Kannada ಐವತ್ತು (50)', () => {
+    expect(extractAmount('ಆಟೋ ಐವತ್ತು')).toEqual({ amount: 50, currency: null });
+  });
+
+  // --- digit priority & non-interference -------------------------------
+  test('a digit always wins over a spelled-out word in the same text', () => {
+    // "two" (2) is present as a word but the explicit 560 must be chosen.
+    expect(extractAmount('two coffee for 560')).toEqual({ amount: 560, currency: null });
+  });
+
+  test('digit wins even when a worded scale word follows', () => {
+    expect(extractAmount('paid 450 hundred percent worth it')).toEqual({ amount: 450, currency: null });
+  });
+
+  test('worded parsing does not fire when no number word is present', () => {
+    expect(extractAmount('feeling broke today')).toEqual({ amount: null, currency: null });
+  });
+
+  test('picks the largest worded run across a sentence', () => {
+    // "two" (2) and "five hundred" (500) — the price is the bigger figure.
+    expect(extractAmount('two coffee five hundred')).toEqual({ amount: 500, currency: null });
+  });
+});
+
 describe('extractCurrency', () => {
   test('finds currency mentioned away from the amount', () => {
     expect(extractCurrency('lunch in dollars cost 50')).toBe('USD');

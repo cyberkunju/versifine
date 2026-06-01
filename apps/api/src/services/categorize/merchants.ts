@@ -11,6 +11,17 @@
  *   2. `startsWith`   — normalized string begins with the pattern
  *   3. `regex`        — case-insensitive regex matches the normalized string
  *   4. `contains`     — normalized string contains the pattern
+ *   5. `keyword`      — normalized string contains the pattern as a whole
+ *                       WORD (word-boundary match). This is the lowest
+ *                       priority tier and is reserved for generic Indian
+ *                       dish / beverage / grocery vocabulary ("mandi",
+ *                       "biryani", "sabzi", "lassi"). Ranking it below
+ *                       `contains` guarantees a specific brand always wins
+ *                       over a generic food word — e.g. "swiggy biryani"
+ *                       still resolves to Food Delivery (swiggy) rather than
+ *                       Restaurants (biryani). Word-boundary matching avoids
+ *                       false positives like "rice" inside "price" or "dal"
+ *                       inside "sandal".
  * Within the same kind, longer patterns win (more specific). This is why
  * "swiggy instamart" → Groceries beats "swiggy" → Food Delivery for an
  * Instamart line item.
@@ -24,7 +35,7 @@ import { resolve } from 'node:path';
 import { isCategory, type Category } from '@versifine/shared';
 import { log } from '../../utils/logger.ts';
 
-type MatchKind = 'exact' | 'startsWith' | 'regex' | 'contains';
+type MatchKind = 'exact' | 'startsWith' | 'regex' | 'contains' | 'keyword';
 
 interface RawMerchantEntry {
   pattern: string;
@@ -54,6 +65,7 @@ const MATCH_PRIORITY: Record<MatchKind, number> = {
   startsWith: 1,
   regex: 2,
   contains: 3,
+  keyword: 4,
 };
 
 const COMPILED: ReadonlyArray<CompiledMerchant> = compile();
@@ -125,6 +137,20 @@ function compile(): CompiledMerchant[] {
         skipped++;
         continue;
       }
+    } else if (match === 'keyword') {
+      // Precompile a whole-word matcher. The normalized merchant string is
+      // already lowercased and space-delimited (non-alphanumerics become
+      // spaces), so a multi-word keyword like "fried rice" is matched as a
+      // contiguous token sequence bounded by word boundaries.
+      try {
+        const escaped = entry.pattern
+          .toLowerCase()
+          .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        regex = new RegExp(`(?:^|\\s)${escaped}(?:\\s|$)`, 'i');
+      } catch {
+        skipped++;
+        continue;
+      }
     }
     out.push({
       pattern: entry.pattern,
@@ -184,6 +210,8 @@ function matches(haystack: string, m: CompiledMerchant): boolean {
       return m.regex !== null && m.regex.test(haystack);
     case 'contains':
       return haystack.includes(m.patternLower);
+    case 'keyword':
+      return m.regex !== null && m.regex.test(haystack);
   }
 }
 
