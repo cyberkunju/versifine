@@ -11,7 +11,7 @@
  */
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { isLanguage, isTransactionIntent, type Language } from '@versifine/shared';
+import { isLanguage, isTransactionIntent, type Intent, type Language } from '@versifine/shared';
 import { captureTextInput } from '@versifine/shared';
 import { requireUserOrBot } from '../middleware/authEither.ts';
 import { limits, rateLimit } from '../middleware/rateLimit.ts';
@@ -24,6 +24,8 @@ import { extractFromReceipt } from '../services/ai/vision.ts';
 import { storeDraft, getDraft, consumeDraft, type DraftRecord } from '../services/capture/drafts.ts';
 import { persistDraft } from '../services/capture/persist.ts';
 import { safeCategorize } from '../services/categorize/_safe.ts';
+import { categorizeFromMerchantDB } from '../services/categorize/merchants.ts';
+import { normalizeMerchant } from '../services/transactions/normalize.ts';
 import { answerQuery } from '../services/capture/queryStubs.ts';
 import { listLiveWallets, pickWallet } from '../services/capture/wallet.ts';
 import { ok } from '../utils/envelope.ts';
@@ -93,6 +95,63 @@ function followupQuestionFor(needs: ParsedExpense['needs']): string | undefined 
   }
 }
 
+/**
+ * Deterministic, offline verdict on whether a short message is a spend the
+ * user wants to log — as opposed to a greeting, a question, or chit-chat.
+ *
+ * This is the routing guard that stops the "chai" / "100" hallucination: the
+ * intent classifier returns `unknown` (low confidence) for a bare expense
+ * noun or a bare number, and the route used to hand `unknown` straight to the
+ * copilot, which then invented an amount ("₹100 on chai") or dead-ended ("I
+ * can't assist with that"). Before deferring to chat we ask this function.
+ *
+ * A message is expense-like when EITHER signal fires — both are pure, with no
+ * DB and no LLM, so the decision is testable in isolation:
+ *
+ *   (a) `extractAmount` finds an explicit amount or a bare number
+ *       ("100", "₹120", "1.5k", "rs 90"); OR
+ *   (c) the curated India-first merchant/category catalogue recognizes a
+ *       spend word in the text ("chai" → Coffee & Beverages, "auto" →
+ *       Transportation, "dosa" → Restaurants, "groceries" → Groceries).
+ *
+ * A greeting ("hi") or a finance question ("how do I save money", "how do I
+ * start an emergency fund") has no amount and hits no spend word, so it is
+ * NOT expense-like and still routes to the copilot.
+ */
+export function isExpenseLike(text: string): boolean {
+  const trimmed = text?.trim() ?? '';
+  if (!trimmed) return false;
+  // (a) explicit amount or bare number anywhere in the message.
+  if (extractAmount(trimmed).amount !== null) return true;
+  // (c) curated, offline spend-word catalogue (tier 2 of the categorizer).
+  //     A non-null hit means we recognized a real merchant / food / transport
+  //     word — this is what makes "chai" read as an expense, not chat.
+  const hit = categorizeFromMerchantDB(normalizeMerchant(trimmed));
+  if (hit && hit.category !== 'Other') return true;
+  return false;
+}
+
+/**
+ * Route-level expense-like check. Starts with the deterministic verdict above
+ * and, only when that comes up empty, consults the full categorize waterfall
+ * (`safeCategorize`) — which adds the user's own merchant overrides and the
+ * injection-guarded LLM categorizer that understands code-mixed Indic spend
+ * words the static catalogue misses. A non-"Other" hit means a real spend.
+ *
+ * `safeCategorize` never throws; if it (or its model) is unavailable we simply
+ * fall back to the deterministic verdict, so routing stays correct offline.
+ */
+async function messageIsExpenseLike(spaceId: string, text: string): Promise<boolean> {
+  if (isExpenseLike(text)) return true;
+  try {
+    const cat = await safeCategorize(spaceId, text);
+    if (cat.category && cat.category !== 'Other') return true;
+  } catch {
+    // Ignore — the deterministic verdict already said "not expense-like".
+  }
+  return false;
+}
+
 interface RunPipelineInput {
   c: import('hono').Context;
   text: string;
@@ -102,7 +161,7 @@ interface RunPipelineInput {
 }
 
 async function runTextPipeline(input: RunPipelineInput) {
-  const { c, text, origin, locale, source } = input;
+  const { c, text, origin, locale } = input;
   const user = c.get('user');
   const traceLog = c.get('log');
 
@@ -115,8 +174,21 @@ async function runTextPipeline(input: RunPipelineInput) {
     inputSize: summarizeForLog(text),
   });
 
-  // Free-form chat → defer to the copilot stream endpoint.
+  // Free-form chat → defer to the copilot stream endpoint. But guard against
+  // the classifier labeling a bare spend word ("chai") or a bare number
+  // ("100") as chat: the DETERMINISTIC expense check (explicit amount or a
+  // curated spend word — no LLM) reclaims those as expense drafts. Genuine
+  // finance questions ("how do I save money") carry no amount and hit no
+  // spend word, so they correctly stay in chat.
   if (intentResult.intent === 'chat') {
+    if (isExpenseLike(text)) {
+      traceLog.info('CAPTURE_INTENT_RESCUED', {
+        from: 'chat',
+        to: 'expense',
+        inputSize: summarizeForLog(text),
+      });
+      return persistOrDraftExpense({ input, intentLabel: 'expense' });
+    }
     return c.json(
       ok({
         intent: 'chat',
@@ -148,12 +220,27 @@ async function runTextPipeline(input: RunPipelineInput) {
   }
 
   // Anything that's not a transaction intent and not a direct query — budget,
-  // goal, advice, lend/borrow, correction, delete, or an unclear message — is
-  // handed to the finance copilot rather than nagging the user to "rephrase".
-  // The copilot is finance-scoped (and injection-guarded server-side), so it
-  // either answers the money question, asks one short clarifier, or politely
-  // declines true off-topic. Far better UX than a dead-end prompt.
+  // goal, advice, lend/borrow, correction, delete, or an unclear message —
+  // MIGHT still be a spend the classifier under-read. The LLM returns
+  // intent="unknown" (low confidence) for a bare expense noun ("chai") or a
+  // bare number ("100"); those must become an expense DRAFT, never be shipped
+  // to the copilot (which previously hallucinated an amount or dead-ended).
+  //
+  // So before deferring to chat, ask the deterministic + categorize guard
+  // whether the message is actually expense-like. If it is, run the exact
+  // same draft path the transaction branch uses (parse → draft → ask the
+  // missing field). Only genuinely non-expense, non-query text — greetings,
+  // finance questions, true chit-chat — falls through to the copilot, which
+  // is finance-scoped and injection-guarded server-side.
   if (!isTransactionIntent(intentResult.intent)) {
+    if (await messageIsExpenseLike(user.activeSpaceId, text)) {
+      traceLog.info('CAPTURE_INTENT_RESCUED', {
+        from: intentResult.intent,
+        to: 'expense',
+        inputSize: summarizeForLog(text),
+      });
+      return persistOrDraftExpense({ input, intentLabel: 'expense' });
+    }
     return c.json(
       ok({
         intent: 'chat',
@@ -164,13 +251,30 @@ async function runTextPipeline(input: RunPipelineInput) {
     );
   }
 
-  // Transaction intent: parse the details.
+  return persistOrDraftExpense({ input, intentLabel: intentResult.intent });
+}
+
+/**
+ * Parse an expense utterance and either persist it directly (high-confidence,
+ * complete) or stash a draft and ask for the one missing field. Shared by the
+ * transaction-intent branch and the "rescued unknown → expense" branch so both
+ * follow the identical, no-hallucination contract: when the amount is null the
+ * draft ASKS for it ("How much was it?") instead of inventing one.
+ */
+async function persistOrDraftExpense(args: {
+  input: RunPipelineInput;
+  intentLabel: Intent;
+}) {
+  const { input, intentLabel } = args;
+  const { c, text, origin, locale, source } = input;
+  const user = c.get('user');
+
   const parsed = await parseExpense({ text, locale });
-  // Override the parser's default "expense" type with the intent classifier
-  // when the latter said "income" — rare but worth respecting.
-  if (intentResult.intent === 'income' && parsed.type !== 'income') {
+  // Respect the classifier when it disagrees with the parser's default
+  // "expense" type. Only meaningful on the transaction-intent path.
+  if (intentLabel === 'income' && parsed.type !== 'income') {
     parsed.type = 'income';
-  } else if (intentResult.intent === 'transfer' && parsed.type !== 'transfer') {
+  } else if (intentLabel === 'transfer' && parsed.type !== 'transfer') {
     parsed.type = 'transfer';
   }
 
@@ -194,7 +298,7 @@ async function runTextPipeline(input: RunPipelineInput) {
     });
     return c.json(
       ok({
-        intent: intentResult.intent,
+        intent: intentLabel,
         needsConfirmation: true,
         draftId: draft.id,
         draft: serializeDraft(parsed),
@@ -227,7 +331,7 @@ async function runTextPipeline(input: RunPipelineInput) {
     });
     return c.json(
       ok({
-        intent: intentResult.intent,
+        intent: intentLabel,
         needsConfirmation: true,
         draftId: draft.id,
         draft: serializeDraft(parsed),
@@ -239,7 +343,7 @@ async function runTextPipeline(input: RunPipelineInput) {
 
   return c.json(
     ok({
-      intent: intentResult.intent,
+      intent: intentLabel,
       needsConfirmation: false,
       queryResult: { transaction: persistResult.transaction },
       echo: text,
