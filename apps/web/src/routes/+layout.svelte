@@ -160,10 +160,12 @@
   {@render children?.()}
 {:else}
   <div class="vf-shell relative flex h-screen w-full overflow-hidden">
-    <!-- Aurora glow blobs over the gradient ground (echoes the login rail) -->
-    <div aria-hidden="true" class="vf-aurora pointer-events-none absolute -left-40 -top-48 h-[560px] w-[560px] rounded-full" style="background:radial-gradient(closest-side, hsl(258 75% 64% / 0.55), transparent 70%); filter:blur(48px);"></div>
-    <div aria-hidden="true" class="vf-aurora pointer-events-none absolute -bottom-40 left-16 h-[460px] w-[460px] rounded-full" style="background:radial-gradient(closest-side, hsl(202 85% 58% / 0.4), transparent 70%); filter:blur(56px); animation-delay:-7s;"></div>
-    <div aria-hidden="true" class="vf-aurora pointer-events-none absolute -top-32 left-1/4 h-[380px] w-[380px] rounded-full" style="background:radial-gradient(closest-side, hsl(280 70% 62% / 0.28), transparent 70%); filter:blur(60px); animation-delay:-12s;"></div>
+    <!-- Fine grain over the gradient — premium tactile ink, not flat digital. -->
+    <div aria-hidden="true" class="bg-grain pointer-events-none absolute inset-0 opacity-[0.5] mix-blend-soft-light"></div>
+    <!-- Aurora glow blobs over the gradient ground — periwinkle + navy only -->
+    <div aria-hidden="true" class="vf-aurora pointer-events-none absolute -left-40 -top-48 h-[560px] w-[560px] rounded-full" style="background:radial-gradient(closest-side, hsl(242 87% 74% / 0.55), transparent 70%); filter:blur(48px);"></div>
+    <div aria-hidden="true" class="vf-aurora pointer-events-none absolute -bottom-40 left-16 h-[460px] w-[460px] rounded-full" style="background:radial-gradient(closest-side, hsl(236 77% 50% / 0.4), transparent 70%); filter:blur(56px); animation-delay:-7s;"></div>
+    <div aria-hidden="true" class="vf-aurora pointer-events-none absolute -top-32 left-1/4 h-[380px] w-[380px] rounded-full" style="background:radial-gradient(closest-side, hsl(242 87% 74% / 0.3), transparent 70%); filter:blur(60px); animation-delay:-12s;"></div>
     <!-- Faded V watermark, low in the rail -->
     <VMark class="pointer-events-none absolute -bottom-28 -left-24 w-[420px] select-none opacity-[0.07]" />
 
@@ -200,34 +202,37 @@
 <Toaster />
 
 <style>
-  /* Living indigo gradient ground — echoes the login brand rail. The sidebar
-     and the border around the white content panel are this one continuous
-     surface. Two layered radial tints over the base diagonal give it depth,
-     and the whole field drifts slowly so the rail feels alive. */
+  /* Living brand gradient ground — built ONLY from the three brand inks:
+     navy #121a8c (236 77% 31%), navy-deep #090069 (245 100% 21%), and the
+     periwinkle accent #8481f6 (242 87% 74%). A soft mesh of radial glows over
+     the base diagonal gives depth; the whole field drifts so the rail breathes.
+     No off-brand hues — every stop sits in the 236–245 indigo band. */
   .vf-shell {
     background:
-      radial-gradient(120% 80% at 0% 0%, hsl(258 78% 46% / 0.55), transparent 55%),
-      radial-gradient(110% 90% at 100% 100%, hsl(250 90% 14% / 0.6), transparent 60%),
+      radial-gradient(90% 70% at 12% 8%, hsl(242 87% 74% / 0.42), transparent 55%),
+      radial-gradient(80% 70% at 88% 18%, hsl(236 77% 41% / 0.5), transparent 58%),
+      radial-gradient(120% 100% at 90% 100%, hsl(245 100% 14% / 0.7), transparent 62%),
       linear-gradient(
-        152deg,
-        hsl(236 80% 36%) 0%,
-        hsl(243 88% 25%) 46%,
-        hsl(249 88% 14%) 100%
+        150deg,
+        hsl(236 77% 32%) 0%,
+        hsl(240 90% 24%) 48%,
+        hsl(245 100% 16%) 100%
       );
-    background-size: 200% 200%, 200% 200%, 180% 180%;
-    background-position: 0% 0%, 100% 100%, 0% 0%;
-    animation: vf-shell-drift 22s ease-in-out infinite;
+    background-size: 200% 200%, 200% 200%, 200% 200%, 180% 180%;
+    background-position: 0% 0%, 100% 0%, 100% 100%, 0% 0%;
+    animation: vf-shell-drift 24s ease-in-out infinite;
   }
   @keyframes vf-shell-drift {
-    0%, 100% { background-position: 0% 0%, 100% 100%, 0% 0%; }
-    50% { background-position: 30% 40%, 70% 60%, 100% 70%; }
+    0%, 100% { background-position: 0% 0%, 100% 0%, 100% 100%, 0% 0%; }
+    50% { background-position: 35% 30%, 65% 25%, 70% 70%, 100% 60%; }
   }
+  /* Periwinkle accent blob breathes; the deep navy ones anchor the corners. */
   .vf-aurora {
     animation: vf-aurora 14s ease-in-out infinite;
   }
   @keyframes vf-aurora {
     0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.5; }
-    50% { transform: translate(44px, -32px) scale(1.18); opacity: 0.85; }
+    50% { transform: translate(40px, -30px) scale(1.16); opacity: 0.8; }
   }
   /* Soft inner highlight where the white sheet meets the gradient — turns the
      plain edge into a lit bevel that subtly pulses. */
