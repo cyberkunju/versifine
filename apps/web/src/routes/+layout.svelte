@@ -23,16 +23,13 @@
   import { getMessages } from '$lib/i18n';
   import { formatCurrency } from '$lib/utils/format';
 
-  import Sidebar from '$lib/components/layout/Sidebar.svelte';
-  import Topbar from '$lib/components/layout/Topbar.svelte';
+  import Masthead from '$lib/components/layout/Masthead.svelte';
   import CommandMenu from '$lib/components/layout/CommandMenu.svelte';
   import CopilotPanel from '$lib/components/copilot/CopilotPanel.svelte';
   import OmnibarDock from '$lib/components/omnibar/OmnibarDock.svelte';
   import { Toaster } from '$lib/components/ui';
 
   let { children } = $props();
-
-  let mobileSidebarOpen = $state(false);
 
   // Routes that are publicly accessible (no auth required) and must NOT
   // render the app shell. The landing page lives at `/`, auth pages
@@ -158,18 +155,14 @@
 {:else if isLandingRoute || isAuthRoute || isStandaloneRoute || !auth.isAuthenticated}
   {@render children?.()}
 {:else}
-  <div class="flex min-h-screen w-full">
-    <Sidebar mobileOpen={mobileSidebarOpen} onClose={() => (mobileSidebarOpen = false)} />
-    <div class="flex min-w-0 flex-1 flex-col">
-      <Topbar
-        onMenu={() => (mobileSidebarOpen = true)}
-        onOpenCommand={() => panels.setCommandOpen(true)}
-        onOpenCopilot={(initial) => openCopilot(initial)}
-      />
-      <main class="min-w-0 flex-1 overflow-x-hidden p-4 pb-28 sm:p-6 sm:pb-28">
-        {@render children?.()}
-      </main>
-    </div>
+  <div class="flex min-h-screen w-full flex-col">
+    <Masthead
+      onOpenCommand={() => panels.setCommandOpen(true)}
+      onOpenCopilot={(initial) => openCopilot(initial)}
+    />
+    <main class="mx-auto w-full min-w-0 max-w-[1280px] flex-1 overflow-x-hidden px-4 pb-28 pt-6 sm:px-6 sm:pb-28">
+      {@render children?.()}
+    </main>
   </div>
   {#if !panels.copilotOpen}
     <OmnibarDock onOpenCopilot={(initial) => openCopilot(initial)} />

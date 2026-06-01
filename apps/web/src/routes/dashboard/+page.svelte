@@ -136,57 +136,57 @@
 </script>
 
 <div class="relative">
-  <!-- Ambient aura field — faint brand atmosphere the cards float on. -->
-  <div aria-hidden="true" class="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-    <div class="absolute -right-40 -top-40 h-[32rem] w-[32rem] rounded-full" style="background:radial-gradient(closest-side, hsl(242 87% 74% / 0.16), transparent 70%); filter:blur(20px);"></div>
-    <div class="absolute -left-48 top-1/3 h-[34rem] w-[34rem] rounded-full" style="background:radial-gradient(closest-side, hsl(202 80% 56% / 0.10), transparent 70%); filter:blur(24px);"></div>
-    <div class="absolute bottom-0 left-1/2 h-[28rem] w-[40rem] -translate-x-1/2 rounded-full" style="background:radial-gradient(closest-side, hsl(236 77% 31% / 0.06), transparent 70%); filter:blur(28px);"></div>
-  </div>
+  <div class="flex flex-col gap-8">
+  <!-- ══ Front-page lead — net worth as the headline story ══════════ -->
+  <header class="relative">
+    <!-- Lead kicker line, like a section dateline -->
+    <div class="flex items-center justify-between gap-4 border-b border-[hsl(var(--brand-navy)/0.18)] pb-2">
+      <p class="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--brand-gold))]">
+        {greeting}{auth.user?.displayName ? `, ${auth.user.displayName.split(' ')[0]}` : ''}
+      </p>
+      <p class="text-[11px] uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">
+        {cur.label}{cur.isCurrent ? ` · Day ${todayDay}/${cur.daysInMonth}` : ''}
+      </p>
+    </div>
 
-  <div class="mx-auto flex max-w-[1200px] flex-col gap-5">
-  <!-- ── Hero band (navy) ──────────────────────────────────────────── -->
-  <header class="relative overflow-hidden rounded-[1.75rem] bg-[hsl(var(--brand-navy-deep))] text-white shadow-[0_30px_70px_-30px_hsl(var(--brand-navy)/0.85)] ring-1 ring-white/10">
-    <!-- gradient accent hairline along the top edge -->
-    <div aria-hidden="true" class="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[hsl(var(--brand-gold))] to-transparent opacity-70"></div>
-    <!-- fine grain for tactile depth -->
-    <div aria-hidden="true" class="bg-grain pointer-events-none absolute inset-0 opacity-[0.5] mix-blend-soft-light"></div>
-    <div aria-hidden="true" class="pointer-events-none absolute -right-24 -top-28 h-80 w-80 rounded-full" style="background:radial-gradient(closest-side, hsl(242 87% 74% / 0.4), transparent 70%); filter:blur(28px);"></div>
-    <div aria-hidden="true" class="pointer-events-none absolute -bottom-32 left-1/3 h-72 w-72 rounded-full" style="background:radial-gradient(closest-side, hsl(202 80% 56% / 0.22), transparent 70%); filter:blur(36px);"></div>
-    <div class="relative grid grid-cols-1 gap-6 p-6 sm:p-8 lg:grid-cols-[1.7fr_1fr]">
+    <div class="grid grid-cols-1 gap-6 pt-6 lg:grid-cols-[1.9fr_1fr] lg:gap-10">
+      <!-- The lead -->
       <div class="flex flex-col">
-        <p class="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.2em] text-white/55">
-          <span class="inline-block h-px w-6 bg-[hsl(var(--brand-gold))]"></span>
-          {cur.label}{cur.isCurrent ? ` · day ${todayDay} of ${cur.daysInMonth}` : ''}
+        <p class="font-display text-[13px] font-medium uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">{m.dashboard.netWorth}</p>
+        <p class="mt-1 font-display text-[clamp(3.25rem,8vw,5.5rem)] font-semibold leading-[0.95] tracking-[-0.02em] tabular-nums text-[hsl(var(--brand-navy))]">{formatCurrency(netWorth)}</p>
+        <p class="mt-3 max-w-prose text-sm leading-relaxed text-[hsl(var(--muted-foreground))]">
+          Held across {liveWallets.length} {liveWallets.length === 1 ? 'wallet' : 'wallets'}. This month you took in
+          <span class="font-semibold text-[hsl(160_42%_36%)]">{formatCurrency(totals.income)}</span> and spent
+          <span class="font-semibold text-[hsl(var(--foreground))]">{formatCurrency(totals.expense)}</span>,
+          keeping <span class="font-semibold text-[hsl(var(--brand-navy))]">{formatCurrency(totals.savings)}</span>.
         </p>
-        <h1 class="mt-2 font-display text-[20px] font-medium tracking-tight text-white/75">{greeting}{auth.user?.displayName ? `, ${auth.user.displayName.split(' ')[0]}` : ''}.</h1>
-        <div class="mt-5">
-          <p class="text-[11px] font-medium uppercase tracking-[0.16em] text-white/55">{m.dashboard.netWorth}</p>
-          <p class="mt-1 font-display text-[46px] font-semibold leading-none tracking-tight tabular-nums sm:text-[58px]">{formatCurrency(netWorth)}</p>
-          <p class="mt-2 text-xs text-white/55">across {liveWallets.length} {liveWallets.length === 1 ? 'wallet' : 'wallets'}</p>
-        </div>
-        <dl class="mt-7 grid grid-cols-3 gap-x-4 border-t border-white/15 pt-5">
-          <div>
-            <dt class="flex items-center gap-1 text-[11px] uppercase tracking-[0.1em] text-white/55"><ArrowDownLeft class="h-3 w-3 text-[hsl(160_60%_70%)]" /> {m.reports.income}</dt>
-            <dd class="mt-1 font-display text-lg font-semibold tabular-nums">{formatCurrency(totals.income)}</dd>
-            {#if incomeDelta !== null}<dd class="text-[11px] tabular-nums text-white/55">{incomeDelta >= 0 ? '↑' : '↓'} {Math.abs(incomeDelta).toFixed(0)}% vs last</dd>{/if}
+
+        <!-- Stat strip with column rules, like figures in a finance column -->
+        <dl class="mt-7 grid grid-cols-3 divide-x divide-[hsl(var(--border))] border-y border-[hsl(var(--border))]">
+          <div class="pr-4 py-3">
+            <dt class="flex items-center gap-1 text-[10px] font-medium uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]"><ArrowDownLeft class="h-3 w-3 text-[hsl(160_50%_42%)]" /> {m.reports.income}</dt>
+            <dd class="mt-1 font-display text-xl font-semibold tabular-nums text-[hsl(var(--foreground))]">{formatCurrency(totals.income)}</dd>
+            {#if incomeDelta !== null}<dd class="text-[11px] tabular-nums text-[hsl(var(--muted-foreground))]">{incomeDelta >= 0 ? '↑' : '↓'} {Math.abs(incomeDelta).toFixed(0)}% vs last</dd>{/if}
           </div>
-          <div>
-            <dt class="flex items-center gap-1 text-[11px] uppercase tracking-[0.1em] text-white/55"><ArrowUpRight class="h-3 w-3 text-[hsl(350_70%_72%)]" /> {m.reports.expense}</dt>
-            <dd class="mt-1 font-display text-lg font-semibold tabular-nums">{formatCurrency(totals.expense)}</dd>
-            {#if expenseDelta !== null}<dd class="text-[11px] tabular-nums text-white/55">{expenseDelta >= 0 ? '↑' : '↓'} {Math.abs(expenseDelta).toFixed(0)}% vs last</dd>{/if}
+          <div class="px-4 py-3">
+            <dt class="flex items-center gap-1 text-[10px] font-medium uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]"><ArrowUpRight class="h-3 w-3 text-[hsl(350_60%_55%)]" /> {m.reports.expense}</dt>
+            <dd class="mt-1 font-display text-xl font-semibold tabular-nums text-[hsl(var(--foreground))]">{formatCurrency(totals.expense)}</dd>
+            {#if expenseDelta !== null}<dd class="text-[11px] tabular-nums text-[hsl(var(--muted-foreground))]">{expenseDelta >= 0 ? '↑' : '↓'} {Math.abs(expenseDelta).toFixed(0)}% vs last</dd>{/if}
           </div>
-          <div>
-            <dt class="text-[11px] uppercase tracking-[0.1em] text-white/55">{m.reports.savings}</dt>
-            <dd class="mt-1 font-display text-lg font-semibold tabular-nums">{formatCurrency(totals.savings)}</dd>
-            <dd class="text-[11px] text-white/55">this month</dd>
+          <div class="pl-4 py-3">
+            <dt class="text-[10px] font-medium uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">{m.reports.savings}</dt>
+            <dd class="mt-1 font-display text-xl font-semibold tabular-nums text-[hsl(var(--brand-navy))]">{formatCurrency(totals.savings)}</dd>
+            <dd class="text-[11px] text-[hsl(var(--muted-foreground))]">this month</dd>
           </div>
         </dl>
       </div>
-      <div class="flex flex-col items-center justify-center gap-4 border-t border-white/15 pt-6 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
-        <Radial value={totals.savingsRate ?? 0} size={148} color="hsl(var(--brand-gold))" trackColor="hsl(0 0% 100% / 0.14)">
-          <div><p class="font-display text-[30px] font-semibold leading-none tabular-nums">{(totals.savingsRate ?? 0).toFixed(0)}<span class="text-base">%</span></p><p class="mt-1 text-[10px] uppercase tracking-[0.14em] text-white/55">saved</p></div>
+
+      <!-- The "photo" — savings rate radial, framed -->
+      <div class="flex flex-col items-center justify-center gap-4 lg:border-l lg:border-[hsl(var(--border))] lg:pl-10">
+        <Radial value={totals.savingsRate ?? 0} size={150} color="hsl(var(--brand-navy))" trackColor="hsl(var(--brand-navy) / 0.1)">
+          <div><p class="font-display text-[32px] font-semibold leading-none tabular-nums text-[hsl(var(--brand-navy))]">{(totals.savingsRate ?? 0).toFixed(0)}<span class="text-base">%</span></p><p class="mt-1 text-[10px] uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">saved</p></div>
         </Radial>
-        <button type="button" onclick={() => ask(m.dashboard.promptWhereDidMyMoneyGo)} class="group inline-flex items-center gap-2 rounded-full bg-white/12 px-4 py-2 text-sm font-medium text-white ring-1 ring-white/20 backdrop-blur transition-all hover:bg-white/20 hover:ring-[hsl(var(--brand-gold)/0.6)]"><Sparkles class="h-4 w-4 text-[hsl(var(--brand-gold))]" /> {m.nav.askCopilot}</button>
+        <button type="button" onclick={() => ask(m.dashboard.promptWhereDidMyMoneyGo)} class="group inline-flex items-center gap-2 rounded-full border border-[hsl(var(--brand-navy)/0.2)] px-4 py-2 text-sm font-medium text-[hsl(var(--brand-navy))] transition-all hover:border-[hsl(var(--brand-navy))] hover:bg-[hsl(var(--brand-navy))] hover:text-[hsl(var(--brand-paper))]"><Sparkles class="h-4 w-4 text-[hsl(var(--brand-gold))]" /> {m.nav.askCopilot}</button>
       </div>
     </div>
   </header>
@@ -390,15 +390,15 @@
 
 {#snippet cardHead(Icon: typeof TrendingUp, eyebrow: string, title: string, action?: Snippet)}
   <div class="flex items-start justify-between gap-4">
-    <div class="flex items-center gap-3">
-      <span class="relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-[hsl(var(--brand-navy-deep))] text-[hsl(var(--brand-paper))]">
-        <span aria-hidden="true" class="pointer-events-none absolute -right-2.5 -top-2.5 h-8 w-8 rounded-full" style="background:radial-gradient(closest-side, hsl(242 87% 74% / 0.85), transparent 70%); filter:blur(4px);"></span>
-        <Icon class="relative h-[18px] w-[18px]" />
-      </span>
-      <div>
-        <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">{eyebrow}</p>
-        <h2 class="mt-0.5 font-display text-xl font-semibold tracking-tight">{title}</h2>
-      </div>
+    <div>
+      <p class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[hsl(var(--brand-gold))]">
+        <span aria-hidden="true" class="inline-block h-px w-5 bg-[hsl(var(--brand-gold))]"></span>
+        {eyebrow}
+      </p>
+      <h2 class="mt-1.5 flex items-center gap-2 font-display text-xl font-semibold tracking-tight text-[hsl(var(--brand-navy))]">
+        <Icon class="h-[18px] w-[18px] text-[hsl(var(--brand-navy)/0.7)]" />
+        {title}
+      </h2>
     </div>
     {#if action}{@render action()}{/if}
   </div>
