@@ -1,16 +1,13 @@
 <script lang="ts">
   /**
-   * Omnibar — the single-input multimodal capture surface.
+   * Omnibar - the persistent bottom command input.
    *
-   * - Type freely → POST /capture/text.
-   * - Click the mic → record + POST /capture/voice.
-   * - Drag/paste an image → POST /capture/image.
-   * - Privacy mode disables voice/image and runs the local categoriser
-   *   for text intents that look like an expense.
-   * - ⌘L (or Ctrl+L) focuses the input from anywhere.
+   * The visual shell intentionally mirrors the Finehance reference omnibar:
+   * a single raised input surface with Vivien's mark on the left and send on
+   * the right. Text still flows through the existing capture endpoint.
    */
   import { onDestroy, onMount } from 'svelte';
-  import { Mic, ImagePlus, ShieldCheck, ShieldOff, Send, Wand2 } from 'lucide-svelte';
+  import { Send, Sparkles } from 'lucide-svelte';
   import { browser } from '$app/environment';
   import { api } from '$lib/api/client';
   import { ApiError } from '$lib/api/types';
@@ -20,12 +17,8 @@
   import { toast } from '$lib/stores/toast.svelte';
   import { pendingCaptures } from '$lib/stores/pendingCaptures.svelte';
   import { loadMinilm } from '$lib/ai/minilm-client';
-  import { getMessages } from '$lib/i18n';
-  import { cn } from '$lib/utils/cn';
   import { formatCurrency } from '$lib/utils/format';
-  import { Button, Dialog, Sheet, Tooltip } from '$lib/components/ui';
-  import VoiceCapture from './VoiceCapture.svelte';
-  import ImageDrop from './ImageDrop.svelte';
+  import { Button } from '$lib/components/ui';
   import ConfirmDialog from './ConfirmDialog.svelte';
 
   type Props = {
@@ -36,12 +29,8 @@
   let inputEl: HTMLInputElement | undefined = $state(undefined);
   let value = $state('');
   let busy = $state(false);
-  let voiceOpen = $state(false);
-  let imageOpen = $state(false);
   let confirmOpen = $state(false);
   let lastResponse = $state<CaptureResponse | null>(null);
-
-  const m = $derived(getMessages(settings.language));
 
   function handleKey(event: KeyboardEvent) {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'l') {
@@ -54,6 +43,7 @@
     if (!browser) return;
     window.addEventListener('keydown', handleKey);
   });
+
   onDestroy(() => {
     if (!browser) return;
     window.removeEventListener('keydown', handleKey);
@@ -64,7 +54,6 @@
     if (!text || busy) return;
     busy = true;
     try {
-      // Privacy mode flow: classify locally first when it looks like an expense.
       if (settings.privacyMode) {
         await handleLocalExpense(text);
         return;
@@ -76,7 +65,7 @@
         toast.error('Capture failed', err.message);
       } else if (!navigator.onLine) {
         await pendingCaptures.add(text, settings.language);
-        toast.warning('Saved offline', 'Will sync when you’re back online.');
+        toast.warning('Saved offline', "Will sync when you're back online.");
         value = '';
       } else {
         toast.error('Network error', err instanceof Error ? err.message : String(err));
@@ -89,7 +78,6 @@
   function handleResult(echoText: string, result: CaptureResponse) {
     lastResponse = result;
     if (result.intent === 'chat') {
-      // Open copilot pre-filled.
       onOpenCopilot?.(echoText);
       value = '';
       return;
@@ -98,15 +86,11 @@
       confirmOpen = true;
       return;
     }
-    // Success path: a transaction was created or a query answered.
     if (result.queryResult) {
       const tx = (result.queryResult as { transaction?: { amount: number; currency: string; description: string } })
         .transaction;
       if (tx) {
-        toast.success(
-          'Logged',
-          `${formatCurrency(tx.amount, tx.currency as never)} — ${tx.description}`,
-        );
+        toast.success('Logged', `${formatCurrency(tx.amount, tx.currency as never)} - ${tx.description}`);
       } else {
         toast.info('Got it', JSON.stringify(result.queryResult));
       }
@@ -121,24 +105,12 @@
     value = '';
   }
 
-  /**
-   * Privacy-mode text capture. The contract: your text is never sent to the
-   * server-side AI parser/categorizer. We parse a structured "spent N on X"
-   * locally and categorize on-device, then persist the finished transaction.
-   * (The description is still stored in your own database — that's data
-   * persistence, not an AI round-trip.)
-   *
-   * Anything we can't parse on-device would require the server AI parser,
-   * which would mean sending the raw text off-device. Rather than silently
-   * defeating Privacy Mode, we stop and tell the user so they can either
-   * rephrase as a structured expense or turn Privacy Mode off deliberately.
-   */
   async function handleLocalExpense(text: string) {
     const parsed = parseExpenseText(text);
     if (!parsed) {
       toast.warning(
         'Privacy mode is on',
-        'This needs server-side understanding. Rephrase as “spent 450 on groceries”, or turn off Privacy mode to use the AI parser.',
+        'This needs server-side understanding. Rephrase as "spent 450 on groceries", or turn off Privacy mode to use the AI parser.',
       );
       return;
     }
@@ -166,8 +138,8 @@
       tags: [],
     });
     const note = classifier
-      ? `${formatCurrency(parsed.amount)} — ${parsed.description}`
-      : `${formatCurrency(parsed.amount)} — ${parsed.description} · categorized on the server (local model unavailable)`;
+      ? `${formatCurrency(parsed.amount)} - ${parsed.description}`
+      : `${formatCurrency(parsed.amount)} - ${parsed.description} - categorized on the server (local model unavailable)`;
     toast.success('Logged privately', note);
     invalidate(['transactions']);
     invalidate(['wallets']);
@@ -176,7 +148,6 @@
   }
 
   function parseExpenseText(text: string): { amount: number; description: string; walletHint: string | null } | null {
-    // Catch "spent 450 on auto", "450 for groceries", "100 cash uber"
     const match =
       text.match(/(?:spent|paid|spend|^)\s*(\d+(?:\.\d+)?)(?:\s+on\s+|\s+for\s+|\s+at\s+|\s+)(.+)/i) ??
       text.match(/^(\d+(?:\.\d+)?)\s+(.+)/);
@@ -185,7 +156,9 @@
     if (!Number.isFinite(amount) || amount <= 0) return null;
     const description = match[2]?.trim() ?? '';
     if (!description) return null;
-    const walletHint = description.match(/\b(cash|hdfc|icici|sbi|kotak|axis|amex|paytm|gpay|phonepe|upi|card|wallet)\b/i)?.[0] ?? null;
+    const walletHint =
+      description.match(/\b(cash|hdfc|icici|sbi|kotak|axis|amex|paytm|gpay|phonepe|upi|card|wallet)\b/i)?.[0] ??
+      null;
     return { amount, description, walletHint };
   }
 
@@ -198,128 +171,38 @@
     }
     return live[0] ?? null;
   }
-
-  async function handleVoice(blob: Blob) {
-    voiceOpen = false;
-    busy = true;
-    try {
-      const result = await api.capture.voice(blob, settings.language);
-      handleResult('[voice]', result);
-    } catch (err) {
-      toast.error('Voice failed', err instanceof Error ? err.message : String(err));
-    } finally {
-      busy = false;
-    }
-  }
-
-  async function handleImage(file: File) {
-    imageOpen = false;
-    busy = true;
-    try {
-      const result = await api.capture.image(file, settings.language);
-      handleResult('[receipt]', result);
-    } catch (err) {
-      toast.error('Image failed', err instanceof Error ? err.message : String(err));
-    } finally {
-      busy = false;
-    }
-  }
 </script>
 
 <form
-  class="flex w-full max-w-3xl items-center gap-1.5"
+  class="omni-input-bar flex w-full items-center gap-3"
   onsubmit={(e) => {
     e.preventDefault();
     void submit();
   }}
 >
-  <div class="relative flex-1">
-    <Wand2
-      class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[hsl(var(--muted-foreground))]"
-    />
-    <input
-      bind:this={inputEl}
-      bind:value
-      type="text"
-      placeholder={m.topbar.omnibarPlaceholder}
-      aria-label="Capture an expense or ask Vivien"
-      class={cn(
-        'h-10 w-full rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--background))] pl-10 pr-20 text-sm shadow-sm transition-colors',
-        'placeholder:text-[hsl(var(--muted-foreground))]',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]',
-      )}
-    />
-    <kbd class="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 select-none rounded border border-[hsl(var(--border))] bg-[hsl(var(--muted))] px-1.5 py-0.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))] sm:inline-block">
-      {m.topbar.omnibarShortcut}
-    </kbd>
-  </div>
+  <span class="omni-input-icon grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-[0_10px_24px_-14px_hsl(var(--primary))]">
+    <Sparkles class="h-4 w-4" />
+  </span>
 
-  <Tooltip text={settings.privacyMode ? m.topbar.privacyOn : m.topbar.voice}>
-    {#snippet trigger()}
-      <Button
-        variant="ghost"
-        size="icon"
-        type="button"
-        onclick={() => {
-          if (settings.privacyMode) return;
-          voiceOpen = true;
-        }}
-        disabled={settings.privacyMode}
-        aria-label={m.topbar.voice}
-      >
-        <Mic class="h-4 w-4" />
-      </Button>
-    {/snippet}
-  </Tooltip>
+  <input
+    bind:this={inputEl}
+    bind:value
+    type="text"
+    placeholder="Ask Vivien anything..."
+    aria-label="Capture an expense or ask Vivien"
+    class="omni-input min-w-0 flex-1 border-0 bg-transparent p-0 text-sm font-medium text-[hsl(var(--foreground))] shadow-none outline-none placeholder:text-[hsl(var(--muted-foreground))] focus-visible:outline-none"
+  />
 
-  <Tooltip text={settings.privacyMode ? m.topbar.privacyOn : m.topbar.image}>
-    {#snippet trigger()}
-      <Button
-        variant="ghost"
-        size="icon"
-        type="button"
-        onclick={() => {
-          if (settings.privacyMode) return;
-          imageOpen = true;
-        }}
-        disabled={settings.privacyMode}
-        aria-label={m.topbar.image}
-      >
-        <ImagePlus class="h-4 w-4" />
-      </Button>
-    {/snippet}
-  </Tooltip>
-
-  {#if settings.privacyMode}
-    <Tooltip text={m.topbar.privacyOn}>
-      {#snippet trigger()}
-        <span class="grid h-9 w-9 place-items-center text-emerald-600 dark:text-emerald-400" aria-hidden="true">
-          <ShieldCheck class="h-4 w-4" />
-        </span>
-      {/snippet}
-    </Tooltip>
-  {:else}
-    <Tooltip text={m.topbar.privacyOff}>
-      {#snippet trigger()}
-        <span class="grid h-9 w-9 place-items-center text-[hsl(var(--muted-foreground))]" aria-hidden="true">
-          <ShieldOff class="h-4 w-4" />
-        </span>
-      {/snippet}
-    </Tooltip>
-  {/if}
-
-  <Button type="submit" size="icon" disabled={busy || !value.trim()} aria-label="Submit capture">
+  <Button
+    type="submit"
+    size="icon"
+    disabled={busy || !value.trim()}
+    aria-label="Submit capture"
+    class="omni-send h-8 w-8 rounded-lg border border-[hsl(var(--border))] bg-transparent text-[hsl(var(--muted-foreground))] hover:border-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))] hover:text-[hsl(var(--primary-foreground))]"
+  >
     <Send class="h-4 w-4" />
   </Button>
 </form>
-
-<Dialog bind:open={voiceOpen} title="Record a voice note" description="Tap the mic, talk, tap to stop.">
-  <VoiceCapture onComplete={handleVoice} onError={(message) => toast.error('Microphone', message)} />
-</Dialog>
-
-<Sheet bind:open={imageOpen} side="bottom" title="Attach a receipt" description="We’ll extract the amount and merchant.">
-  <ImageDrop onPick={handleImage} />
-</Sheet>
 
 <ConfirmDialog
   bind:open={confirmOpen}
@@ -328,3 +211,16 @@
     confirmOpen = false;
   }}
 />
+
+<style>
+  .omni-input-bar {
+    min-height: 3.25rem;
+    border-radius: 0.875rem;
+    padding: 0.875rem 1.125rem;
+    position: relative;
+  }
+
+  .omni-input::placeholder {
+    font-weight: 400;
+  }
+</style>

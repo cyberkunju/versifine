@@ -6,11 +6,12 @@
    */
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
-  import { ArrowRight, Check, MessageCircle } from 'lucide-svelte';
+  import { ArrowRight, Check, ArrowUpRight } from 'lucide-svelte';
   import Header from '$lib/components/landing/Header.svelte';
   import Footer from '$lib/components/landing/Footer.svelte';
   import FeatureGrid from '$lib/components/landing/FeatureGrid.svelte';
   import WhatsAppDemo from '$lib/components/landing/WhatsAppDemo.svelte';
+  import WhatsAppGlyph from '$lib/components/landing/WhatsAppGlyph.svelte';
   import CopilotDemo from '$lib/components/landing/CopilotDemo.svelte';
   import WhatsAppInvite from '$lib/components/landing/WhatsAppInvite.svelte';
   import WhatsAppFab from '$lib/components/landing/WhatsAppFab.svelte';
@@ -200,9 +201,12 @@
           </ul>
 
           <div class="mt-10 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
-            <a href={WA_DEMO_LINK} target="_blank" rel="noopener" class="group inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#25D366] px-6 py-3 text-sm font-semibold text-white shadow-[0_10px_28px_-10px_rgba(37,211,102,0.7)] transition-all hover:bg-[#1ebe5d]">
-              <MessageCircle class="h-4 w-4" />
+            <a href={WA_DEMO_LINK} target="_blank" rel="noopener" class="group inline-flex min-h-12 items-center justify-center gap-3 rounded-full border border-[hsl(var(--border))] bg-white py-2 pl-2 pr-6 text-sm font-medium text-[hsl(var(--brand-navy))] shadow-[0_10px_28px_-14px_rgba(18,26,140,0.5)] transition-all hover:-translate-y-0.5 hover:border-[hsl(var(--brand-navy)/0.18)] hover:shadow-[0_16px_36px_-14px_rgba(18,26,140,0.55)]">
+              <span class="grid h-9 w-9 place-items-center rounded-[0.7rem] bg-gradient-to-br from-[#25D366] to-[#12a84e] text-white shadow-[0_5px_14px_-5px_rgba(18,168,78,0.8)]">
+                <WhatsAppGlyph class="h-5 w-5" />
+              </span>
               Try the WhatsApp demo
+              <ArrowUpRight class="h-4 w-4 text-[hsl(var(--brand-gold))] transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
             </a>
           </div>
           <p class="mt-4 text-xs text-[hsl(var(--muted-foreground))]">

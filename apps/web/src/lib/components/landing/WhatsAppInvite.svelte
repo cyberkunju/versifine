@@ -2,17 +2,20 @@
   /**
    * First-visit WhatsApp demo invite.
    *
-   * A small, dismissible popup that slides up after a short delay on the
-   * visitor's first landing-page view. Clicking through opens the wa.me deep
-   * link with the demo phrase pre-filled; the bot grants demo access the
-   * moment that phrase arrives. Shown once per browser (localStorage), with a
-   * graceful no-op when storage is unavailable.
+   * Re-skinned for the editorial fintech theme. Rather than a generic green
+   * toast, it arrives as a quiet "incoming invite" card in the brand's
+   * navy/paper language: a navy header strip echoing the demo chat, a small
+   * authentic WhatsApp tile, a one-line preview bubble, and a single
+   * green-gradient action that matches the tile so the green reads as a
+   * deliberate accent. Slides up once on the first visit (localStorage),
+   * with a graceful no-op when storage is unavailable.
    */
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
-  import { MessageCircle, X } from 'lucide-svelte';
+  import { X, ArrowUpRight } from 'lucide-svelte';
   import { WA_DEMO_LINK } from '$lib/whatsapp';
   import { waInvite } from '$lib/stores/waInvite.svelte';
+  import WhatsAppGlyph from './WhatsAppGlyph.svelte';
 
   const STORAGE_KEY = 'vf_wa_invite_seen';
   const SHOW_DELAY_MS = 2600;
@@ -31,7 +34,7 @@
     setTimeout(() => {
       visible = false;
       closing = false;
-    }, 260);
+    }, 280);
     markSeen();
   }
 
@@ -69,56 +72,65 @@
 {#if visible}
   <div
     class={[
-      'fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-sm sm:left-auto sm:right-6 sm:bottom-6',
+      'fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-[21rem] sm:left-auto sm:right-6 sm:bottom-6',
       closing ? 'vf-invite-out' : 'vf-invite-in',
     ].join(' ')}
     role="dialog"
     aria-label="Try Versifine on WhatsApp"
   >
-    <div class="relative overflow-hidden rounded-2xl border border-[hsl(var(--border))] bg-white shadow-[0_20px_50px_-20px_rgba(18,26,140,0.45)]">
-      <!-- Accent bar -->
-      <div class="absolute inset-x-0 top-0 h-1 bg-[#25D366]"></div>
-
-      <button
-        type="button"
-        onclick={dismiss}
-        class="absolute right-2.5 top-2.5 grid h-7 w-7 place-items-center rounded-full text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--brand-navy))]"
-        aria-label="Dismiss"
-      >
-        <X class="h-4 w-4" />
-      </button>
-
-      <div class="flex items-start gap-3.5 p-5 pt-6">
-        <span class="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#25D366]/12 text-[#1ebe5d]">
-          <MessageCircle class="h-6 w-6" />
+    <div class="relative overflow-hidden rounded-[1.25rem] border border-[hsl(var(--border))] bg-white shadow-[0_30px_60px_-24px_rgba(18,26,140,0.45)] ring-1 ring-black/[0.03]">
+      <!-- Navy header strip — echoes the demo chat header -->
+      <div class="flex items-center gap-3 bg-[hsl(var(--brand-navy))] px-4 py-3 text-[hsl(var(--brand-paper))]">
+        <span class="grid h-9 w-9 shrink-0 place-items-center rounded-[0.7rem] bg-gradient-to-br from-[#25D366] to-[#12a84e] text-white shadow-[0_4px_12px_-4px_rgba(18,168,78,0.9)]">
+          <WhatsAppGlyph class="h-5 w-5" />
         </span>
-        <div class="min-w-0 pr-4">
-          <p class="font-display text-base font-medium text-[hsl(var(--brand-navy))]">
-            Try Versifine on WhatsApp
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-semibold leading-tight">Versifine</p>
+          <p class="flex items-center gap-1.5 text-[11px] leading-tight text-[hsl(var(--brand-paper)/0.72)]">
+            <span class="inline-block h-1.5 w-1.5 rounded-full bg-[#3ee07f]"></span>
+            online on WhatsApp
           </p>
-          <p class="mt-1 text-[13px] leading-relaxed text-[hsl(var(--muted-foreground))]">
-            No sign-up. Send one message and start logging expenses by text, voice,
-            or a photo of a bill — in your language.
-          </p>
-
-          <a
-            href={WA_DEMO_LINK}
-            target="_blank"
-            rel="noopener"
-            onclick={openWhatsApp}
-            class="group mt-3.5 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-full bg-[#25D366] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#1ebe5d]"
-          >
-            <MessageCircle class="h-4 w-4" />
-            Chat with the bot
-          </a>
-          <button
-            type="button"
-            onclick={dismiss}
-            class="mt-2 w-full text-center text-xs font-medium text-[hsl(var(--muted-foreground))] transition-colors hover:text-[hsl(var(--brand-navy))]"
-          >
-            Maybe later
-          </button>
         </div>
+        <span class="text-[9px] font-medium uppercase tracking-[0.18em] text-[hsl(var(--brand-gold))]">encrypted</span>
+        <button
+          type="button"
+          onclick={dismiss}
+          class="grid h-7 w-7 shrink-0 place-items-center rounded-full text-[hsl(var(--brand-paper)/0.7)] transition-colors hover:bg-white/10 hover:text-white"
+          aria-label="Dismiss"
+        >
+          <X class="h-4 w-4" />
+        </button>
+      </div>
+
+      <div class="p-5">
+        <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-[hsl(var(--brand-gold))]">No sign-up</p>
+        <p class="mt-2 font-display text-[17px] font-medium leading-snug tracking-tight text-[hsl(var(--brand-navy))]">
+          Log your first expense in one message.
+        </p>
+
+        <!-- One-line preview bubble, hinting at the conversation -->
+        <div class="mt-3.5 w-fit max-w-full rounded-2xl rounded-tl-sm bg-[hsl(var(--brand-ivory))] px-3.5 py-2 text-[13px] leading-snug text-[hsl(var(--foreground))] ring-1 ring-[hsl(var(--border))]">
+          Send a sentence, a voice note, or a photo of a bill — in your language.
+        </div>
+
+        <a
+          href={WA_DEMO_LINK}
+          target="_blank"
+          rel="noopener"
+          onclick={openWhatsApp}
+          class="group mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2.5 rounded-full bg-gradient-to-br from-[#25D366] to-[#12a84e] px-5 text-sm font-semibold text-white shadow-[0_12px_28px_-12px_rgba(18,168,78,0.85)] transition-all hover:-translate-y-0.5 hover:shadow-[0_16px_34px_-12px_rgba(18,168,78,0.95)]"
+        >
+          <WhatsAppGlyph class="h-[18px] w-[18px]" />
+          Start chatting
+          <ArrowUpRight class="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+        </a>
+        <button
+          type="button"
+          onclick={dismiss}
+          class="mt-2 w-full text-center text-xs font-medium text-[hsl(var(--muted-foreground))] transition-colors hover:text-[hsl(var(--brand-navy))]"
+        >
+          Maybe later
+        </button>
       </div>
     </div>
   </div>
@@ -126,15 +138,15 @@
 
 <style>
   .vf-invite-in {
-    animation: vf-invite-up 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: vf-invite-up 0.46s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
   .vf-invite-out {
-    animation: vf-invite-down 0.26s ease-in both;
+    animation: vf-invite-down 0.28s ease-in both;
   }
   @keyframes vf-invite-up {
     from {
       opacity: 0;
-      transform: translateY(28px) scale(0.98);
+      transform: translateY(28px) scale(0.97);
     }
     to {
       opacity: 1;
