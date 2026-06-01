@@ -10,6 +10,7 @@
    * is assembled from six cached monthly summaries.
    */
   import { fly } from 'svelte/transition';
+  import type { Snippet } from 'svelte';
   import {
     Sparkles, AlertTriangle, Lightbulb, ArrowRight, ArrowUpRight, ArrowDownLeft,
     ReceiptText, PieChart, TrendingUp, CalendarClock, Wallet2,
@@ -182,10 +183,7 @@
   <section class="grid grid-cols-1 gap-5 lg:grid-cols-[1.6fr_1fr]">
     <Card class="p-6">
       <div class="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p class="text-[11px] font-medium uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">30-day forecast</p>
-          <h2 class="mt-0.5 font-display text-xl font-semibold tracking-tight">Cash leaving the account</h2>
-        </div>
+        {@render cardHead(TrendingUp, '30-day forecast', 'Cash leaving the account')}
         {#if forecast.data?.forecast}
           <div class="flex gap-2">
             {@render statBox('Total', formatCurrency(Math.round(forecast.data.forecast.total)), true)}
@@ -207,13 +205,7 @@
 
     <!-- Upcoming commitments -->
     <Card class="p-6">
-      <div class="flex items-start justify-between">
-        <div>
-          <p class="text-[11px] font-medium uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Upcoming</p>
-          <h2 class="mt-0.5 font-display text-xl font-semibold tracking-tight">Commitments</h2>
-        </div>
-        <span class="grid h-9 w-9 place-items-center rounded-lg bg-[hsl(var(--primary)/0.08)] text-[hsl(var(--primary))]"><CalendarClock class="h-4 w-4" /></span>
-      </div>
+      {@render cardHead(CalendarClock, 'Upcoming', 'Commitments')}
       <div class="mt-4">
         {#if recurring.loading}
           <div class="space-y-3">{#each Array(4) as _, i (i)}<div class="h-10 w-full animate-pulse rounded bg-[hsl(var(--muted))]"></div>{/each}</div>
@@ -245,11 +237,8 @@
 
   <!-- ── Six-month trend ───────────────────────────────────────────── -->
   <Card class="overflow-hidden">
-    <div class="flex items-center justify-between border-b border-[hsl(var(--border))] px-6 py-4">
-      <div class="flex items-center gap-2.5">
-        <span class="grid h-8 w-8 place-items-center rounded-lg bg-[hsl(var(--primary)/0.08)] text-[hsl(var(--primary))]"><TrendingUp class="h-4 w-4" /></span>
-        <div><h2 class="font-display text-base font-semibold tracking-tight">Income vs spend</h2><p class="text-xs text-[hsl(var(--muted-foreground))]">Last six months</p></div>
-      </div>
+    <div class="flex items-center justify-between border-b border-[hsl(var(--border))] px-6 py-5">
+      {@render cardHead(TrendingUp, 'Trend', 'Income vs spend')}
       <div class="flex items-center gap-4 text-[11px] text-[hsl(var(--muted-foreground))]">
         <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm" style="background:hsl(160 42% 42%)"></span>Income</span>
         <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-[hsl(var(--brand-navy))]"></span>Spend</span>
@@ -269,10 +258,7 @@
   <!-- ── Ledger + spend shape ──────────────────────────────────────── -->
   <section class="grid grid-cols-1 gap-5 lg:grid-cols-2">
     <Card class="p-6">
-      <div class="flex items-start justify-between">
-        <div><p class="text-[11px] font-medium uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Ledger</p><h2 class="mt-0.5 font-display text-xl font-semibold tracking-tight">{m.dashboard.recent}</h2></div>
-        <a href="/transactions" class="grid h-9 w-9 place-items-center rounded-lg text-[hsl(var(--primary))] transition-colors hover:bg-[hsl(var(--accent))]" aria-label="All transactions"><ReceiptText class="h-4 w-4" /></a>
-      </div>
+      {@render cardHead(ReceiptText, 'Ledger', m.dashboard.recent, ledgerAction)}
       <div class="mt-3">
         {#if recentTxns.loading}
           <div class="space-y-3">{#each Array(5) as _, i (i)}<div class="h-11 w-full animate-pulse rounded bg-[hsl(var(--muted))]"></div>{/each}</div>
@@ -295,10 +281,7 @@
     </Card>
 
     <Card class="p-6">
-      <div class="flex items-start justify-between">
-        <div><p class="text-[11px] font-medium uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">Spend shape</p><h2 class="mt-0.5 font-display text-xl font-semibold tracking-tight">{m.dashboard.topCategories}</h2></div>
-        <a href="/reports" class="grid h-9 w-9 place-items-center rounded-lg text-[hsl(var(--primary))] transition-colors hover:bg-[hsl(var(--accent))]" aria-label="Reports"><PieChart class="h-4 w-4" /></a>
-      </div>
+      {@render cardHead(PieChart, 'Spend shape', m.dashboard.topCategories, spendAction)}
       <div class="mt-4">
         {#if summary.loading}
           <div class="space-y-4">{#each Array(5) as _, i (i)}<div class="h-9 w-full animate-pulse rounded bg-[hsl(var(--muted))]"></div>{/each}</div>
@@ -324,10 +307,7 @@
   <!-- ── Budgets + insights ────────────────────────────────────────── -->
   <section class="grid grid-cols-1 gap-5 lg:grid-cols-2">
     <Card class="p-6">
-      <div class="flex items-start justify-between">
-        <div><p class="text-[11px] font-medium uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">On budget</p><h2 class="mt-0.5 font-display text-xl font-semibold tracking-tight">{m.dashboard.budgetAlerts}</h2></div>
-        <a href="/budgets" class="text-xs text-[hsl(var(--primary))] hover:underline">All</a>
-      </div>
+      {@render cardHead(Wallet2, 'On budget', m.dashboard.budgetAlerts, budgetAction)}
       <div class="mt-4">
         {#if budgetRows.length === 0}
           <p class="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">{m.dashboard.emptyAlerts}</p>
@@ -348,10 +328,7 @@
     </Card>
 
     <Card class="p-6">
-      <div class="flex items-center gap-2">
-        <Lightbulb class="h-4 w-4 text-[hsl(var(--brand-gold))]" />
-        <div><p class="text-[11px] font-medium uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">For you</p><h2 class="font-display text-xl font-semibold tracking-tight">Insights</h2></div>
-      </div>
+      {@render cardHead(Lightbulb, 'For you', 'Insights')}
       <div class="mt-3">
         {#if advice.loading}
           <div class="space-y-2">{#each Array(2) as _, i (i)}<div class="h-12 w-full animate-pulse rounded bg-[hsl(var(--muted))]"></div>{/each}</div>
@@ -396,4 +373,32 @@
     <p class="text-[10px] uppercase tracking-[0.1em] text-[hsl(var(--muted-foreground))]">{label}</p>
     <p class="font-display text-base font-semibold tabular-nums" style:color={accent ? 'hsl(var(--primary))' : 'hsl(var(--foreground))'}>{value}</p>
   </div>
+{/snippet}
+
+{#snippet cardHead(Icon: typeof TrendingUp, eyebrow: string, title: string, action?: Snippet)}
+  <div class="flex items-start justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <span class="relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-[hsl(var(--brand-navy-deep))] text-[hsl(var(--brand-paper))]">
+        <span aria-hidden="true" class="pointer-events-none absolute -right-2.5 -top-2.5 h-8 w-8 rounded-full" style="background:radial-gradient(closest-side, hsl(242 87% 74% / 0.85), transparent 70%); filter:blur(4px);"></span>
+        <Icon class="relative h-[18px] w-[18px]" />
+      </span>
+      <div>
+        <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">{eyebrow}</p>
+        <h2 class="mt-0.5 font-display text-xl font-semibold tracking-tight">{title}</h2>
+      </div>
+    </div>
+    {#if action}{@render action()}{/if}
+  </div>
+{/snippet}
+
+{#snippet ledgerAction()}
+  <a href="/transactions" class="grid h-9 w-9 place-items-center rounded-lg text-[hsl(var(--primary))] transition-colors hover:bg-[hsl(var(--accent))]" aria-label="All transactions"><ReceiptText class="h-4 w-4" /></a>
+{/snippet}
+
+{#snippet spendAction()}
+  <a href="/reports" class="grid h-9 w-9 place-items-center rounded-lg text-[hsl(var(--primary))] transition-colors hover:bg-[hsl(var(--accent))]" aria-label="Reports"><PieChart class="h-4 w-4" /></a>
+{/snippet}
+
+{#snippet budgetAction()}
+  <a href="/budgets" class="text-xs font-medium text-[hsl(var(--primary))] hover:underline">All</a>
 {/snippet}
