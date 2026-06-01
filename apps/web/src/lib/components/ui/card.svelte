@@ -13,7 +13,7 @@
 
 <div
   class={cn(
-    'rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--card-foreground))] shadow-[0_1px_2px_rgba(18,26,140,0.04)]',
+    'rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--card-foreground))]',
     className,
   )}
   {...rest}

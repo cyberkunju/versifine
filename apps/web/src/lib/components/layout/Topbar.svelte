@@ -21,7 +21,7 @@
   const m = $derived(getMessages(settings.language));
 </script>
 
-<header class="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-[hsl(var(--border))] bg-[hsl(var(--background))]/80 px-4 backdrop-blur sm:px-6">
+<header class="flex h-14 shrink-0 items-center gap-3 border-b border-[hsl(var(--border))] px-4 sm:px-6">
   <button
     type="button"
     onclick={onMenu}
