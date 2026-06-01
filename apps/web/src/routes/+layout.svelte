@@ -159,23 +159,24 @@
 {:else if isLandingRoute || isAuthRoute || isStandaloneRoute || !auth.isAuthenticated}
   {@render children?.()}
 {:else}
-  <div class="vf-shell relative flex min-h-screen w-full overflow-hidden">
+  <div class="vf-shell relative flex h-screen w-full overflow-hidden">
     <!-- Aurora glow blobs over the gradient ground (echoes the login rail) -->
-    <div aria-hidden="true" class="vf-aurora pointer-events-none absolute -left-40 -top-48 h-[560px] w-[560px] rounded-full" style="background:radial-gradient(closest-side, hsl(258 70% 62% / 0.5), transparent 70%); filter:blur(48px);"></div>
-    <div aria-hidden="true" class="vf-aurora pointer-events-none absolute -bottom-40 left-24 h-[460px] w-[460px] rounded-full" style="background:radial-gradient(closest-side, hsl(202 80% 56% / 0.34), transparent 70%); filter:blur(56px); animation-delay:-7s;"></div>
+    <div aria-hidden="true" class="vf-aurora pointer-events-none absolute -left-40 -top-48 h-[560px] w-[560px] rounded-full" style="background:radial-gradient(closest-side, hsl(258 75% 64% / 0.55), transparent 70%); filter:blur(48px);"></div>
+    <div aria-hidden="true" class="vf-aurora pointer-events-none absolute -bottom-40 left-16 h-[460px] w-[460px] rounded-full" style="background:radial-gradient(closest-side, hsl(202 85% 58% / 0.4), transparent 70%); filter:blur(56px); animation-delay:-7s;"></div>
+    <div aria-hidden="true" class="vf-aurora pointer-events-none absolute -top-32 left-1/4 h-[380px] w-[380px] rounded-full" style="background:radial-gradient(closest-side, hsl(280 70% 62% / 0.28), transparent 70%); filter:blur(60px); animation-delay:-12s;"></div>
     <!-- Faded V watermark, low in the rail -->
-    <VMark class="pointer-events-none absolute -bottom-28 -left-24 w-[420px] select-none opacity-[0.06]" />
+    <VMark class="pointer-events-none absolute -bottom-28 -left-24 w-[420px] select-none opacity-[0.07]" />
 
     <Sidebar mobileOpen={mobileSidebarOpen} onClose={() => (mobileSidebarOpen = false)} />
-    <div class="relative z-10 flex min-w-0 flex-1 flex-col lg:py-2.5 lg:pr-2.5">
+    <div class="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col lg:py-2.5 lg:pr-2.5">
       <!-- Framed content panel: white sheet set into the gradient ground -->
-      <div class="flex min-h-0 flex-1 flex-col overflow-hidden bg-[hsl(var(--background))] lg:rounded-2xl lg:shadow-[0_18px_50px_-18px_rgba(0,0,0,0.5)] lg:ring-1 lg:ring-white/10">
+      <div class="vf-panel flex min-h-0 flex-1 flex-col overflow-hidden bg-[hsl(var(--background))] lg:rounded-2xl lg:shadow-[0_18px_50px_-18px_rgba(0,0,0,0.5)] lg:ring-1 lg:ring-white/10">
         <Topbar
           onMenu={() => (mobileSidebarOpen = true)}
           onOpenCommand={() => panels.setCommandOpen(true)}
           onOpenCopilot={(initial) => openCopilot(initial)}
         />
-        <main class="min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4 pb-28 sm:p-6 lg:p-8 lg:pb-28">
+        <main class="vf-scroll min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4 pb-28 sm:p-6 lg:p-8 lg:pb-28">
           {@render children?.()}
         </main>
       </div>
@@ -201,24 +202,56 @@
 <style>
   /* Living indigo gradient ground — echoes the login brand rail. The sidebar
      and the border around the white content panel are this one continuous
-     surface, so the blue reads as designed depth rather than a flat slab. */
+     surface. Two layered radial tints over the base diagonal give it depth,
+     and the whole field drifts slowly so the rail feels alive. */
   .vf-shell {
     background:
+      radial-gradient(120% 80% at 0% 0%, hsl(258 78% 46% / 0.55), transparent 55%),
+      radial-gradient(110% 90% at 100% 100%, hsl(250 90% 14% / 0.6), transparent 60%),
       linear-gradient(
-        155deg,
-        hsl(236 77% 31%) 0%,
-        hsl(245 90% 22%) 55%,
-        hsl(248 85% 15%) 100%
+        152deg,
+        hsl(236 80% 36%) 0%,
+        hsl(243 88% 25%) 46%,
+        hsl(249 88% 14%) 100%
       );
+    background-size: 200% 200%, 200% 200%, 180% 180%;
+    background-position: 0% 0%, 100% 100%, 0% 0%;
+    animation: vf-shell-drift 22s ease-in-out infinite;
+  }
+  @keyframes vf-shell-drift {
+    0%, 100% { background-position: 0% 0%, 100% 100%, 0% 0%; }
+    50% { background-position: 30% 40%, 70% 60%, 100% 70%; }
   }
   .vf-aurora {
-    animation: vf-aurora 16s ease-in-out infinite;
+    animation: vf-aurora 14s ease-in-out infinite;
   }
   @keyframes vf-aurora {
-    0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.55; }
-    50% { transform: translate(36px, -26px) scale(1.14); opacity: 0.8; }
+    0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.5; }
+    50% { transform: translate(44px, -32px) scale(1.18); opacity: 0.85; }
+  }
+  /* Soft inner highlight where the white sheet meets the gradient — turns the
+     plain edge into a lit bevel that subtly pulses. */
+  .vf-panel {
+    position: relative;
+  }
+  .vf-panel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.9),
+      inset 1px 0 0 0 rgba(255, 255, 255, 0.55);
+    animation: vf-panel-glow 7s ease-in-out infinite;
+  }
+  @keyframes vf-panel-glow {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
   }
   @media (prefers-reduced-motion: reduce) {
+    .vf-shell { animation: none; }
     .vf-aurora { animation: none; }
+    .vf-panel::before { animation: none; }
   }
 </style>
