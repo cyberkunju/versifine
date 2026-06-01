@@ -135,11 +135,23 @@
   }
 </script>
 
-<div class="mx-auto flex max-w-[1200px] flex-col gap-5">
-  <!-- ── Hero band (navy) — keep ───────────────────────────────────── -->
-  <header class="relative overflow-hidden rounded-2xl bg-[hsl(var(--brand-navy-deep))] text-white shadow-[0_18px_50px_-24px_hsl(var(--brand-navy)/0.7)]">
-    <div aria-hidden="true" class="pointer-events-none absolute -right-24 -top-28 h-80 w-80 rounded-full" style="background:radial-gradient(closest-side, hsl(242 87% 74% / 0.35), transparent 70%); filter:blur(28px);"></div>
-    <div aria-hidden="true" class="pointer-events-none absolute -bottom-32 left-1/3 h-72 w-72 rounded-full" style="background:radial-gradient(closest-side, hsl(202 80% 56% / 0.2), transparent 70%); filter:blur(36px);"></div>
+<div class="relative">
+  <!-- Ambient aura field — faint brand atmosphere the cards float on. -->
+  <div aria-hidden="true" class="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+    <div class="absolute -right-40 -top-40 h-[32rem] w-[32rem] rounded-full" style="background:radial-gradient(closest-side, hsl(242 87% 74% / 0.16), transparent 70%); filter:blur(20px);"></div>
+    <div class="absolute -left-48 top-1/3 h-[34rem] w-[34rem] rounded-full" style="background:radial-gradient(closest-side, hsl(202 80% 56% / 0.10), transparent 70%); filter:blur(24px);"></div>
+    <div class="absolute bottom-0 left-1/2 h-[28rem] w-[40rem] -translate-x-1/2 rounded-full" style="background:radial-gradient(closest-side, hsl(236 77% 31% / 0.06), transparent 70%); filter:blur(28px);"></div>
+  </div>
+
+  <div class="mx-auto flex max-w-[1200px] flex-col gap-5">
+  <!-- ── Hero band (navy) ──────────────────────────────────────────── -->
+  <header class="relative overflow-hidden rounded-[1.75rem] bg-[hsl(var(--brand-navy-deep))] text-white shadow-[0_30px_70px_-30px_hsl(var(--brand-navy)/0.85)] ring-1 ring-white/10">
+    <!-- gradient accent hairline along the top edge -->
+    <div aria-hidden="true" class="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[hsl(var(--brand-gold))] to-transparent opacity-70"></div>
+    <!-- fine grain for tactile depth -->
+    <div aria-hidden="true" class="bg-grain pointer-events-none absolute inset-0 opacity-[0.5] mix-blend-soft-light"></div>
+    <div aria-hidden="true" class="pointer-events-none absolute -right-24 -top-28 h-80 w-80 rounded-full" style="background:radial-gradient(closest-side, hsl(242 87% 74% / 0.4), transparent 70%); filter:blur(28px);"></div>
+    <div aria-hidden="true" class="pointer-events-none absolute -bottom-32 left-1/3 h-72 w-72 rounded-full" style="background:radial-gradient(closest-side, hsl(202 80% 56% / 0.22), transparent 70%); filter:blur(36px);"></div>
     <div class="relative grid grid-cols-1 gap-6 p-6 sm:p-8 lg:grid-cols-[1.7fr_1fr]">
       <div class="flex flex-col">
         <p class="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.2em] text-white/55">
@@ -149,7 +161,7 @@
         <h1 class="mt-2 font-display text-[20px] font-medium tracking-tight text-white/75">{greeting}{auth.user?.displayName ? `, ${auth.user.displayName.split(' ')[0]}` : ''}.</h1>
         <div class="mt-5">
           <p class="text-[11px] font-medium uppercase tracking-[0.16em] text-white/55">{m.dashboard.netWorth}</p>
-          <p class="mt-1 font-display text-[46px] font-semibold leading-none tracking-tight tabular-nums sm:text-[56px]">{formatCurrency(netWorth)}</p>
+          <p class="mt-1 font-display text-[46px] font-semibold leading-none tracking-tight tabular-nums sm:text-[58px]">{formatCurrency(netWorth)}</p>
           <p class="mt-2 text-xs text-white/55">across {liveWallets.length} {liveWallets.length === 1 ? 'wallet' : 'wallets'}</p>
         </div>
         <dl class="mt-7 grid grid-cols-3 gap-x-4 border-t border-white/15 pt-5">
@@ -174,7 +186,7 @@
         <Radial value={totals.savingsRate ?? 0} size={148} color="hsl(var(--brand-gold))" trackColor="hsl(0 0% 100% / 0.14)">
           <div><p class="font-display text-[30px] font-semibold leading-none tabular-nums">{(totals.savingsRate ?? 0).toFixed(0)}<span class="text-base">%</span></p><p class="mt-1 text-[10px] uppercase tracking-[0.14em] text-white/55">saved</p></div>
         </Radial>
-        <button type="button" onclick={() => ask(m.dashboard.promptWhereDidMyMoneyGo)} class="inline-flex items-center gap-2 rounded-full bg-white/12 px-4 py-2 text-sm font-medium text-white ring-1 ring-white/20 backdrop-blur transition-colors hover:bg-white/20"><Sparkles class="h-4 w-4 text-[hsl(var(--brand-gold))]" /> {m.nav.askCopilot}</button>
+        <button type="button" onclick={() => ask(m.dashboard.promptWhereDidMyMoneyGo)} class="group inline-flex items-center gap-2 rounded-full bg-white/12 px-4 py-2 text-sm font-medium text-white ring-1 ring-white/20 backdrop-blur transition-all hover:bg-white/20 hover:ring-[hsl(var(--brand-gold)/0.6)]"><Sparkles class="h-4 w-4 text-[hsl(var(--brand-gold))]" /> {m.nav.askCopilot}</button>
       </div>
     </div>
   </header>
@@ -362,6 +374,7 @@
       </div>
     </Card>
   </section>
+  </div>
 </div>
 
 {#snippet statBox(label: string, value: string, accent: boolean)}
