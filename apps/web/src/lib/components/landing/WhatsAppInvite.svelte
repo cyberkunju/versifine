@@ -79,23 +79,36 @@
     aria-label="Try Versifine on WhatsApp"
   >
     <div class="relative overflow-hidden rounded-[1.25rem] border border-[hsl(var(--border))] bg-white shadow-[0_30px_60px_-24px_rgba(18,26,140,0.45)] ring-1 ring-black/[0.03]">
-      <!-- Navy header strip — echoes the demo chat header -->
-      <div class="flex items-center gap-3 bg-[hsl(var(--brand-navy))] px-4 py-3 text-[hsl(var(--brand-paper))]">
-        <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#25D366] text-white">
-          <WhatsAppGlyph class="h-[18px] w-[18px]" />
+      <!-- Navy header — carries the brand's periwinkle aura, like the dashboard hero -->
+      <div class="relative flex items-center gap-3 overflow-hidden bg-[hsl(var(--brand-navy-deep))] px-4 py-3.5 text-[hsl(var(--brand-paper))]">
+        <span
+          aria-hidden="true"
+          class="pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full"
+          style="background:radial-gradient(closest-side, hsl(242 87% 74% / 0.5), transparent 70%); filter:blur(16px);"
+        ></span>
+        <span
+          aria-hidden="true"
+          class="pointer-events-none absolute -bottom-16 left-8 h-28 w-28 rounded-full"
+          style="background:radial-gradient(closest-side, hsl(202 80% 56% / 0.35), transparent 70%); filter:blur(18px);"
+        ></span>
+
+        <!-- Ink-disc avatar with the green live pulse -->
+        <span class="relative grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/10 text-white ring-1 ring-white/15 backdrop-blur-sm">
+          <WhatsAppGlyph class="h-5 w-5" />
+          <span class="absolute right-1.5 top-1.5 flex h-2 w-2">
+            <span class="vf-invite-ping absolute inline-flex h-full w-full rounded-full bg-[#25D366] opacity-75"></span>
+            <span class="relative inline-flex h-2 w-2 rounded-full bg-[#25D366] ring-2 ring-[hsl(var(--brand-navy-deep))]"></span>
+          </span>
         </span>
-        <div class="min-w-0 flex-1">
+        <div class="relative min-w-0 flex-1">
           <p class="text-sm font-semibold leading-tight">Versifine</p>
-          <p class="flex items-center gap-1.5 text-[11px] leading-tight text-[hsl(var(--brand-paper)/0.72)]">
-            <span class="inline-block h-1.5 w-1.5 rounded-full bg-[#3ee07f]"></span>
-            online on WhatsApp
-          </p>
+          <p class="text-[11px] leading-tight text-[hsl(var(--brand-paper)/0.7)]">online on WhatsApp</p>
         </div>
-        <span class="text-[9px] font-medium uppercase tracking-[0.18em] text-[hsl(var(--brand-gold))]">encrypted</span>
+        <span class="relative text-[9px] font-medium uppercase tracking-[0.18em] text-[hsl(var(--brand-gold))]">encrypted</span>
         <button
           type="button"
           onclick={dismiss}
-          class="grid h-7 w-7 shrink-0 place-items-center rounded-full text-[hsl(var(--brand-paper)/0.7)] transition-colors hover:bg-white/10 hover:text-white"
+          class="relative grid h-7 w-7 shrink-0 place-items-center rounded-full text-[hsl(var(--brand-paper)/0.7)] transition-colors hover:bg-white/10 hover:text-white"
           aria-label="Dismiss"
         >
           <X class="h-4 w-4" />
@@ -118,11 +131,11 @@
           target="_blank"
           rel="noopener"
           onclick={openWhatsApp}
-          class="group mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2.5 rounded-full bg-[#25D366] px-5 text-sm font-semibold text-white shadow-[0_12px_28px_-12px_rgba(37,168,85,0.85)] transition-all hover:-translate-y-0.5 hover:bg-[#20bd5a] hover:shadow-[0_16px_34px_-12px_rgba(37,168,85,0.95)]"
+          class="group mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2.5 rounded-full bg-[hsl(var(--brand-navy))] px-5 text-sm font-semibold text-[hsl(var(--brand-paper))] shadow-[0_12px_28px_-14px_hsl(var(--brand-navy)/0.8)] transition-all hover:-translate-y-0.5 hover:bg-[hsl(var(--brand-navy-deep))]"
         >
           <WhatsAppGlyph class="h-[18px] w-[18px]" />
           Start chatting
-          <ArrowUpRight class="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+          <ArrowUpRight class="h-4 w-4 text-[hsl(var(--brand-gold))] transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
         </a>
         <button
           type="button"
@@ -137,6 +150,20 @@
 {/if}
 
 <style>
+  .vf-invite-ping {
+    animation: vf-fab-pulse 2.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
+  @keyframes vf-fab-pulse {
+    0% {
+      transform: scale(1);
+      opacity: 0.7;
+    }
+    70%,
+    100% {
+      transform: scale(2.4);
+      opacity: 0;
+    }
+  }
   .vf-invite-in {
     animation: vf-invite-up 0.46s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
@@ -165,7 +192,8 @@
   }
   @media (prefers-reduced-motion: reduce) {
     .vf-invite-in,
-    .vf-invite-out {
+    .vf-invite-out,
+    .vf-invite-ping {
       animation: none;
     }
   }
