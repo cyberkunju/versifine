@@ -9,12 +9,16 @@ import { defineConfig } from 'vite';
  * The dev server defaults to port 5173 and proxies nothing — the API
  * runs on its own port (5000) and CORS is permissive in development.
  */
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [tailwindcss(), sveltekit()],
   envPrefix: ['VITE_', 'PUBLIC_'],
   server: {
     port: 5173,
     strictPort: false,
+    // Local dev convenience: open straight to the dashboard. Paired with the
+    // dev-only auth preview (see src/routes/+layout.ts), this lets the app
+    // shell be worked on without logging in. Only applies to `vite dev`.
+    open: command === 'serve' ? '/dashboard' : false,
     // Same-origin proxy for local dev. The web client uses relative
     // URLs (`/api/...`, `/ws`) in production behind nginx; we mirror
     // that behaviour here so the bundle never embeds a hardcoded host.
@@ -44,4 +48,4 @@ export default defineConfig({
     // bundler try to evaluate it during prerender or load functions.
     noExternal: ['lucide-svelte', 'bits-ui', 'mode-watcher'],
   },
-});
+}));

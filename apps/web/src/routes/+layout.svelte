@@ -26,6 +26,7 @@
   import Sidebar from '$lib/components/layout/Sidebar.svelte';
   import Topbar from '$lib/components/layout/Topbar.svelte';
   import CommandMenu from '$lib/components/layout/CommandMenu.svelte';
+  import VMark from '$lib/components/brand/VMark.svelte';
   import CopilotPanel from '$lib/components/copilot/CopilotPanel.svelte';
   import OmnibarDock from '$lib/components/omnibar/OmnibarDock.svelte';
   import { Toaster } from '$lib/components/ui';
@@ -158,11 +159,17 @@
 {:else if isLandingRoute || isAuthRoute || isStandaloneRoute || !auth.isAuthenticated}
   {@render children?.()}
 {:else}
-  <div class="flex min-h-screen w-full bg-[hsl(var(--brand-navy-deep))]">
+  <div class="vf-shell relative flex min-h-screen w-full overflow-hidden">
+    <!-- Aurora glow blobs over the gradient ground (echoes the login rail) -->
+    <div aria-hidden="true" class="vf-aurora pointer-events-none absolute -left-40 -top-48 h-[560px] w-[560px] rounded-full" style="background:radial-gradient(closest-side, hsl(258 70% 62% / 0.5), transparent 70%); filter:blur(48px);"></div>
+    <div aria-hidden="true" class="vf-aurora pointer-events-none absolute -bottom-40 left-24 h-[460px] w-[460px] rounded-full" style="background:radial-gradient(closest-side, hsl(202 80% 56% / 0.34), transparent 70%); filter:blur(56px); animation-delay:-7s;"></div>
+    <!-- Faded V watermark, low in the rail -->
+    <VMark class="pointer-events-none absolute -bottom-28 -left-24 w-[420px] select-none opacity-[0.06]" />
+
     <Sidebar mobileOpen={mobileSidebarOpen} onClose={() => (mobileSidebarOpen = false)} />
-    <div class="flex min-w-0 flex-1 flex-col lg:py-2.5 lg:pr-2.5">
-      <!-- Framed content panel: white sheet set into the navy ground -->
-      <div class="flex min-h-0 flex-1 flex-col overflow-hidden bg-[hsl(var(--background))] lg:rounded-2xl lg:shadow-[0_10px_40px_-12px_rgba(0,0,0,0.35)] lg:ring-1 lg:ring-black/10">
+    <div class="relative z-10 flex min-w-0 flex-1 flex-col lg:py-2.5 lg:pr-2.5">
+      <!-- Framed content panel: white sheet set into the gradient ground -->
+      <div class="flex min-h-0 flex-1 flex-col overflow-hidden bg-[hsl(var(--background))] lg:rounded-2xl lg:shadow-[0_18px_50px_-18px_rgba(0,0,0,0.5)] lg:ring-1 lg:ring-white/10">
         <Topbar
           onMenu={() => (mobileSidebarOpen = true)}
           onOpenCommand={() => panels.setCommandOpen(true)}
@@ -190,3 +197,28 @@
 {/if}
 
 <Toaster />
+
+<style>
+  /* Living indigo gradient ground — echoes the login brand rail. The sidebar
+     and the border around the white content panel are this one continuous
+     surface, so the blue reads as designed depth rather than a flat slab. */
+  .vf-shell {
+    background:
+      linear-gradient(
+        155deg,
+        hsl(236 77% 31%) 0%,
+        hsl(245 90% 22%) 55%,
+        hsl(248 85% 15%) 100%
+      );
+  }
+  .vf-aurora {
+    animation: vf-aurora 16s ease-in-out infinite;
+  }
+  @keyframes vf-aurora {
+    0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.55; }
+    50% { transform: translate(36px, -26px) scale(1.14); opacity: 0.8; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .vf-aurora { animation: none; }
+  }
+</style>

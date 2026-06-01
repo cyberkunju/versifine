@@ -51,12 +51,40 @@ class AuthStore {
   loading = $state(false);
   /** Hydration flag: true once we've attempted an initial profile load. */
   ready = $state(false);
+  /**
+   * Dev-only preview mode. When active (local `vite dev` + no real session),
+   * the app shell renders against a seeded fake user so the UI can be worked
+   * on at `/dashboard` without logging in. Never set in production builds.
+   */
+  devPreview = $state(false);
 
   private inflightRefresh: Promise<boolean> | null = null;
 
   /** Convenience: do we have credentials right now? */
   get isAuthenticated(): boolean {
-    return Boolean(this.accessToken && this.user);
+    return this.devPreview || Boolean(this.accessToken && this.user);
+  }
+
+  /**
+   * Seed a fake user for local UI work. No network, no tokens — purely so
+   * the authenticated shell + pages render. Gated by callers behind
+   * `import.meta.env.DEV`; a no-op if a real session already exists.
+   */
+  enableDevPreview(): void {
+    if (this.accessToken && this.user) return;
+    this.devPreview = true;
+    this.user = {
+      id: '00000000-0000-0000-0000-000000000000',
+      email: 'preview@versifine.local',
+      displayName: 'Preview User',
+      primaryLanguage: 'en',
+      baseCurrency: 'INR',
+      activeSpaceId: '00000000-0000-0000-0000-000000000001',
+      whatsappPhone: null,
+      whatsappPhoneVerifiedAt: null,
+      createdAt: new Date().toISOString(),
+    } as UserSummary;
+    this.ready = true;
   }
 
   async login(input: LoginInput): Promise<UserSummary> {
@@ -188,6 +216,9 @@ const tokenSource: TokenSource = {
   getRefreshToken: () => auth.refreshToken,
   refresh: () => auth.refresh(),
   forceLogout: () => {
+    // In local dev-preview there's no real session; a 401 from a data call
+    // must NOT bounce us to /login or we'd never see the UI we're editing.
+    if (auth.devPreview) return;
     void auth.logout();
   },
 };

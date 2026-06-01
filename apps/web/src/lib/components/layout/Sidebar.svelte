@@ -81,7 +81,7 @@
 
 <aside
   class={cn(
-    'fixed inset-y-0 left-0 z-50 flex w-[16.5rem] flex-col bg-[hsl(var(--brand-navy-deep))] text-[hsl(var(--brand-paper))] transition-transform lg:static lg:translate-x-0',
+    'fixed inset-y-0 left-0 z-50 flex w-[16.5rem] flex-col bg-[hsl(var(--brand-navy-deep))] text-[hsl(var(--brand-paper))] transition-transform lg:static lg:z-10 lg:translate-x-0 lg:bg-transparent',
     mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
   )}
   aria-label="Primary"
