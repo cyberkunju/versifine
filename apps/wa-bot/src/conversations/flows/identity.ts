@@ -23,7 +23,7 @@
 import type { Language } from '@versifine/shared';
 import { isLanguage, LANGUAGE_META, LANGUAGES } from '@versifine/shared';
 import type { Session } from '../../types.ts';
-import { botEnsureUser, botWhoami } from '../../services/apiClient.ts';
+import { ApiClientError, botEnsureUser, botWhoami } from '../../services/apiClient.ts';
 import { log } from '../../utils/logger.ts';
 import { parseEmail, looksLikeSkip } from '../../utils/text.ts';
 import { getMessages } from '../messages/index.ts';
@@ -225,6 +225,10 @@ export async function handleEmailStep(session: Session, body: string): Promise<E
       phone: session.phone,
       error: err instanceof Error ? err.message.slice(0, 160) : String(err),
     });
+    if (err instanceof ApiClientError && err.code === 'CONFLICT') {
+      setState(session.phone, 'AWAITING_EMAIL');
+      return { text: `${err.message}\n\n${m.emailInvalid}`, state: 'AWAITING_EMAIL', consumed: true };
+    }
     // Stay in AWAITING_EMAIL so the next message retries provisioning.
     setState(session.phone, 'AWAITING_EMAIL');
     return { text: m.error, state: 'AWAITING_EMAIL', consumed: true };

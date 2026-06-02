@@ -9,6 +9,15 @@ import { afterEach, beforeEach, expect, mock, test } from 'bun:test';
 
 // Mock the API client so email-linking doesn't hit the network.
 mock.module('../src/services/apiClient.ts', () => ({
+  ApiClientError: class ApiClientError extends Error {
+    constructor(
+      public code: string,
+      message: string,
+      public status: number,
+    ) {
+      super(message);
+    }
+  },
   botEnsureUser: async (_phone: string, language: string, email?: string) => ({
     userId: 'u_test',
     spaceId: 's_test',
@@ -69,6 +78,8 @@ test('links a bare email address', async () => {
   const out = await detectSettingsIntent(session(), 'asha@gmail.com');
   expect(out).not.toBeNull();
   expect(out?.text.toLowerCase()).toContain('link');
+  expect(getSession(PHONE).userId).toBe('u_test');
+  expect(getSession(PHONE).spaceId).toBe('s_test');
 });
 
 test('"now i need to link email" asks for it, then links the follow-up', async () => {

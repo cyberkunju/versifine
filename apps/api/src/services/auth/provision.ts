@@ -191,6 +191,10 @@ export async function ensureUserByPhone(
             linkedExisting: true,
           };
         }
+
+        if (emailOwner && emailOwner.id !== existing.id) {
+          throw errors.conflict('Email is already registered');
+        }
       }
 
       // Upgrade a placeholder email to the real one the user just typed,
@@ -205,7 +209,11 @@ export async function ensureUserByPhone(
         if (!emailOwner || emailOwner.id === existing.id) {
           patch.email = email;
           storedEmail = email;
+        } else {
+          throw errors.conflict('Email is already registered');
         }
+      } else if (email && existing.email.toLowerCase() !== email) {
+        throw errors.conflict('This WhatsApp number is already linked to another email');
       }
 
       if (Object.keys(patch).length > 0) {
@@ -256,9 +264,11 @@ export async function ensureUserByPhone(
           linkedExisting: true,
         };
       }
-      // Email belongs to an account that already has a (different) phone —
-      // we can't safely merge two populated accounts here, so fall through
-      // and create a fresh phone-first account under a placeholder email.
+      if (byEmail) {
+        throw errors.conflict('Email is already linked to another WhatsApp number');
+      }
+      // Email belongs to an account that already has a different phone.
+      // Do not create a placeholder account and pretend the link worked.
     }
 
     // ── Brand-new account. Store the real email when it's free. ──────────

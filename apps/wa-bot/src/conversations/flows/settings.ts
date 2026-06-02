@@ -17,11 +17,11 @@
  */
 import { LANGUAGES, LANGUAGE_META, type Language } from '@versifine/shared';
 import type { ReplyMode, Session } from '../../types.ts';
-import { botEnsureUser } from '../../services/apiClient.ts';
+import { ApiClientError, botEnsureUser } from '../../services/apiClient.ts';
 import { log } from '../../utils/logger.ts';
 import { parseEmail, looksLikeSkip } from '../../utils/text.ts';
 import { getMessages } from '../messages/index.ts';
-import { setLanguage, setReplyMode, updateSession } from '../state.ts';
+import { setLanguage, setLinked, setReplyMode, updateSession } from '../state.ts';
 
 export interface SettingsOutcome {
   text: string;
@@ -80,6 +80,7 @@ async function linkEmail(session: Session, email: string): Promise<SettingsOutco
   const m = getMessages(session.language);
   try {
     const account = await botEnsureUser(session.phone, session.language, email);
+    setLinked(session.phone, { userId: account.userId, spaceId: account.spaceId });
     updateSession(session.phone, { pending: { ...session.pending, awaitingEmailLink: false } });
     const head = account.linkedExisting
       ? m.emailLinkedExisting?.(account.email ?? email) ?? `✅ Linked to your existing account (${email}).`
@@ -90,6 +91,12 @@ async function linkEmail(session: Session, email: string): Promise<SettingsOutco
       phone: session.phone,
       error: err instanceof Error ? err.message.slice(0, 160) : String(err),
     });
+    if (err instanceof ApiClientError && err.code === 'CONFLICT') {
+      return {
+        text: err.message,
+        language: session.language,
+      };
+    }
     return {
       text: m.error ?? "Couldn't link that right now — try again in a moment.",
       language: session.language,
