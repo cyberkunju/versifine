@@ -22,26 +22,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
-      # Deploy to every instance independently; one box failing must not
-      # cancel the rollout to the others.
       fail-fast: false
       matrix:
         include:
-          # Primary box — Fedora, login user `fedora`. versifine.com DNS
-          # (Cloudflare) currently points here, so it also runs the public
-          # smoke test.
-          - name: hastkala
-            host_secret: EC2_HOST
-            key_secret: EC2_SSH_KEY
-            user: fedora
-            public: true
-          # Clone box — Ubuntu arm64, login user `reticule`. Not behind the
-          # public domain yet, so only the origin (Host-header) smoke runs.
+          # Single production target: Ubuntu arm64, login user `reticule`.
+          # The old Fedora box is intentionally not deployed.
           - name: reticule
             host_secret: RETICULE_HOST
             key_secret: RETICULE_SSH_KEY
             user: reticule
-            public: false
     name: deploy (${{ matrix.name }})
     steps:
       - name: Checkout
@@ -89,19 +78,5 @@ jobs:
             case $code in
               2*|3*) ;;
               *) echo "::error::[${{ matrix.name }}] Smoke test failed for $url ($code)"; exit 1 ;;
-            esac
-          done
-
-      - name: Smoke test (public via Cloudflare)
-        if: ${{ matrix.public }}
-        run: |
-          set -e
-          for url in / /healthz /api/health /admin; do
-            code=$(curl -sS -o /dev/null -w '%{http_code}' \
-              "https://versifine.com$url" || true)
-            echo "GET https://versifine.com$url -> $code"
-            case $code in
-              2*|3*) ;;
-              *) echo "::error::Public smoke test failed for $url ($code)"; exit 1 ;;
             esac
           done

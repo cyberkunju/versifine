@@ -16,9 +16,8 @@ log() { printf "\033[1;32m[deploy]\033[0m %s\n" "$*"; }
 REPO="${REPO:-https://github.com/cyberkunju/versifine.git}"
 BRANCH="${BRANCH:-main}"
 DEPLOY_USER="${DEPLOY_USER:-versifine}"
-# Build dir lives in the login user's home. On the Fedora box the deploy runs
-# as 'fedora' (HOME=/home/fedora, unchanged). On the Ubuntu clone it runs as
-# 'reticule' (HOME=/home/reticule). Deriving from $HOME keeps both identical.
+# Build dir lives in the reticule login user's home. Deriving from $HOME keeps
+# the deploy independent of the absolute account path.
 WORK="${HOME}/versifine-build"
 BASE="/opt/versifine"
 APP="$BASE/repo"            # deployed monorepo lives here
@@ -80,8 +79,8 @@ log "Building web (SvelteKit + adapter-node)"
 # the deployment web.env so public config (e.g. the Google client ID) lands
 # in the client bundle deterministically.
 #
-# IMPORTANT: web.env is mode 0640 root:versifine and the deploy user (fedora)
-# is NOT in the versifine group, so it must be read via sudo — a plain
+# IMPORTANT: web.env is mode 0640 root:versifine and may not be readable by
+# the login user, so it must be read via sudo - a plain
 # `source` silently yields nothing and the client bundle ends up unconfigured.
 sudo grep -E '^PUBLIC_[A-Z0-9_]+=' "$ENV_DIR/web.env" > apps/web/.env 2>/dev/null || : > apps/web/.env
 (
@@ -148,6 +147,7 @@ sudo install -m 0644 "$APP/scripts/versifine-wabot.service" /etc/systemd/system/
 
 log "Installing nginx vhost"
 sudo install -d -o root -g root -m 0755 /etc/nginx/snippets
+sudo install -m 0644 "$APP/scripts/nginx-base-ubuntu.conf"       /etc/nginx/conf.d/00-base.conf
 sudo install -m 0644 "$APP/scripts/nginx-versifine-proxy.conf"  /etc/nginx/snippets/versifine-proxy.conf
 sudo install -m 0644 "$APP/scripts/nginx-versifine-routes.conf" /etc/nginx/snippets/versifine-routes.conf
 sudo install -m 0644 "$APP/scripts/nginx-versifine.conf"        /etc/nginx/conf.d/versifine.conf

@@ -216,6 +216,4 @@ sudo systemctl enable --now nginx >/dev/null 2>&1 || true
 log "Bootstrap complete. Next steps:"
 log "  1) Upload env files to ${ENV_DIR}/{api,web,wabot}.env"
 log "  2) Install SSL cert pair to /etc/ssl/versifine.com/{cert,key}.pem"
-log "  3) Install the base nginx vhost (nginx-base-ubuntu.conf) for the"
-log "     \$connection_upgrade map + client_max_body_size + default 444."
-log "  4) Run remote-deploy.sh"
+log "  3) Run remote-deploy.sh"

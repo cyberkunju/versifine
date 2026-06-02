@@ -18,6 +18,7 @@ function findChrome(): string {
 }
 
 const TARGET = process.argv[2] ?? 'http://localhost:5173';
+const ORIGIN_HOST = process.env.VERSIFINE_ORIGIN_HOST;
 const PORT = 9300 + Math.floor(Math.random() * 100);
 const profileDir = resolve(tmpdir(), `versifine-probe-${Date.now()}`);
 const outDir = resolve(import.meta.dir, '..', '_probe');
@@ -34,10 +35,12 @@ const chrome = spawn(findChrome(), [
   '--no-first-run',
   '--no-default-browser-check',
   '--ignore-certificate-errors',
-  // Override DNS so Chrome sends versifine.com straight to the origin IP.
-  // We also point any *.versifine.com requests at the same target.
+  // Optional DNS override so Chrome sends versifine.com straight to an origin
+  // host, e.g. VERSIFINE_ORIGIN_HOST=<reticule-ip>.
   // Format docs: https://www.chromium.org/developers/design-documents/network-stack/socks-proxy
-  '--host-resolver-rules=MAP versifine.com 40.192.113.52, MAP www.versifine.com 40.192.113.52',
+  ...(ORIGIN_HOST
+    ? [`--host-resolver-rules=MAP versifine.com ${ORIGIN_HOST}, MAP www.versifine.com ${ORIGIN_HOST}`]
+    : []),
   'about:blank',
 ], { stdio: 'pipe' });
 

@@ -218,7 +218,6 @@ log "12/12 nginx running"
 sudo systemctl enable --now nginx
 
 log "Bootstrap complete. Next steps:"
-log "  1) Stop hastkala : sudo systemctl stop hastkala-web hastkala-api hastkala-wabot && sudo systemctl disable hastkala-web hastkala-api hastkala-wabot"
-log "  2) Upload env files to ${ENV_DIR}/{api,web,wabot}.env"
-log "  3) Install SSL cert pair to /etc/ssl/versifine.com/{cert,key}.pem"
-log "  4) Run remote-deploy.sh"
+log "  1) Upload env files to ${ENV_DIR}/{api,web,wabot}.env"
+log "  2) Install SSL cert pair to /etc/ssl/versifine.com/{cert,key}.pem"
+log "  3) Run remote-deploy.sh"
