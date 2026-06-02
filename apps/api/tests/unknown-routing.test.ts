@@ -40,7 +40,7 @@ mock.module('../src/services/ai/client.ts', () => ({
   withLatency: async <T>(_label: string, fn: () => Promise<T>) => fn(),
 }));
 
-const { isExpenseLike } = await import('../src/routes/capture.ts');
+const { isExpenseLike, __captureBatchForTests } = await import('../src/routes/capture.ts');
 const { extractAmount } = await import('../src/services/ai/parserRegex.ts');
 const { parseExpense } = await import('../src/services/ai/parser.ts');
 const { categorizeFromMerchantDB } = await import('../src/services/categorize/merchants.ts');
@@ -151,5 +151,27 @@ describe('classifyIntent (offline regex fallback) — bare spend words lean expe
     __clearIntentCacheForTests();
     const result = await classifyIntent({ text: 'hi' });
     expect(result.intent).toBe('unknown');
+  });
+});
+
+describe('batch capture parser - messy Malayalam lists become separate expenses', () => {
+  test('splits the screenshot-style romanized Malayalam message', async () => {
+    const items = await __captureBatchForTests.parseBatchItems(
+      '2 porotta beef motham oru 453 ayi pinne oru kaappi oru 54roopa',
+      'ml',
+    );
+    expect(items).not.toBeNull();
+    expect(items?.map((item) => item.draft.amount)).toEqual([453, 54]);
+    expect(items?.map((item) => item.draft.description)).toEqual(['porotta beef', 'kaappi']);
+  });
+
+  test('splits a voice-transcript style Malayalam item list', async () => {
+    const items = await __captureBatchForTests.parseBatchItems(
+      'പൊറോട്ട വാങ്ങിയത് 40 രൂപ, കേക്ക് വാങ്ങിയത് 30 രൂപ, ചായ വാങ്ങിയത് 45 രൂപ',
+      'ml',
+    );
+    expect(items).not.toBeNull();
+    expect(items?.map((item) => item.draft.amount)).toEqual([40, 30, 45]);
+    expect(items?.map((item) => item.draft.description)).toEqual(['പൊറോട്ട', 'കേക്ക്', 'ചായ']);
   });
 });

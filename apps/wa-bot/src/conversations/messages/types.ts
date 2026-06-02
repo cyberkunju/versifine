@@ -88,6 +88,18 @@ export interface MessagePack {
   /** Confirmation after a transaction is logged automatically. */
   captureLogged: (amount: number, currency: string, category: string | null) => string;
 
+  /** Confirmation after multiple transactions are logged from one message. */
+  captureLoggedMany: (
+    items: Array<{
+      amount: number;
+      currency: string;
+      description: string;
+      category: string | null;
+    }>,
+    total: number,
+    currency: string,
+  ) => string;
+
   /** Asks the user to confirm a draft before persisting. */
   captureNeedsConfirm: (draft: DraftSummary) => string;
 

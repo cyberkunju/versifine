@@ -61,6 +61,26 @@ function renderCaptureResponse(session: Session, response: CaptureResponseShape)
   // Successful persist → server returns intent + queryResult.transaction.
   if (!response.needsConfirmation) {
     if (response.intent === 'expense' || response.intent === 'income' || response.intent === 'transfer') {
+      const txs = response.queryResult?.transactions as
+        | Array<{ id?: string; amount: number; currency: string; description: string; category: string | null }>
+        | undefined;
+      if (Array.isArray(txs) && txs.length > 0) {
+        const last = txs[txs.length - 1];
+        if (last?.id) {
+          updateSession(session.phone, { lastTransactionId: last.id });
+        }
+        const total =
+          typeof response.queryResult?.total === 'number'
+            ? response.queryResult.total
+            : txs.reduce((sum, tx) => sum + tx.amount, 0);
+        const currency =
+          typeof response.queryResult?.currency === 'string'
+            ? response.queryResult.currency
+            : (txs[0]?.currency ?? 'INR');
+        const text = m.captureLoggedMany(txs, total, currency);
+        return { text, speakable: text };
+      }
+
       const tx = response.queryResult?.transaction as
         | { id?: string; amount: number; currency: string; category: string | null }
         | undefined;

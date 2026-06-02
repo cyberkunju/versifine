@@ -121,6 +121,13 @@ export const en: MessagePack = {
       ? `✅ Logged ${formatAmount(amount, currency)} under ${category}.`
       : `✅ Logged ${formatAmount(amount, currency)}.`,
 
+  captureLoggedMany: (items, total, currency) => {
+    const lines = items
+      .map((item) => `- ${formatAmount(item.amount, item.currency)} - ${item.description}`)
+      .join('\n');
+    return `Logged ${items.length} expenses (${formatAmount(total, currency)} total):\n${lines}`;
+  },
+
   captureNeedsConfirm: (draft) =>
     `Almost! ${describeDraft(draft)}\n\nReply CONFIRM to save, EDIT to change, or CANCEL.`,
 

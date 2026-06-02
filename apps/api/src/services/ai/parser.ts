@@ -49,6 +49,11 @@ export interface ParsedExpense {
   needs: MissingField[];
 }
 
+export interface ParsedExpenseBatch {
+  items: ParsedExpense[];
+  confidence: number;
+}
+
 const SYSTEM_PROMPT = `You are the expense parser for an Indian-first finance app. The user
 speaks English / Hindi / Malayalam / Tamil / Telugu / Kannada (often
 code-mixed). Your output is always JSON.
@@ -100,6 +105,37 @@ Examples (input → JSON output, your model must match this style):
   "dinner 3000 split with 4 people"
   → {"type":"expense","amount":3000,"currency":null,"description":"dinner","categoryHint":"restaurants","walletHint":null,"date":null,"splitPeople":4,"originalAmount":null,"originalCurrency":null,"confidence":0.8}`;
 
+const BATCH_SYSTEM_PROMPT = `You are the transaction extractor for an Indian-first finance app.
+Users speak English, Hindi, Malayalam, Tamil, Telugu, Kannada, or code-mixed/romanised variants.
+
+Return JSON only:
+{
+  "items": [
+    {
+      "type": "expense" | "income" | "transfer",
+      "amount": positive number or null,
+      "currency": ISO 4217 alpha-3 or null,
+      "description": one short noun phrase for THIS item, or null,
+      "categoryHint": one or two words hinting category, or null,
+      "walletHint": wallet/payment source if explicitly stated, otherwise null,
+      "date": "YYYY-MM-DD" if explicit, otherwise null,
+      "splitPeople": integer >= 2 if this item was split, otherwise null,
+      "originalAmount": positive number if foreign currency was stated, otherwise null,
+      "originalCurrency": ISO code if foreign currency was stated, otherwise null,
+      "confidence": 0..1
+    }
+  ],
+  "confidence": 0..1
+}
+
+Rules:
+- Extract EACH purchase/payment as a separate item. Do not collapse multiple purchases into one total.
+- Words like "pinne", "oru", "motham", "vangiyath", "roopa", "രൂപ", "പിന്നെ", "വാങ്ങിയത്" are normal phrasing/fillers.
+- "2 porotta beef motham oru 453 ayi pinne oru kaappi oru 54roopa" => TWO items: porotta beef 453, kaappi 54.
+- "പൊറോട്ട വാങ്ങിയത് 40 രൂപ, കേക്ക് വാങ്ങിയത് 30 രൂപ, ചായ വാങ്ങിയത് 45 രൂപ" => THREE items: amounts 40, 30, 45.
+- Never invent missing amount, currency, wallet, or date. Use null.
+- A leading quantity ("2 porotta") is not the amount when a later price exists.`;
+
 const llmSchema = z
   .object({
     type: z.enum(['expense', 'income', 'transfer']).default('expense'),
@@ -112,6 +148,13 @@ const llmSchema = z
     splitPeople: z.union([z.number(), z.string(), z.null()]).optional(),
     originalAmount: z.union([z.number(), z.string(), z.null()]).optional(),
     originalCurrency: z.union([z.string(), z.null()]).optional(),
+    confidence: z.union([z.number(), z.string()]).optional(),
+  })
+  .passthrough();
+
+const batchLlmSchema = z
+  .object({
+    items: z.array(llmSchema).default([]),
     confidence: z.union([z.number(), z.string()]).optional(),
   })
   .passthrough();
@@ -205,9 +248,25 @@ const DESCRIPTION_STOPWORDS = new Set([
   'ki',
   'ke',
   'ko',
+  'oru',
   'inu',
   'ku',
   'aayi',
+  'ayi',
+  'aay',
+  'pinne',
+  'pine',
+  'pinney',
+  'motham',
+  'motho',
+  'mottham',
+  'total',
+  'vangiyath',
+  'vangiyathu',
+  'vangi',
+  'roopa',
+  'rupa',
+  'rupay',
   'panninen',
   'maadide',
   'kharch',
@@ -215,6 +274,18 @@ const DESCRIPTION_STOPWORDS = new Set([
   'rupee',
   'rupees',
   'inr',
+  'വാങ്ങിയത്',
+  'വാങ്ങിയതു',
+  'വാങ്ങി',
+  'കുടിച്ചു',
+  'കഴിച്ചു',
+  'രൂപ',
+  'രൂപാ',
+  'രൂപായ്',
+  'പിന്നെ',
+  'ഒരു',
+  'ആയി',
+  'മൊത്തം',
 ]);
 
 const DESCRIPTION_NORMALIZATIONS: Record<string, string> = {
@@ -242,10 +313,10 @@ function inferDescriptionFallback(text: string): string | null {
   const amountPattern = String.raw`\d[\d,]*(?:\.\d+)?\s*(?:k|thousand|lakh|crore)?`;
   const cleaned = text
     .toLowerCase()
-    .replace(new RegExp(String.raw`(?:^|[^a-z])(?:${CURRENCY_TOKEN_PATTERN})\s*${amountPattern}\b`, 'gi'), ' ')
-    .replace(new RegExp(String.raw`\b${amountPattern}\s*(?:${CURRENCY_TOKEN_PATTERN})(?:[^a-z]|$)`, 'gi'), ' ')
-    .replace(new RegExp(String.raw`\b${amountPattern}\b`, 'gi'), ' ')
-    .replace(/[^a-z]+/g, ' ');
+    .replace(new RegExp(String.raw`(?:^|[^\p{L}\p{M}])(?:${CURRENCY_TOKEN_PATTERN})\s*${amountPattern}\b`, 'giu'), ' ')
+    .replace(new RegExp(String.raw`\b${amountPattern}\s*(?:${CURRENCY_TOKEN_PATTERN})(?:[^\p{L}\p{M}]|$)`, 'giu'), ' ')
+    .replace(new RegExp(String.raw`\b${amountPattern}`, 'gi'), ' ')
+    .replace(/[^\p{L}\p{M}]+/gu, ' ');
 
   const tokens = cleaned
     .split(/\s+/)
@@ -397,6 +468,77 @@ export async function parseExpense(input: ParseInput): Promise<ParsedExpense> {
   };
 
   return { ...draft, needs: computeNeeds(draft) };
+}
+
+function parsedFromLlmData(data: z.infer<typeof llmSchema>): ParsedExpense {
+  const draft: Omit<ParsedExpense, 'needs'> = {
+    type: data.type,
+    amount: coerceNumber(data.amount),
+    currency: coerceCurrency(data.currency),
+    description: coerceString(data.description),
+    categoryHint: coerceString(data.categoryHint, 40),
+    walletHint: coerceString(data.walletHint, 40),
+    date: coerceString(data.date, 10),
+    splitPeople: coerceInt(data.splitPeople, 2, 50),
+    originalAmount: coerceNumber(data.originalAmount),
+    originalCurrency: coerceCurrency(data.originalCurrency),
+    confidence: coerceConfidence(data.confidence),
+  };
+  return { ...draft, needs: computeNeeds(draft) };
+}
+
+async function callBatchLLM(input: ParseInput): Promise<ParsedExpenseBatch | null> {
+  const client = getOpenAI();
+  if (!client) return null;
+  try {
+    const completion = await withLatency('parser.expenseBatch', () =>
+      client.chat.completions.create(
+        normalizeChatParams({
+          model: env.OPENAI_PARSE_MODEL,
+          temperature: 0,
+          max_tokens: 900,
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: BATCH_SYSTEM_PROMPT },
+            {
+              role: 'user',
+              content: input.locale ? `[locale=${input.locale}] ${input.text}` : input.text,
+            },
+          ],
+        }),
+      ),
+    );
+    const raw = completion.choices[0]?.message?.content?.trim() ?? '{}';
+    let payload: unknown;
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+    const parsed = batchLlmSchema.safeParse(payload);
+    if (!parsed.success) return null;
+    const items = parsed.data.items.map(parsedFromLlmData).filter((item) => item.amount !== null || item.description);
+    if (items.length === 0) return null;
+    return { items, confidence: coerceConfidence(parsed.data.confidence) };
+  } catch (err) {
+    log.warn('AI_PARSE_BATCH_FAIL', {
+      error: err instanceof Error ? err.message.slice(0, 240) : String(err),
+    });
+    return null;
+  }
+}
+
+/**
+ * Model-first parser for messages that may contain several transactions.
+ * This fixes the old architectural bug where the prompt/schema forced the
+ * model to squeeze a list of purchases into one `{ amount, description }`.
+ */
+export async function parseExpenseBatch(input: ParseInput): Promise<ParsedExpenseBatch | null> {
+  const text = input.text?.trim() ?? '';
+  if (!text || !isAIConfigured()) return null;
+  const batch = await callBatchLLM(input);
+  if (!batch || batch.items.length < 2) return null;
+  return batch;
 }
 
 export const __parserFallbacksForTests = {

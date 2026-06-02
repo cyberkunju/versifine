@@ -116,6 +116,13 @@ export const ml: MessagePack = {
       ? `✅ ${formatAmount(amount, currency)} ${category}-ൽ ചേർത്തു.`
       : `✅ ${formatAmount(amount, currency)} രേഖപ്പെടുത്തി.`,
 
+  captureLoggedMany: (items, total, currency) => {
+    const lines = items
+      .map((item) => `- ${formatAmount(item.amount, item.currency)} - ${item.description}`)
+      .join('\n');
+    return `${items.length} ചെലവുകൾ രേഖപ്പെടുത്തി (${formatAmount(total, currency)} മൊത്തം):\n${lines}`;
+  },
+
   captureNeedsConfirm: (draft) =>
     `ഉറപ്പിക്കൂ: ${describeDraft(draft)}\n\nസേവ് ചെയ്യാൻ CONFIRM, മാറ്റാൻ EDIT, റദ്ദാക്കാൻ CANCEL.`,
 

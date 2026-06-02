@@ -115,6 +115,13 @@ export const hi: MessagePack = {
       ? `✅ ${formatAmount(amount, currency)} ${category} में जोड़ दिया।`
       : `✅ ${formatAmount(amount, currency)} रिकॉर्ड हो गया।`,
 
+  captureLoggedMany: (items, total, currency) => {
+    const lines = items
+      .map((item) => `- ${formatAmount(item.amount, item.currency)} - ${item.description}`)
+      .join('\n');
+    return `${items.length} खर्च दर्ज किए (${formatAmount(total, currency)} कुल):\n${lines}`;
+  },
+
   captureNeedsConfirm: (draft) =>
     `पुष्टि करें: ${describeDraft(draft)}\n\nCONFIRM लिखें save करने के लिए, EDIT बदलने के लिए, या CANCEL।`,
 

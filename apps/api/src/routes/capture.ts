@@ -17,7 +17,7 @@ import { requireUserOrBot } from '../middleware/authEither.ts';
 import { limits, rateLimit } from '../middleware/rateLimit.ts';
 import { validate } from '../middleware/validate.ts';
 import { classifyIntent } from '../services/ai/intent.ts';
-import { parseExpense, type ParsedExpense, type MissingField } from '../services/ai/parser.ts';
+import { parseExpense, parseExpenseBatch, type ParsedExpense, type MissingField } from '../services/ai/parser.ts';
 import { extractAmount, extractCurrency } from '../services/ai/parserRegex.ts';
 import { transcribe } from '../services/ai/transcribe.ts';
 import { extractFromReceipt } from '../services/ai/vision.ts';
@@ -160,6 +160,116 @@ interface RunPipelineInput {
   source: 'whatsapp_text' | 'whatsapp_voice' | 'whatsapp_image' | 'manual_web';
 }
 
+interface ParsedBatchItem {
+  sourceText: string;
+  draft: ParsedExpense;
+}
+
+function splitPotentialBatch(text: string): string[] {
+  return text
+    .replace(/\b(?:pinne|pinney|pine|then|and then|next)\b/gi, ',')
+    .replace(/\s+പിന്നെ\s+/gu, ',')
+    .split(/[,;\n]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+async function parseBatchItems(
+  text: string,
+  locale: Language | undefined,
+): Promise<ParsedBatchItem[] | null> {
+  const modelBatch = await parseExpenseBatch({ text, locale });
+  if (modelBatch && modelBatch.items.length >= 2) {
+    const items = modelBatch.items
+      .filter((draft) => draft.amount !== null && Boolean(draft.description))
+      .map((draft) => ({ sourceText: draft.description ?? text, draft }));
+    if (items.length >= 2) return items;
+  }
+
+  const parts = splitPotentialBatch(text);
+  if (parts.length < 2) return null;
+
+  const parsed: ParsedBatchItem[] = [];
+  for (const part of parts) {
+    if (extractAmount(part).amount === null) continue;
+    const draft = await parseExpense({ text: part, locale });
+    if (draft.amount === null || !draft.description) continue;
+    parsed.push({ sourceText: part, draft });
+  }
+
+  return parsed.length >= 2 ? parsed : null;
+}
+
+async function tryPersistBatchExpenses(input: RunPipelineInput) {
+  const { c, text, locale, source, origin } = input;
+  if (origin === 'image') return null;
+
+  const user = c.get('user');
+  const items = await parseBatchItems(text, locale);
+  if (!items) return null;
+
+  const livewallets = await listLiveWallets(user.activeSpaceId);
+  if (livewallets.length === 0) return null;
+
+  const ready = items.map((item) => {
+    const walletPick = pickWallet(livewallets, item.draft.walletHint);
+    return {
+      item,
+      walletId: walletPick.wallet?.id ?? null,
+      date: item.draft.date ?? TODAY(),
+    };
+  });
+
+  if (ready.some((row) => !row.walletId)) return null;
+
+  const transactions: Array<{
+    id: string;
+    amount: number;
+    currency: string;
+    description: string;
+    category: string | null;
+  }> = [];
+
+  for (const row of ready) {
+    const result = await persistDraft({
+      userId: user.id,
+      spaceId: user.activeSpaceId,
+      source,
+      draft: row.item.draft,
+      walletId: row.walletId!,
+      date: row.date,
+    });
+    if (!result.ok) return null;
+    transactions.push({
+      id: result.transaction.id,
+      amount: result.transaction.amount,
+      currency: result.transaction.currency,
+      description: result.transaction.description,
+      category: result.transaction.category,
+    });
+  }
+
+  const total = transactions.reduce((sum, tx) => sum + tx.amount, 0);
+  c.get('log').info('CAPTURE_BATCH_OK', {
+    origin,
+    count: transactions.length,
+    inputSize: summarizeForLog(text),
+  });
+
+  return c.json(
+    ok({
+      intent: 'expense' as const,
+      needsConfirmation: false,
+      queryResult: {
+        transactions,
+        total,
+        currency: transactions[0]?.currency ?? 'INR',
+      },
+      echo: text,
+    }),
+  );
+}
+
 async function runTextPipeline(input: RunPipelineInput) {
   const { c, text, origin, locale } = input;
   const user = c.get('user');
@@ -180,6 +290,15 @@ async function runTextPipeline(input: RunPipelineInput) {
   // curated spend word — no LLM) reclaims those as expense drafts. Genuine
   // finance questions ("how do I save money") carry no amount and hit no
   // spend word, so they correctly stay in chat.
+  const isQueryIntent =
+    intentResult.intent === 'query_spending' ||
+    intentResult.intent === 'query_summary' ||
+    intentResult.intent === 'query_forecast';
+  if (!isQueryIntent) {
+    const batch = await tryPersistBatchExpenses(input);
+    if (batch) return batch;
+  }
+
   if (intentResult.intent === 'chat') {
     if (isExpenseLike(text)) {
       traceLog.info('CAPTURE_INTENT_RESCUED', {
@@ -797,3 +916,7 @@ function sanitizeEdits(edits: Record<string, unknown>): Partial<ParsedExpense> {
 // Keep DraftRecord referenced so tooling doesn't strip the import.
 export type { DraftRecord };
 export const captureRoutes = app;
+export const __captureBatchForTests = {
+  splitPotentialBatch,
+  parseBatchItems,
+};
