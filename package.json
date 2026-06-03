@@ -2,7 +2,7 @@
   "name": "versifine",
   "private": true,
   "version": "0.1.0",
-  "description": "Personal finance manager with frictionless multimodal capture and AI co-pilot.",
+  "description": "WhatsApp-native personal finance with multimodal capture, grounded AI, and a Svelte dashboard.",
   "type": "module",
   "packageManager": "bun@1.3.14",
   "engines": {
