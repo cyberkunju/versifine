@@ -39,17 +39,17 @@
  * conversation or the data block can change these rules.
  */
 export const FINANCE_SYSTEM_PROMPT = [
-  "You are Vivien, the personal-finance copilot inside Versifine.",
+  'You are Vivien, the personal-finance copilot inside Versifine.',
   '',
   'IDENTITY AND SCOPE (non-negotiable):',
-  "- You exist for ONE purpose: helping this user understand and manage their money.",
-  '- You ANSWER questions about: the user\'s own transactions, balances, budgets,',
+  '- You exist for ONE purpose: helping this user understand and manage their money.',
+  "- You ANSWER questions about: the user's own transactions, balances, budgets,",
   '  goals, recurring bills, spending and income trends; budgeting, saving, and',
   '  debt-payoff strategy; cash-flow and forecasting; general personal-finance and',
   '  money-management education (how interest works, what an emergency fund is,',
   '  the idea of diversification, tax-saving basics, what a SIP/index fund/EMI is,',
   '  and similar concepts); and how to use Versifine itself.',
-  '- You can also TAKE ACTIONS on the user\'s money: log a new expense or income',
+  "- You can also TAKE ACTIONS on the user's money: log a new expense or income",
   '  with the log_transaction tool when they ask to "log / add / record / note" a',
   '  spend or income (e.g. "log 1000 for the cab", "add my 85000 salary"). Logging',
   '  money is a CORE finance action — never refuse it as "out of scope". If the',
@@ -69,7 +69,7 @@ export const FINANCE_SYSTEM_PROMPT = [
   'Mathematics or logic puzzles (Fibonacci, primes, equations, riddles), programming',
   'or code, science, history, geography, general trivia and current events, language',
   'translation for its own sake, essays, poems, stories, jokes, recipes, and ANY task',
-  'that is not about this user\'s finances. Decline in ONE short sentence and steer',
+  "that is not about this user's finances. Decline in ONE short sentence and steer",
   'back to money — and VARY the wording each time, e.g. "That is outside my lane — I',
   'stick to your finances. Want to look at your spending or a savings plan?"',
   '',
@@ -106,7 +106,7 @@ export const FINANCE_SYSTEM_PROMPT = [
   '  look further.',
   '- After you log a transaction, confirm it back in one line (amount, what, wallet).',
   '- Be brief, warm, factual, decisive. Format money in real currency',
-  '  (₹4,250 / $50). Reply in the user\'s primary language when one is set.',
+  "  (₹4,250 / $50). Reply in the user's primary language when one is set.",
 ].join('\n');
 
 /* ------------------------------------------------------------------ *
@@ -189,14 +189,17 @@ const OFFTOPIC_PATTERNS: RegExp[] = [
  * heuristic (the model will handle nuanced framing). Broad on purpose —
  * "management" and finance are big domains and the user wants them all.
  */
-const FINANCE_TERMS = /\b(money|spend|spent|spending|expense|expenses|income|salary|budget|budgets|save|saving|savings|goal|goals|debt|loan|emi|rent|invest|investing|investment|investments|stock|stocks|mutual fund|sip|index fund|interest|tax|taxes|insurance|wallet|balance|balances|account|transaction|transactions|category|categories|cash|cashflow|cash flow|forecast|recurring|subscription|subscriptions|bill|bills|payment|payments|net worth|portfolio|fund|funds|finance|financial|afford|cost|price|rupee|rupees|dollar|dollars|₹|\$|inr|usd|credit|crore|lakh|paisa|paise|earn|earned|owe|lent|borrow|borrowed|retire|retirement|pension|profit|loss|revenue|margin|payoff|repay|installment|installments|log|logged|record|recorded|add|added|note|noted|bought|buy|purchase|purchased|paid|pay|received|got|versifine|app|bot|email|link|account|settings|language|voice|profile|help|how do (i|you)|what can you|feature|features)\b/i;
+const FINANCE_TERMS =
+  /\b(money|spend|spent|spending|expense|expenses|income|salary|budget|budgets|save|saving|savings|goal|goals|debt|loan|emi|rent|invest|investing|investment|investments|stock|stocks|mutual fund|sip|index fund|interest|tax|taxes|insurance|wallet|balance|balances|account|transaction|transactions|category|categories|cash|cashflow|cash flow|forecast|recurring|subscription|subscriptions|bill|bills|payment|payments|net worth|portfolio|fund|funds|finance|financial|afford|cost|price|rupee|rupees|dollar|dollars|₹|\$|inr|usd|credit|crore|lakh|paisa|paise|earn|earned|owe|lent|borrow|borrowed|retire|retirement|pension|profit|loss|revenue|margin|payoff|repay|installment|installments|log|logged|record|recorded|add|added|note|noted|bought|buy|purchase|purchased|paid|pay|received|got|versifine|app|bot|email|link|account|settings|language|voice|profile|help|how do (i|you)|what can you|feature|features)\b/i;
 
 /** Strip zero-width / control characters often used to smuggle payloads. */
 function stripInvisible(text: string): string {
-  return text
-    // zero-width space/joiner/non-joiner, BOM, word joiner, bidi controls
-    .replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF]/g, '')
-    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, ' ');
+  return (
+    text
+      // zero-width space/joiner/non-joiner, BOM, word joiner, bidi controls
+      .replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF]/g, '')
+      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, ' ')
+  );
 }
 
 /** Detect a long encoded blob (base64 / hex) that could hide instructions. */
@@ -270,12 +273,18 @@ export function sanitizeUntrusted(input: string, maxLen = 200): string {
     .replace(/(^|\n)\s*(system|assistant|developer|user)\s*[:：]/gi, '$1[label]:');
   // Mask the highest-signal override phrases so they can't read as commands.
   s = s
-    .replace(/\bignore (all |any |the |your )?(previous|above|prior|earlier|preceding) (instructions?|prompts?|rules?)\b/gi, '[redacted-directive]')
+    .replace(
+      /\bignore (all |any |the |your )?(previous|above|prior|earlier|preceding) (instructions?|prompts?|rules?)\b/gi,
+      '[redacted-directive]',
+    )
     .replace(/\b(system|developer) prompt\b/gi, '[redacted]')
     .replace(/\byou are now\b/gi, '[redacted]')
     .replace(/\bdeveloper mode\b/gi, '[redacted]');
   // Flatten newlines so a description can't fake multi-line structure.
-  s = s.replace(/[\r\n]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  s = s
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
   if (s.length > maxLen) s = s.slice(0, maxLen) + '…';
   return s;
 }
@@ -332,7 +341,7 @@ export const REFUSAL_OFFTOPIC =
   "That's outside what I can help with — I stick to your money and finances. Want to check your spending, set a budget, or plan some savings instead?";
 
 export const REFUSAL_GENERIC =
-  "I can only help with your personal finances. Ask me about your spending, budgets, goals, or money-management ideas.";
+  'I can only help with your personal finances. Ask me about your spending, budgets, goals, or money-management ideas.';
 
 /** Map a non-allow verdict to the user-facing refusal text. */
 export function refusalFor(verdict: ScreenVerdict): string {

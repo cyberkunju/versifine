@@ -1,126 +1,152 @@
 <script lang="ts">
-  /**
-   * Animated AI Copilot demo, editorial light theme. Question types in,
-   * an inline tool-call card renders (breakdown / forecast / compare),
-   * then the grounded answer streams token-by-token. Loops through three
-   * prompts; chips switch manually.
-   */
-  import { onDestroy, onMount } from 'svelte';
-  import { fade, fly } from 'svelte/transition';
-  import { BarChart3, TrendingUp, Scale } from 'lucide-svelte';
+/**
+ * Animated AI Copilot demo, editorial light theme. Question types in,
+ * an inline tool-call card renders (breakdown / forecast / compare),
+ * then the grounded answer streams token-by-token. Loops through three
+ * prompts; chips switch manually.
+ */
+import { onDestroy, onMount } from 'svelte';
+import { fade, fly } from 'svelte/transition';
+import { BarChart3, TrendingUp, Scale } from 'lucide-svelte';
 
-  type ToolBreakdown = { category: string; total: number; pct: number };
-  type Step =
-    | { kind: 'question'; text: string }
-    | { kind: 'tool'; tool: 'breakdown'; rows: ToolBreakdown[]; total: number }
-    | { kind: 'tool'; tool: 'forecast'; recurring: number; variable: number; total: number }
-    | { kind: 'tool'; tool: 'compare'; thisMonth: number; lastMonth: number; deltaCategory: string; deltaPct: number }
-    | { kind: 'answer'; text: string };
-
-  type Conversation = { id: string; icon: typeof BarChart3; label: string; steps: Step[] };
-
-  const CONVERSATIONS: Conversation[] = [
-    {
-      id: 'where',
-      icon: BarChart3,
-      label: 'Where did my money go?',
-      steps: [
-        { kind: 'question', text: 'Where did my money go this month?' },
-        {
-          kind: 'tool',
-          tool: 'breakdown',
-          total: 38420,
-          rows: [
-            { category: 'Restaurants', total: 8200, pct: 100 },
-            { category: 'Groceries', total: 7850, pct: 96 },
-            { category: 'Transportation', total: 4980, pct: 61 },
-            { category: 'Subscriptions', total: 4120, pct: 50 },
-            { category: 'Bills & Utilities', total: 3480, pct: 42 },
-          ],
-        },
-        { kind: 'answer', text: 'You spent ₹38,420 across 14 categories this month. Restaurants leads at ₹8,200, and Subscriptions are unusually high — Spotify, Netflix and your Zerodha SIP all landed on the 12th.' },
-      ],
-    },
-    {
-      id: 'forecast',
-      icon: TrendingUp,
-      label: 'Forecast next 30 days',
-      steps: [
-        { kind: 'question', text: 'Forecast my spending for the next 30 days.' },
-        { kind: 'tool', tool: 'forecast', recurring: 27200, variable: 31480, total: 58680 },
-        { kind: 'answer', text: 'You\'re on track for about ₹58,680 next month. ₹27,200 is locked in — rent, SIP, subscriptions. The remaining ₹31,480 is the variable component my ARIMA model projects from your daily spend.' },
-      ],
-    },
-    {
-      id: 'compare',
-      icon: Scale,
-      label: 'Where am I overspending?',
-      steps: [
-        { kind: 'question', text: 'Where am I overspending vs last month?' },
-        { kind: 'tool', tool: 'compare', thisMonth: 38420, lastMonth: 32150, deltaCategory: 'Food Delivery', deltaPct: 64 },
-        { kind: 'answer', text: 'You\'re ₹6,270 over last month, almost entirely in Food Delivery — up 64%. Swiggy hit twice last week. Cut one order and you\'re back on trend. Groceries and Restaurants are flat, which is healthy.' },
-      ],
-    },
-  ];
-
-  let activeIdx = $state(0);
-  const active = $derived(CONVERSATIONS[activeIdx] ?? CONVERSATIONS[0]!);
-  let typedQuestion = $state('');
-  let revealedSteps = $state<number[]>([]);
-  let typedAnswer = $state('');
-  let busy = $state(false);
-  let runId = 0;
-
-  async function play(idx: number) {
-    runId += 1;
-    const myRun = runId;
-    activeIdx = idx;
-    typedQuestion = '';
-    revealedSteps = [];
-    typedAnswer = '';
-    busy = true;
-
-    const conv = CONVERSATIONS[idx]!;
-    const question = conv.steps.find((s) => s.kind === 'question') as { kind: 'question'; text: string };
-    const answer = conv.steps.find((s) => s.kind === 'answer') as { kind: 'answer'; text: string };
-    const toolStepIdx = conv.steps.findIndex((s) => s.kind === 'tool');
-
-    for (let i = 1; i <= question.text.length; i += 1) {
-      if (myRun !== runId) return;
-      typedQuestion = question.text.slice(0, i);
-      await wait(18 + Math.random() * 26);
+type ToolBreakdown = { category: string; total: number; pct: number };
+type Step =
+  | { kind: 'question'; text: string }
+  | { kind: 'tool'; tool: 'breakdown'; rows: ToolBreakdown[]; total: number }
+  | { kind: 'tool'; tool: 'forecast'; recurring: number; variable: number; total: number }
+  | {
+      kind: 'tool';
+      tool: 'compare';
+      thisMonth: number;
+      lastMonth: number;
+      deltaCategory: string;
+      deltaPct: number;
     }
-    revealedSteps = [0];
-    await wait(420);
+  | { kind: 'answer'; text: string };
+
+type Conversation = { id: string; icon: typeof BarChart3; label: string; steps: Step[] };
+
+const CONVERSATIONS: Conversation[] = [
+  {
+    id: 'where',
+    icon: BarChart3,
+    label: 'Where did my money go?',
+    steps: [
+      { kind: 'question', text: 'Where did my money go this month?' },
+      {
+        kind: 'tool',
+        tool: 'breakdown',
+        total: 38420,
+        rows: [
+          { category: 'Restaurants', total: 8200, pct: 100 },
+          { category: 'Groceries', total: 7850, pct: 96 },
+          { category: 'Transportation', total: 4980, pct: 61 },
+          { category: 'Subscriptions', total: 4120, pct: 50 },
+          { category: 'Bills & Utilities', total: 3480, pct: 42 },
+        ],
+      },
+      {
+        kind: 'answer',
+        text: 'You spent ₹38,420 across 14 categories this month. Restaurants leads at ₹8,200, and Subscriptions are unusually high — Spotify, Netflix and your Zerodha SIP all landed on the 12th.',
+      },
+    ],
+  },
+  {
+    id: 'forecast',
+    icon: TrendingUp,
+    label: 'Forecast next 30 days',
+    steps: [
+      { kind: 'question', text: 'Forecast my spending for the next 30 days.' },
+      { kind: 'tool', tool: 'forecast', recurring: 27200, variable: 31480, total: 58680 },
+      {
+        kind: 'answer',
+        text: "You're on track for about ₹58,680 next month. ₹27,200 is locked in — rent, SIP, subscriptions. The remaining ₹31,480 is the variable component my ARIMA model projects from your daily spend.",
+      },
+    ],
+  },
+  {
+    id: 'compare',
+    icon: Scale,
+    label: 'Where am I overspending?',
+    steps: [
+      { kind: 'question', text: 'Where am I overspending vs last month?' },
+      {
+        kind: 'tool',
+        tool: 'compare',
+        thisMonth: 38420,
+        lastMonth: 32150,
+        deltaCategory: 'Food Delivery',
+        deltaPct: 64,
+      },
+      {
+        kind: 'answer',
+        text: "You're ₹6,270 over last month, almost entirely in Food Delivery — up 64%. Swiggy hit twice last week. Cut one order and you're back on trend. Groceries and Restaurants are flat, which is healthy.",
+      },
+    ],
+  },
+];
+
+let activeIdx = $state(0);
+const active = $derived(CONVERSATIONS[activeIdx] ?? CONVERSATIONS[0]!);
+let typedQuestion = $state('');
+let revealedSteps = $state<number[]>([]);
+let typedAnswer = $state('');
+let busy = $state(false);
+let runId = 0;
+
+async function play(idx: number) {
+  runId += 1;
+  const myRun = runId;
+  activeIdx = idx;
+  typedQuestion = '';
+  revealedSteps = [];
+  typedAnswer = '';
+  busy = true;
+
+  const conv = CONVERSATIONS[idx]!;
+  const question = conv.steps.find((s) => s.kind === 'question') as {
+    kind: 'question';
+    text: string;
+  };
+  const answer = conv.steps.find((s) => s.kind === 'answer') as { kind: 'answer'; text: string };
+  const toolStepIdx = conv.steps.findIndex((s) => s.kind === 'tool');
+
+  for (let i = 1; i <= question.text.length; i += 1) {
     if (myRun !== runId) return;
-    revealedSteps = [...revealedSteps, toolStepIdx];
-    await wait(820);
+    typedQuestion = question.text.slice(0, i);
+    await wait(18 + Math.random() * 26);
+  }
+  revealedSteps = [0];
+  await wait(420);
+  if (myRun !== runId) return;
+  revealedSteps = [...revealedSteps, toolStepIdx];
+  await wait(820);
+  if (myRun !== runId) return;
+  revealedSteps = [...revealedSteps, conv.steps.length - 1];
+  for (let i = 1; i <= answer.text.length; i += 1) {
     if (myRun !== runId) return;
-    revealedSteps = [...revealedSteps, conv.steps.length - 1];
-    for (let i = 1; i <= answer.text.length; i += 1) {
-      if (myRun !== runId) return;
-      typedAnswer = answer.text.slice(0, i);
-      await wait(answer.text[i - 1] === ' ' ? 12 : 6);
-    }
-    busy = false;
-    await wait(3600);
-    if (myRun !== runId) return;
-    play((idx + 1) % CONVERSATIONS.length);
+    typedAnswer = answer.text.slice(0, i);
+    await wait(answer.text[i - 1] === ' ' ? 12 : 6);
   }
-  function wait(ms: number): Promise<void> {
-    return new Promise((r) => setTimeout(r, ms));
-  }
-  function selectConversation(idx: number) {
-    if (idx === activeIdx) return;
-    play(idx);
-  }
-  function inr(n: number): string {
-    return `₹${n.toLocaleString('en-IN')}`;
-  }
-  onMount(() => play(0));
-  onDestroy(() => {
-    runId += 1;
-  });
+  busy = false;
+  await wait(3600);
+  if (myRun !== runId) return;
+  play((idx + 1) % CONVERSATIONS.length);
+}
+function wait(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+function selectConversation(idx: number) {
+  if (idx === activeIdx) return;
+  play(idx);
+}
+function inr(n: number): string {
+  return `₹${n.toLocaleString('en-IN')}`;
+}
+onMount(() => play(0));
+onDestroy(() => {
+  runId += 1;
+});
 </script>
 
 <div class="w-full min-w-0 overflow-hidden rounded-2xl border border-[hsl(var(--border))] bg-white shadow-[0_24px_60px_-30px_rgba(18,26,140,0.4)]">

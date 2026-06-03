@@ -26,7 +26,13 @@ function makeMeanSeries(n: number, mean: number, jitter: number, seed = 1337): n
   return out;
 }
 
-function makeTrendSeries(n: number, start: number, slope: number, jitter: number, seed = 99): number[] {
+function makeTrendSeries(
+  n: number,
+  start: number,
+  slope: number,
+  jitter: number,
+  seed = 99,
+): number[] {
   let state = seed;
   const next = () => {
     state = (state * 1664525 + 1013904223) >>> 0;

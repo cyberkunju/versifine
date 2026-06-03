@@ -1,13 +1,5 @@
 import { sql } from 'drizzle-orm';
-import {
-  customType,
-  date,
-  index,
-  pgTable,
-  timestamp,
-  uuid,
-  varchar,
-} from 'drizzle-orm/pg-core';
+import { customType, date, index, pgTable, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
 import { spaces } from './spaces.ts';
 
 const numeric14_2 = customType<{ data: string; driverData: string }>({

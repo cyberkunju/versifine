@@ -1,0 +1,40 @@
+=== VERIFY: research low-latency config on sarvam-30b ===
+Confirming reasoning_effort:null is on the wire and checking if reasoning stops.
+
+[intent: spent 450 on auto] 716ms  finish=length
+  reasoning_content present: true (len 238)
+  content: (null/empty)
+  usage: prompt=78 completion=64
+
+[intent: how much today] 436ms  finish=length
+  reasoning_content present: true (len 214)
+  content: (null/empty)
+  usage: prompt=77 completion=64
+
+[intent: chai] 219ms  finish=stop
+  reasoning_content present: false 
+  content: "{\"intent\":\"unknown\""
+  usage: prompt=72 completion=8
+
+[chat: emergency fund] 1115ms  finish=length
+  reasoning_content present: true (len 776)
+  content: (null/empty)
+  usage: prompt=45 completion=192
+
+[chat: save on tight budget] 786ms  finish=length
+  reasoning_content present: true (len 715)
+  content: (null/empty)
+  usage: prompt=47 completion=192
+
+[chat: hindi tips] 800ms  finish=length
+  reasoning_content present: true (len 676)
+  content: (null/empty)
+  usage: prompt=46 completion=192
+
+--- CONTROL: same chat prompt with reasoning_effort omitted (default medium) ---
+
+[chat(default medium): emergency fund] 2708ms  finish=length
+  reasoning_content present: true (len 3190)
+  content: (null/empty)
+  usage: prompt=45 completion=800
+EXIT_CODE=0 

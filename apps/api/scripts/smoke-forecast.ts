@@ -112,7 +112,13 @@ async function main() {
       variableTotal: number;
       total: number;
       method: string;
-      daily: Array<{ date: string; recurring: number; variable: number; lower: number; upper: number }>;
+      daily: Array<{
+        date: string;
+        recurring: number;
+        variable: number;
+        lower: number;
+        upper: number;
+      }>;
       anomalies: Array<{ date: string; amount: number; zscore: number; reason: string }>;
     };
   };

@@ -1,16 +1,16 @@
 <script lang="ts">
-  import { Avatar as A } from 'bits-ui';
-  import type { Snippet } from 'svelte';
-  import { cn } from '$lib/utils/cn';
+import { Avatar as A } from 'bits-ui';
+import type { Snippet } from 'svelte';
+import { cn } from '$lib/utils/cn';
 
-  type Props = {
-    class?: string;
-    src?: string;
-    alt?: string;
-    fallback?: Snippet;
-  };
+type Props = {
+  class?: string;
+  src?: string;
+  alt?: string;
+  fallback?: Snippet;
+};
 
-  let { class: className, src, alt, fallback }: Props = $props();
+let { class: className, src, alt, fallback }: Props = $props();
 </script>
 
 <A.Root

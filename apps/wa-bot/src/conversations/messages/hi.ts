@@ -5,6 +5,7 @@
  * for currency formatting (numbers stay in Latin digits — most Indian
  * users read ₹4,250 the same way regardless of UI language).
  */
+import { resolveCurrencySymbol } from '@versifine/shared';
 import type { DraftSummary, MessagePack, QuerySummaryView } from './types.ts';
 
 const PERIOD_LABELS_HI: Record<string, string> = {
@@ -25,12 +26,17 @@ function formatINR(value: number): string {
   const head = intStr.slice(0, -3);
   const grouped = head ? `${head.replace(/\B(?=(\d{2})+(?!\d))/g, ',')},${lastThree}` : lastThree;
   const sign = value < 0 ? '-' : '';
-  return fraction > 0 ? `${sign}${grouped}.${String(fraction).padStart(2, '0')}` : `${sign}${grouped}`;
+  return fraction > 0
+    ? `${sign}${grouped}.${String(fraction).padStart(2, '0')}`
+    : `${sign}${grouped}`;
 }
 
 function formatAmount(value: number, currency: string): string {
-  if (currency === 'INR') return `₹${formatINR(value)}`;
-  return `${currency} ${formatINR(value)}`;
+  const upper = currency.toUpperCase();
+  const symbol = resolveCurrencySymbol(upper);
+  const separator = symbol === upper ? ' ' : '';
+  if (upper === 'INR') return `₹${formatINR(value)}`;
+  return `${symbol}${separator}${formatINR(value)}`;
 }
 
 function describeDraft(d: DraftSummary): string {
@@ -63,14 +69,12 @@ export const hi: MessagePack = {
     'अकाउंट अपने-आप जुड़ जाएगा। यहाँ password की ज़रूरत नहीं।\n\n' +
     'अपना email भेजें, या बाद के लिए SKIP लिखें।',
 
-  emailLinked: (email) =>
-    `${email} से जोड़ दिया। ✅ वेब पर इसी email से sign in करें — वही अकाउंट रहेगा।`,
+  emailLinked: (email) => `${email} से जोड़ दिया। ✅ वेब पर इसी email से sign in करें — वही अकाउंट रहेगा।`,
 
   emailLinkedExisting: (email) =>
     `वापसी पर स्वागत है! यह नंबर अब आपके ${email} अकाउंट से जुड़ गया है। ✅ सब कुछ एक ही जगह।`,
 
-  emailInvalid:
-    'यह email सही नहीं लग रहा। एक वैध email भेजें (जैसे you@example.com), या SKIP लिखें।',
+  emailInvalid: 'यह email सही नहीं लग रहा। एक वैध email भेजें (जैसे you@example.com), या SKIP लिखें।',
 
   emailSkipped: 'कोई बात नहीं — छोड़ दिया। आप बाद में वेब ऐप से email जोड़ सकते हैं।',
 
@@ -96,15 +100,14 @@ export const hi: MessagePack = {
       ? `✅ लिंक हो गया! स्वागत है ${name}। आज़माएँ: "200 चाय पे" या HELP भेजें।`
       : '✅ लिंक हो गया! आज़माएँ: "200 चाय पे" या HELP भेजें।',
 
-  linkInvalid:
-    'यह कोड नहीं चला। वेब Settings → Link WhatsApp से नया कोड लें और LINK <कोड> भेजें।',
+  linkInvalid: 'यह कोड नहीं चला। वेब Settings → Link WhatsApp से नया कोड लें और LINK <कोड> भेजें।',
 
   helpCard:
     'मैं ये सब कर सकता हूँ:\n' +
     "• खर्चा लिखें — '450 रुपये ऑटो पर'\n" +
     "• आमदनी — 'salary 85000 आई'\n" +
-    "• फोटो — रसीद भेजें, मैं पढ़ लूँगा\n" +
-    "• वॉइस नोट — 6 भाषाओं में बोलें\n" +
+    '• फोटो — रसीद भेजें, मैं पढ़ लूँगा\n' +
+    '• वॉइस नोट — 6 भाषाओं में बोलें\n' +
     "• पूछें — 'इस महीने खाने पर कितना खर्च?'\n" +
     "• बजट — 'set budget groceries 8000'\n" +
     "• सुधार — 'पिछला Food नहीं Transport था'\n\n" +
@@ -112,9 +115,10 @@ export const hi: MessagePack = {
 
   captureLogged: (amount, currency, category, baseAmount, baseCurrency) => {
     const formatted = formatAmount(amount, currency);
-    const converted = baseAmount && baseCurrency && baseCurrency !== currency
-      ? ` (${formatAmount(baseAmount, baseCurrency)})`
-      : '';
+    const converted =
+      baseAmount && baseCurrency && baseCurrency !== currency
+        ? ` (${formatAmount(baseAmount, baseCurrency)})`
+        : '';
     return category
       ? `✅ ${formatted}${converted} ${category} में जोड़ दिया।`
       : `✅ ${formatted}${converted} रिकॉर्ड हो गया।`;
@@ -159,11 +163,9 @@ export const hi: MessagePack = {
     return msg;
   },
 
-  copilotNudge:
-    'गहरे सवाल के लिए वेब copilot आज़माएँ: versifine.com। यहाँ भी पूछ सकते हैं — सीधे सवाल भेजें।',
+  copilotNudge: 'गहरे सवाल के लिए वेब copilot आज़माएँ: versifine.com। यहाँ भी पूछ सकते हैं — सीधे सवाल भेजें।',
 
-  budgetAskCategory:
-    'किस कैटेगरी के लिए? (जैसे Groceries, Restaurants, Transportation)',
+  budgetAskCategory: 'किस कैटेगरी के लिए? (जैसे Groceries, Restaurants, Transportation)',
   budgetAskAmount: (category) => `${category} के लिए हर महीने कितना?`,
   budgetSet: (category, amount) =>
     `📊 बजट सेट: ${category} → ${formatAmount(amount, 'INR')}/महीना। 80% पर alert कर दूँगा।`,
@@ -183,15 +185,11 @@ export const hi: MessagePack = {
 
   resetDone: '🔄 रीसेट हो गया। HELP भेजें यह देखने के लिए कि मैं क्या कर सकता हूँ।',
 
-  stopAcknowledged:
-    'ठीक है, अब चुप हो जाता हूँ। कभी भी messages भेज कर फिर से जगा सकते हैं।',
+  stopAcknowledged: 'ठीक है, अब चुप हो जाता हूँ। कभी भी messages भेज कर फिर से जगा सकते हैं।',
 
-  unknown:
-    "समझ नहीं आया। कोई खर्चा लिखें (जैसे '200 चाय पे') या HELP भेजें।",
+  unknown: "समझ नहीं आया। कोई खर्चा लिखें (जैसे '200 चाय पे') या HELP भेजें।",
 
-  error:
-    'मेरी तरफ़ से कुछ गड़बड़ हुई। फिर से कोशिश करें या RESET भेजें।',
+  error: 'मेरी तरफ़ से कुछ गड़बड़ हुई। फिर से कोशिश करें या RESET भेजें।',
 
-  notLinked:
-    'आपका message मिल गया लेकिन यह नंबर अभी लिंक नहीं है। वेब से 6 अंकों का कोड लेकर LINK <कोड> भेजें।',
+  notLinked: 'आपका message मिल गया लेकिन यह नंबर अभी लिंक नहीं है। वेब से 6 अंकों का कोड लेकर LINK <कोड> भेजें।',
 };

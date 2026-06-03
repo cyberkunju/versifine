@@ -166,7 +166,10 @@ describe('extractAmount — worded numbers', () => {
   });
 
   test('English "two hundred and fifty" with connector', () => {
-    expect(extractAmount('two hundred and fifty for dinner')).toEqual({ amount: 250, currency: null });
+    expect(extractAmount('two hundred and fifty for dinner')).toEqual({
+      amount: 250,
+      currency: null,
+    });
   });
 
   test('English "five thousand"', () => {
@@ -283,7 +286,10 @@ describe('extractAmount — worded numbers', () => {
   });
 
   test('digit wins even when a worded scale word follows', () => {
-    expect(extractAmount('paid 450 hundred percent worth it')).toEqual({ amount: 450, currency: null });
+    expect(extractAmount('paid 450 hundred percent worth it')).toEqual({
+      amount: 450,
+      currency: null,
+    });
   });
 
   test('worded parsing does not fire when no number word is present', () => {

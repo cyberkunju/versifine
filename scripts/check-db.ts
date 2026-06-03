@@ -12,7 +12,9 @@ const url =
 const sql = postgres(url, { max: 1, prepare: false, onnotice: () => undefined });
 
 async function count(table: string): Promise<number> {
-  const rows = await sql.unsafe<Array<{ count: string }>>(`SELECT count(*)::text AS count FROM ${table}`);
+  const rows = await sql.unsafe<Array<{ count: string }>>(
+    `SELECT count(*)::text AS count FROM ${table}`,
+  );
   return Number(rows[0]?.count ?? 0);
 }
 

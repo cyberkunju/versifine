@@ -20,7 +20,10 @@ export class VersifineSocket {
   private getToken: () => string | null = () => null;
   private connected = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private readonly listeners = new Map<WsEventType | '*' | 'connected' | 'disconnected', Set<(event: unknown) => void>>();
+  private readonly listeners = new Map<
+    WsEventType | '*' | 'connected' | 'disconnected',
+    Set<(event: unknown) => void>
+  >();
   private explicitClose = false;
 
   /**

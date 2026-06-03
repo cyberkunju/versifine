@@ -17,11 +17,21 @@ import { requireUserOrBot } from '../middleware/authEither.ts';
 import { limits, rateLimit } from '../middleware/rateLimit.ts';
 import { validate } from '../middleware/validate.ts';
 import { classifyIntent } from '../services/ai/intent.ts';
-import { parseExpense, parseExpenseBatch, type ParsedExpense, type MissingField } from '../services/ai/parser.ts';
+import {
+  parseExpense,
+  parseExpenseBatch,
+  type ParsedExpense,
+  type MissingField,
+} from '../services/ai/parser.ts';
 import { extractAmount, extractCurrency } from '../services/ai/parserRegex.ts';
 import { transcribe } from '../services/ai/transcribe.ts';
 import { extractFromReceipt } from '../services/ai/vision.ts';
-import { storeDraft, getDraft, consumeDraft, type DraftRecord } from '../services/capture/drafts.ts';
+import {
+  storeDraft,
+  getDraft,
+  consumeDraft,
+  type DraftRecord,
+} from '../services/capture/drafts.ts';
 import { persistDraft } from '../services/capture/persist.ts';
 import { safeCategorize } from '../services/categorize/_safe.ts';
 import { categorizeFromMerchantDB } from '../services/categorize/merchants.ts';
@@ -587,25 +597,19 @@ function maybeLanguage(input: string | undefined): Language | undefined {
   return isLanguage(input) ? (input as Language) : undefined;
 }
 
-app.post(
-  '/text',
-  requireUserOrBot,
-  captureLimit,
-  validate('json', captureTextInput),
-  async (c) => {
-    const { text, locale } = c.req.valid('json');
-    const sourceTag: 'whatsapp_text' | 'manual_web' = c.req.header('x-bot-secret')
-      ? 'whatsapp_text'
-      : 'manual_web';
-    return runTextPipeline({
-      c,
-      text,
-      origin: 'text',
-      locale: maybeLanguage(locale),
-      source: sourceTag,
-    });
-  },
-);
+app.post('/text', requireUserOrBot, captureLimit, validate('json', captureTextInput), async (c) => {
+  const { text, locale } = c.req.valid('json');
+  const sourceTag: 'whatsapp_text' | 'manual_web' = c.req.header('x-bot-secret')
+    ? 'whatsapp_text'
+    : 'manual_web';
+  return runTextPipeline({
+    c,
+    text,
+    origin: 'text',
+    locale: maybeLanguage(locale),
+    source: sourceTag,
+  });
+});
 
 app.post('/voice', requireUserOrBot, captureLimit, async (c) => {
   const form = await c.req.formData().catch(() => null);
@@ -616,7 +620,11 @@ app.post('/voice', requireUserOrBot, captureLimit, async (c) => {
 
   const buffer = Buffer.from(await audio.arrayBuffer());
   const mimetype = audio.type || 'application/octet-stream';
-  const result = await transcribe(buffer, mimetype, typeof locale === 'string' ? locale : undefined);
+  const result = await transcribe(
+    buffer,
+    mimetype,
+    typeof locale === 'string' ? locale : undefined,
+  );
   c.get('log').info('CAPTURE_VOICE', {
     bytes: buffer.byteLength,
     transcribeSource: result.source,
@@ -698,7 +706,8 @@ app.post('/image', requireUserOrBot, captureLimit, async (c) => {
 
   // High-confidence, complete extraction → log it straight away (no friction).
   // A clear GPay "Paid ₹450 to Ola" screenshot shouldn't need a confirm tap.
-  const complete = extracted.amount !== null && Boolean(extracted.description) && Boolean(walletPick.wallet);
+  const complete =
+    extracted.amount !== null && Boolean(extracted.description) && Boolean(walletPick.wallet);
   if (complete && extracted.confidence >= 0.7) {
     const persistResult = await persistDraft({
       userId: user.id,
@@ -758,145 +767,139 @@ const confirmInput = z
     path: ['edits'],
   });
 
-app.post(
-  '/confirm',
-  requireUserOrBot,
-  captureLimit,
-  validate('json', confirmInput),
-  async (c) => {
-    const body = c.req.valid('json');
-    const { draftId } = body;
-    const text = body.text ?? '';
-    const user = c.get('user');
-    const record = getDraft(draftId);
-    if (!record) throw errors.notFound('Draft expired or unknown');
-    if (record.spaceId !== user.activeSpaceId || record.userId !== user.id) {
-      throw errors.forbidden('Draft does not belong to this user');
-    }
+app.post('/confirm', requireUserOrBot, captureLimit, validate('json', confirmInput), async (c) => {
+  const body = c.req.valid('json');
+  const { draftId } = body;
+  const text = body.text ?? '';
+  const user = c.get('user');
+  const record = getDraft(draftId);
+  if (!record) throw errors.notFound('Draft expired or unknown');
+  if (record.spaceId !== user.activeSpaceId || record.userId !== user.id) {
+    throw errors.forbidden('Draft does not belong to this user');
+  }
 
-    // Apply edits as a JSON patch if the user sent one, otherwise treat
-    // the whole `text` field as a free-form clarifier and fill missing fields
-    // deterministically (regex first, LLM only if a gap remains).
-    let merged: ParsedExpense = record.draft;
-    let edits: Partial<ParsedExpense> = {};
-    if (body.edits) {
-      edits = sanitizeEdits(body.edits);
-    } else if (text) {
-      // The web omnibar may POST a JSON edits object in the `text` field, but
-      // the WhatsApp bot sends free-form clarifiers ("100", "groceries").
-      // `resolveClarifier` decides which it is and runs the deterministic
-      // regex pass for clarifiers — a bare number ALWAYS fills the amount.
-      //
-      // This is the infinite-loop fix: a bare "100" is itself valid JSON (it
-      // parses to the NUMBER 100, not an object), so the old code's
-      // `JSON.parse(text)` succeeded, the "is it an object?" guard failed, and
-      // the clarifier was silently dropped — `amount` stayed null and the bot
-      // re-asked "How much was it?" forever.
-      const resolution = resolveClarifier(merged, text);
-      edits = resolution.edits;
-      if (!resolution.isJsonEdits) {
-        const afterDeterministic = { ...merged, ...edits } as ParsedExpense;
-        const stillMissing =
-          afterDeterministic.amount === null || !afterDeterministic.description;
-        // Only spend an LLM round-trip when the deterministic pass left a gap
-        // (e.g. a wordy clarifier whose description the regex can't see).
-        if (stillMissing) {
-          const followup = await parseExpense({
-            text: `${record.source}. ${text}`,
-            locale: record.locale ?? undefined,
-          });
-          edits = clarifierEdits(merged, text, followup);
-        }
+  // Apply edits as a JSON patch if the user sent one, otherwise treat
+  // the whole `text` field as a free-form clarifier and fill missing fields
+  // deterministically (regex first, LLM only if a gap remains).
+  let merged: ParsedExpense = record.draft;
+  let edits: Partial<ParsedExpense> = {};
+  if (body.edits) {
+    edits = sanitizeEdits(body.edits);
+  } else if (text) {
+    // The web omnibar may POST a JSON edits object in the `text` field, but
+    // the WhatsApp bot sends free-form clarifiers ("100", "groceries").
+    // `resolveClarifier` decides which it is and runs the deterministic
+    // regex pass for clarifiers — a bare number ALWAYS fills the amount.
+    //
+    // This is the infinite-loop fix: a bare "100" is itself valid JSON (it
+    // parses to the NUMBER 100, not an object), so the old code's
+    // `JSON.parse(text)` succeeded, the "is it an object?" guard failed, and
+    // the clarifier was silently dropped — `amount` stayed null and the bot
+    // re-asked "How much was it?" forever.
+    const resolution = resolveClarifier(merged, text);
+    edits = resolution.edits;
+    if (!resolution.isJsonEdits) {
+      const afterDeterministic = { ...merged, ...edits } as ParsedExpense;
+      const stillMissing = afterDeterministic.amount === null || !afterDeterministic.description;
+      // Only spend an LLM round-trip when the deterministic pass left a gap
+      // (e.g. a wordy clarifier whose description the regex can't see).
+      if (stillMissing) {
+        const followup = await parseExpense({
+          text: `${record.source}. ${text}`,
+          locale: record.locale ?? undefined,
+        });
+        edits = clarifierEdits(merged, text, followup);
       }
     }
-    merged = { ...merged, ...edits } as ParsedExpense;
-    merged.needs = missingFields(merged);
+  }
+  merged = { ...merged, ...edits } as ParsedExpense;
+  merged.needs = missingFields(merged);
 
-    if (merged.amount === null || !merged.description) {
-      // Still missing a required field. Re-stash and ask for whatever is
-      // genuinely missing NEXT — never re-ask for what the user just supplied
-      // (the priority order in `followupQuestionFor` advances past any field
-      // the clarifier filled). A monotonic round counter rides along on the
-      // draft so a stream of unparseable replies can't loop forever.
-      const round = record.clarifyRounds + 1;
-      const nextField = askedField(merged.needs);
+  if (merged.amount === null || !merged.description) {
+    // Still missing a required field. Re-stash and ask for whatever is
+    // genuinely missing NEXT — never re-ask for what the user just supplied
+    // (the priority order in `followupQuestionFor` advances past any field
+    // the clarifier filled). A monotonic round counter rides along on the
+    // draft so a stream of unparseable replies can't loop forever.
+    const round = record.clarifyRounds + 1;
+    const nextField = askedField(merged.needs);
 
-      if (round > MAX_CLARIFY_ROUNDS) {
-        // Give up gracefully instead of bricking: drop the draft so the user
-        // starts fresh rather than being trapped in an endless clarifier.
-        consumeDraft(draftId);
-        return c.json(
-          ok({
-            intent: 'unknown',
-            needsConfirmation: false,
-            echo: text,
-          }),
-        );
-      }
-
-      const next = storeDraft({
-        spaceId: record.spaceId,
-        userId: record.userId,
-        origin: record.origin,
-        source: record.source,
-        locale: record.locale ?? null,
-        draft: merged,
-        clarifyRounds: round,
-        lastAsked: nextField,
-      });
+    if (round > MAX_CLARIFY_ROUNDS) {
+      // Give up gracefully instead of bricking: drop the draft so the user
+      // starts fresh rather than being trapped in an endless clarifier.
       consumeDraft(draftId);
       return c.json(
         ok({
-          intent: 'expense',
-          needsConfirmation: true,
-          draftId: next.id,
-          draft: serializeDraft(merged),
-          followupQuestion: followupQuestionFor(merged.needs),
+          intent: 'unknown',
+          needsConfirmation: false,
           echo: text,
         }),
       );
     }
 
-    const livewallets = await listLiveWallets(user.activeSpaceId);
-    const walletPick = pickWallet(livewallets, merged.walletHint);
-    if (!walletPick.wallet) {
-      throw errors.validation('No wallet available to post against');
-    }
+    const next = storeDraft({
+      spaceId: record.spaceId,
+      userId: record.userId,
+      origin: record.origin,
+      source: record.source,
+      locale: record.locale ?? null,
+      draft: merged,
+      clarifyRounds: round,
+      lastAsked: nextField,
+    });
+    consumeDraft(draftId);
+    return c.json(
+      ok({
+        intent: 'expense',
+        needsConfirmation: true,
+        draftId: next.id,
+        draft: serializeDraft(merged),
+        followupQuestion: followupQuestionFor(merged.needs),
+        echo: text,
+      }),
+    );
+  }
 
-    const persistResult = await persistDraft({
-      userId: user.id,
-      spaceId: user.activeSpaceId,
-      source: record.origin === 'voice'
+  const livewallets = await listLiveWallets(user.activeSpaceId);
+  const walletPick = pickWallet(livewallets, merged.walletHint);
+  if (!walletPick.wallet) {
+    throw errors.validation('No wallet available to post against');
+  }
+
+  const persistResult = await persistDraft({
+    userId: user.id,
+    spaceId: user.activeSpaceId,
+    source:
+      record.origin === 'voice'
         ? 'whatsapp_voice'
         : record.origin === 'image'
           ? 'whatsapp_image'
           : c.req.header('x-bot-secret')
             ? 'whatsapp_text'
             : 'manual_web',
-      draft: merged,
-      walletId: walletPick.wallet.id,
-      date: merged.date ?? TODAY(),
+    draft: merged,
+    walletId: walletPick.wallet.id,
+    date: merged.date ?? TODAY(),
+  });
+
+  if (!persistResult.ok) {
+    log.warn('CAPTURE_CONFIRM_FAIL', {
+      reason: persistResult.reason,
+      message: persistResult.message,
     });
+    throw errors.internal(persistResult.message);
+  }
+  consumeDraft(draftId);
 
-    if (!persistResult.ok) {
-      log.warn('CAPTURE_CONFIRM_FAIL', {
-        reason: persistResult.reason,
-        message: persistResult.message,
-      });
-      throw errors.internal(persistResult.message);
-    }
-    consumeDraft(draftId);
-
-    return c.json(
-      ok({
-        intent: 'expense' as const,
-        needsConfirmation: false,
-        queryResult: { transaction: persistResult.transaction },
-        echo: text,
-      }),
-    );
-  },
-);
+  return c.json(
+    ok({
+      intent: 'expense' as const,
+      needsConfirmation: false,
+      queryResult: { transaction: persistResult.transaction },
+      echo: text,
+    }),
+  );
+});
 
 function missingFields(p: ParsedExpense): ParsedExpense['needs'] {
   const needs: ParsedExpense['needs'] = [];

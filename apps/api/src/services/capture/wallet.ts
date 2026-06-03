@@ -45,10 +45,7 @@ export async function listLiveWallets(spaceId: string): Promise<Wallet[]> {
     .where(and(eq(wallets.spaceId, spaceId), isNull(wallets.archivedAt)));
 }
 
-export function pickWallet(
-  available: Wallet[],
-  hint: string | null | undefined,
-): WalletPick {
+export function pickWallet(available: Wallet[], hint: string | null | undefined): WalletPick {
   if (available.length === 0) return { wallet: null, matched: 'none' };
 
   if (hint && hint.trim()) {

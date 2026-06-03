@@ -1,279 +1,279 @@
 <script lang="ts">
-  /**
-   * Versifine operator console — /admin.
-   *
-   * Editorial-fintech to match the product: white/ivory ground, indigo ink
-   * (#121a8c), a restrained periwinkle accent, the Outfit typeface, the V
-   * watermark, and the login page's gradient sign-in button + rise-in motion.
-   *
-   * Single page, credential-gated (httpOnly cookie session minted by
-   * /admin/api/login). Houses every operator task:
-   *   - WhatsApp pairing: live QR with auto-refresh + connection status, and
-   *     an Unlink action that logs the device out and re-shows a QR.
-   *   - Demo allowlist: seed (read-only) + dynamic numbers, add/remove.
-   *
-   * No tokens to type once logged in — the server holds the bot secret.
-   */
-  import { onMount, onDestroy } from 'svelte';
-  import { browser } from '$app/environment';
-  import {
-    Check,
-    Loader2,
-    LogOut,
-    Plus,
-    QrCode,
-    RefreshCw,
-    Smartphone,
-    Trash2,
-    TriangleAlert,
-    Unlink,
-    X,
-  } from 'lucide-svelte';
-  import VMark from '$lib/components/brand/VMark.svelte';
-  import Wordmark from '$lib/components/brand/Wordmark.svelte';
+/**
+ * Versifine operator console — /admin.
+ *
+ * Editorial-fintech to match the product: white/ivory ground, indigo ink
+ * (#121a8c), a restrained periwinkle accent, the Outfit typeface, the V
+ * watermark, and the login page's gradient sign-in button + rise-in motion.
+ *
+ * Single page, credential-gated (httpOnly cookie session minted by
+ * /admin/api/login). Houses every operator task:
+ *   - WhatsApp pairing: live QR with auto-refresh + connection status, and
+ *     an Unlink action that logs the device out and re-shows a QR.
+ *   - Demo allowlist: seed (read-only) + dynamic numbers, add/remove.
+ *
+ * No tokens to type once logged in — the server holds the bot secret.
+ */
+import { onMount, onDestroy } from 'svelte';
+import { browser } from '$app/environment';
+import {
+  Check,
+  Loader2,
+  LogOut,
+  Plus,
+  QrCode,
+  RefreshCw,
+  Smartphone,
+  Trash2,
+  TriangleAlert,
+  Unlink,
+  X,
+} from 'lucide-svelte';
+import VMark from '$lib/components/brand/VMark.svelte';
+import Wordmark from '$lib/components/brand/Wordmark.svelte';
 
-  // ----- auth state -----
-  let booting = $state(true);
-  let authed = $state(false);
-  let username = $state('');
-  let password = $state('');
-  let loginError = $state<string | null>(null);
-  let loggingIn = $state(false);
+// ----- auth state -----
+let booting = $state(true);
+let authed = $state(false);
+let username = $state('');
+let password = $state('');
+let loginError = $state<string | null>(null);
+let loggingIn = $state(false);
 
-  // ----- whatsapp pairing state -----
-  type QrState = { ready: boolean; hasQr: boolean; dataUri: string | null; svg: string | null };
-  let qr = $state<QrState>({ ready: false, hasQr: false, dataUri: null, svg: null });
-  let qrLoading = $state(false);
-  let qrError = $state<string | null>(null);
-  let unlinking = $state(false);
-  let confirmUnlink = $state(false);
-  let qrTimer: ReturnType<typeof setInterval> | null = null;
+// ----- whatsapp pairing state -----
+type QrState = { ready: boolean; hasQr: boolean; dataUri: string | null; svg: string | null };
+let qr = $state<QrState>({ ready: false, hasQr: false, dataUri: null, svg: null });
+let qrLoading = $state(false);
+let qrError = $state<string | null>(null);
+let unlinking = $state(false);
+let confirmUnlink = $state(false);
+let qrTimer: ReturnType<typeof setInterval> | null = null;
 
-  // ----- allowlist state -----
-  let seed = $state<string[]>([]);
-  let dynamic = $state<string[]>([]);
-  let demoMode = $state(true);
-  let listLoading = $state(false);
-  let listError = $state<string | null>(null);
-  let notice = $state<string | null>(null);
-  let newPhone = $state('');
-  let working = $state(false);
+// ----- allowlist state -----
+let seed = $state<string[]>([]);
+let dynamic = $state<string[]>([]);
+let demoMode = $state(true);
+let listLoading = $state(false);
+let listError = $state<string | null>(null);
+let notice = $state<string | null>(null);
+let newPhone = $state('');
+let working = $state(false);
 
-  function fmtPhone(phone: string): string {
-    if (phone.length === 12 && phone.startsWith('91')) {
-      return `+91 ${phone.slice(2, 7)} ${phone.slice(7)}`;
-    }
-    return `+${phone}`;
+function fmtPhone(phone: string): string {
+  if (phone.length === 12 && phone.startsWith('91')) {
+    return `+91 ${phone.slice(2, 7)} ${phone.slice(7)}`;
   }
+  return `+${phone}`;
+}
 
-  async function readError(res: Response): Promise<string> {
-    try {
-      const data = (await res.json()) as { message?: string; error?: string };
-      return data.message ?? data.error ?? `Request failed (${res.status}).`;
-    } catch {
-      return `Request failed (${res.status}).`;
-    }
+async function readError(res: Response): Promise<string> {
+  try {
+    const data = (await res.json()) as { message?: string; error?: string };
+    return data.message ?? data.error ?? `Request failed (${res.status}).`;
+  } catch {
+    return `Request failed (${res.status}).`;
   }
+}
 
-  // ---------------------------------------------------------------- auth
-  async function checkSession() {
-    try {
-      const res = await fetch('/admin/api/session');
-      const data = (await res.json()) as { authed: boolean };
-      authed = data.authed;
-    } catch {
-      authed = false;
-    } finally {
-      booting = false;
-    }
-    if (authed) startSession();
-  }
-
-  async function login(e: Event) {
-    e.preventDefault();
-    if (!username.trim() || !password) return;
-    loggingIn = true;
-    loginError = null;
-    try {
-      const res = await fetch('/admin/api/login', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      });
-      if (!res.ok) {
-        loginError = await readError(res);
-        return;
-      }
-      authed = true;
-      password = '';
-      startSession();
-    } catch {
-      loginError = 'Network error. Try again.';
-    } finally {
-      loggingIn = false;
-    }
-  }
-
-  async function logout() {
-    stopQrPolling();
-    try {
-      await fetch('/admin/api/logout', { method: 'POST' });
-    } catch {
-      /* ignore */
-    }
+// ---------------------------------------------------------------- auth
+async function checkSession() {
+  try {
+    const res = await fetch('/admin/api/session');
+    const data = (await res.json()) as { authed: boolean };
+    authed = data.authed;
+  } catch {
     authed = false;
-    username = '';
+  } finally {
+    booting = false;
+  }
+  if (authed) startSession();
+}
+
+async function login(e: Event) {
+  e.preventDefault();
+  if (!username.trim() || !password) return;
+  loggingIn = true;
+  loginError = null;
+  try {
+    const res = await fetch('/admin/api/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!res.ok) {
+      loginError = await readError(res);
+      return;
+    }
+    authed = true;
     password = '';
+    startSession();
+  } catch {
+    loginError = 'Network error. Try again.';
+  } finally {
+    loggingIn = false;
   }
+}
 
-  function startSession() {
-    void loadAllowlist();
-    void loadQr();
-    startQrPolling();
+async function logout() {
+  stopQrPolling();
+  try {
+    await fetch('/admin/api/logout', { method: 'POST' });
+  } catch {
+    /* ignore */
   }
+  authed = false;
+  username = '';
+  password = '';
+}
 
-  // ------------------------------------------------------------- whatsapp
-  async function loadQr() {
-    qrLoading = true;
-    qrError = null;
-    try {
-      const res = await fetch('/admin/api/qr');
-      if (res.status === 401) {
-        authed = false;
-        return;
-      }
-      if (!res.ok) {
-        qrError = await readError(res);
-        return;
-      }
-      qr = (await res.json()) as QrState;
-    } catch {
-      qrError = 'Could not reach the bot.';
-    } finally {
-      qrLoading = false;
+function startSession() {
+  void loadAllowlist();
+  void loadQr();
+  startQrPolling();
+}
+
+// ------------------------------------------------------------- whatsapp
+async function loadQr() {
+  qrLoading = true;
+  qrError = null;
+  try {
+    const res = await fetch('/admin/api/qr');
+    if (res.status === 401) {
+      authed = false;
+      return;
     }
-  }
-
-  function startQrPolling() {
-    stopQrPolling();
-    // Poll every 4s: QR rotates ~every 20s; keeps status fresh and flips to
-    // "connected" promptly once scanned, and shows a new QR fast after unlink.
-    qrTimer = setInterval(() => {
-      if (authed) void loadQr();
-    }, 4000);
-  }
-  function stopQrPolling() {
-    if (qrTimer) {
-      clearInterval(qrTimer);
-      qrTimer = null;
+    if (!res.ok) {
+      qrError = await readError(res);
+      return;
     }
+    qr = (await res.json()) as QrState;
+  } catch {
+    qrError = 'Could not reach the bot.';
+  } finally {
+    qrLoading = false;
   }
+}
 
-  async function doUnlink() {
-    unlinking = true;
-    qrError = null;
-    try {
-      const res = await fetch('/admin/api/unlink', { method: 'POST' });
-      if (!res.ok) {
-        qrError = await readError(res);
-        return;
-      }
-      confirmUnlink = false;
-      qr = { ready: false, hasQr: false, dataUri: null, svg: null };
-      setTimeout(() => void loadQr(), 3000);
-    } catch {
-      qrError = 'Unlink request failed.';
-    } finally {
-      unlinking = false;
+function startQrPolling() {
+  stopQrPolling();
+  // Poll every 4s: QR rotates ~every 20s; keeps status fresh and flips to
+  // "connected" promptly once scanned, and shows a new QR fast after unlink.
+  qrTimer = setInterval(() => {
+    if (authed) void loadQr();
+  }, 4000);
+}
+function stopQrPolling() {
+  if (qrTimer) {
+    clearInterval(qrTimer);
+    qrTimer = null;
+  }
+}
+
+async function doUnlink() {
+  unlinking = true;
+  qrError = null;
+  try {
+    const res = await fetch('/admin/api/unlink', { method: 'POST' });
+    if (!res.ok) {
+      qrError = await readError(res);
+      return;
     }
+    confirmUnlink = false;
+    qr = { ready: false, hasQr: false, dataUri: null, svg: null };
+    setTimeout(() => void loadQr(), 3000);
+  } catch {
+    qrError = 'Unlink request failed.';
+  } finally {
+    unlinking = false;
   }
+}
 
-  // ------------------------------------------------------------ allowlist
-  async function loadAllowlist() {
-    listLoading = true;
-    listError = null;
-    try {
-      const res = await fetch('/admin/api/allowlist');
-      if (res.status === 401) {
-        authed = false;
-        return;
-      }
-      if (!res.ok) {
-        listError = await readError(res);
-        return;
-      }
-      const data = (await res.json()) as { seed: string[]; dynamic: string[]; demoMode: boolean };
-      seed = data.seed ?? [];
-      dynamic = data.dynamic ?? [];
-      demoMode = data.demoMode ?? true;
-    } catch {
-      listError = 'Network error loading the allowlist.';
-    } finally {
-      listLoading = false;
+// ------------------------------------------------------------ allowlist
+async function loadAllowlist() {
+  listLoading = true;
+  listError = null;
+  try {
+    const res = await fetch('/admin/api/allowlist');
+    if (res.status === 401) {
+      authed = false;
+      return;
     }
-  }
-
-  async function addPhone(e: Event) {
-    e.preventDefault();
-    const phone = newPhone.trim();
-    if (!phone) return;
-    working = true;
-    listError = null;
-    notice = null;
-    try {
-      const res = await fetch('/admin/api/allowlist', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ phone }),
-      });
-      if (!res.ok) {
-        listError = await readError(res);
-        return;
-      }
-      const data = (await res.json()) as { added: boolean; phone: string; reason?: string };
-      notice =
-        data.reason === 'seed'
-          ? `${fmtPhone(data.phone)} is already a seed number.`
-          : data.added
-            ? `Added ${fmtPhone(data.phone)}.`
-            : `${fmtPhone(data.phone)} was already on the list.`;
-      newPhone = '';
-      await loadAllowlist();
-    } catch {
-      listError = 'Network error while adding.';
-    } finally {
-      working = false;
+    if (!res.ok) {
+      listError = await readError(res);
+      return;
     }
+    const data = (await res.json()) as { seed: string[]; dynamic: string[]; demoMode: boolean };
+    seed = data.seed ?? [];
+    dynamic = data.dynamic ?? [];
+    demoMode = data.demoMode ?? true;
+  } catch {
+    listError = 'Network error loading the allowlist.';
+  } finally {
+    listLoading = false;
   }
+}
 
-  async function removePhone(phone: string) {
-    working = true;
-    listError = null;
-    notice = null;
-    try {
-      const res = await fetch('/admin/api/allowlist', {
-        method: 'DELETE',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ phone }),
-      });
-      if (!res.ok) {
-        listError = await readError(res);
-        return;
-      }
-      notice = `Removed ${fmtPhone(phone)}.`;
-      await loadAllowlist();
-    } catch {
-      listError = 'Network error while removing.';
-    } finally {
-      working = false;
+async function addPhone(e: Event) {
+  e.preventDefault();
+  const phone = newPhone.trim();
+  if (!phone) return;
+  working = true;
+  listError = null;
+  notice = null;
+  try {
+    const res = await fetch('/admin/api/allowlist', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ phone }),
+    });
+    if (!res.ok) {
+      listError = await readError(res);
+      return;
     }
+    const data = (await res.json()) as { added: boolean; phone: string; reason?: string };
+    notice =
+      data.reason === 'seed'
+        ? `${fmtPhone(data.phone)} is already a seed number.`
+        : data.added
+          ? `Added ${fmtPhone(data.phone)}.`
+          : `${fmtPhone(data.phone)} was already on the list.`;
+    newPhone = '';
+    await loadAllowlist();
+  } catch {
+    listError = 'Network error while adding.';
+  } finally {
+    working = false;
   }
+}
 
-  onMount(() => {
-    if (!browser) return;
-    void checkSession();
-  });
-  onDestroy(stopQrPolling);
+async function removePhone(phone: string) {
+  working = true;
+  listError = null;
+  notice = null;
+  try {
+    const res = await fetch('/admin/api/allowlist', {
+      method: 'DELETE',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ phone }),
+    });
+    if (!res.ok) {
+      listError = await readError(res);
+      return;
+    }
+    notice = `Removed ${fmtPhone(phone)}.`;
+    await loadAllowlist();
+  } catch {
+    listError = 'Network error while removing.';
+  } finally {
+    working = false;
+  }
+}
+
+onMount(() => {
+  if (!browser) return;
+  void checkSession();
+});
+onDestroy(stopQrPolling);
 </script>
 
 <svelte:head>

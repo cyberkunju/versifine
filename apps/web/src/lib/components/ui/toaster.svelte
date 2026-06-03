@@ -1,26 +1,26 @@
 <script lang="ts">
-  /**
-   * Renders the toast queue. Mount once near the root of the layout.
-   * Toasts are absolutely positioned bottom-right and stack vertically.
-   */
-  import { fly } from 'svelte/transition';
-  import { CheckCircle2, AlertTriangle, XCircle, Info, X } from 'lucide-svelte';
-  import { toast } from '$lib/stores/toast.svelte';
-  import { cn } from '$lib/utils/cn';
+/**
+ * Renders the toast queue. Mount once near the root of the layout.
+ * Toasts are absolutely positioned bottom-right and stack vertically.
+ */
+import { fly } from 'svelte/transition';
+import { CheckCircle2, AlertTriangle, XCircle, Info, X } from 'lucide-svelte';
+import { toast } from '$lib/stores/toast.svelte';
+import { cn } from '$lib/utils/cn';
 
-  const variantClass = {
-    info: 'border-[hsl(var(--border))] bg-[hsl(var(--popover))] text-[hsl(var(--popover-foreground))]',
-    success: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100',
-    warning: 'border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-100',
-    error: 'border-red-500/30 bg-red-500/10 text-red-900 dark:text-red-100',
-  } as const;
+const variantClass = {
+  info: 'border-[hsl(var(--border))] bg-[hsl(var(--popover))] text-[hsl(var(--popover-foreground))]',
+  success: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100',
+  warning: 'border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-100',
+  error: 'border-red-500/30 bg-red-500/10 text-red-900 dark:text-red-100',
+} as const;
 
-  const Icon = {
-    info: Info,
-    success: CheckCircle2,
-    warning: AlertTriangle,
-    error: XCircle,
-  } as const;
+const Icon = {
+  info: Info,
+  success: CheckCircle2,
+  warning: AlertTriangle,
+  error: XCircle,
+} as const;
 </script>
 
 <div

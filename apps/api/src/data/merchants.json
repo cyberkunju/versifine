@@ -461,7 +461,9 @@
     { "pattern": "dineout", "category": "Restaurants", "match": "contains" },
     { "pattern": "eazydiner", "category": "Restaurants", "match": "contains" },
 
-    { "$section": "Indian dishes & regional meals — generic food vocabulary. Matched as whole WORDS (match=keyword), the lowest-priority tier, so any specific brand above (contains/startsWith/exact) always wins. A food dish must NEVER fall to Other." },
+    {
+      "$section": "Indian dishes & regional meals — generic food vocabulary. Matched as whole WORDS (match=keyword), the lowest-priority tier, so any specific brand above (contains/startsWith/exact) always wins. A food dish must NEVER fall to Other."
+    },
     { "pattern": "mandi", "category": "Restaurants", "match": "keyword" },
     { "pattern": "biryani", "category": "Restaurants", "match": "keyword" },
     { "pattern": "biriyani", "category": "Restaurants", "match": "keyword" },

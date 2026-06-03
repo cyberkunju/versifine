@@ -51,7 +51,20 @@ export function isCategory(value: string): value is Category {
  */
 export const CATEGORY_META: Record<
   Category,
-  { icon: string; hue: 'slate' | 'blue' | 'emerald' | 'amber' | 'rose' | 'violet' | 'cyan' | 'orange' | 'lime' | 'pink' }
+  {
+    icon: string;
+    hue:
+      | 'slate'
+      | 'blue'
+      | 'emerald'
+      | 'amber'
+      | 'rose'
+      | 'violet'
+      | 'cyan'
+      | 'orange'
+      | 'lime'
+      | 'pink';
+  }
 > = {
   'Bills & Utilities': { icon: '🧾', hue: 'amber' },
   'Cash & ATM': { icon: '🏧', hue: 'slate' },

@@ -46,7 +46,10 @@ interface SeedSummary {
   ledgerEntries: number;
 }
 
-async function findExistingDemoUser(): Promise<{ id: string; activeSpaceId: string | null } | null> {
+async function findExistingDemoUser(): Promise<{
+  id: string;
+  activeSpaceId: string | null;
+} | null> {
   const [row] = await db
     .select({ id: users.id, activeSpaceId: users.activeSpaceId })
     .from(users)
@@ -60,15 +63,17 @@ async function wipeUserData(spaceId: string): Promise<void> {
   await db.delete(categoryCorrections).where(eq(categoryCorrections.spaceId, spaceId));
   await db.delete(categoryOverrides).where(eq(categoryOverrides.spaceId, spaceId));
   await db.delete(transactionEmbeddings).where(eq(transactionEmbeddings.spaceId, spaceId));
-  await db.delete(ledgerSettlements).where(
-    inArray(
-      ledgerSettlements.ledgerEntryId,
-      db
-        .select({ id: ledgerEntries.id })
-        .from(ledgerEntries)
-        .where(eq(ledgerEntries.spaceId, spaceId)),
-    ),
-  );
+  await db
+    .delete(ledgerSettlements)
+    .where(
+      inArray(
+        ledgerSettlements.ledgerEntryId,
+        db
+          .select({ id: ledgerEntries.id })
+          .from(ledgerEntries)
+          .where(eq(ledgerEntries.spaceId, spaceId)),
+      ),
+    );
   await db.delete(ledgerEntries).where(eq(ledgerEntries.spaceId, spaceId));
   await db.delete(transactions).where(eq(transactions.spaceId, spaceId));
   await db.delete(recurringItems).where(eq(recurringItems.spaceId, spaceId));
@@ -122,10 +127,7 @@ async function ensureUserAndSpace(): Promise<{ userId: string; spaceId: string }
 
 async function ensureWallets(spaceId: string): Promise<Map<string, Wallet>> {
   // Fetch existing first so re-runs preserve ids; only create missing rows.
-  const existing = await db
-    .select()
-    .from(wallets)
-    .where(eq(wallets.spaceId, spaceId));
+  const existing = await db.select().from(wallets).where(eq(wallets.spaceId, spaceId));
   const byName = new Map(existing.map((w) => [w.name, w] as const));
 
   for (const def of DEMO_WALLETS) {

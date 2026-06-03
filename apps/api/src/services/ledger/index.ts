@@ -47,7 +47,10 @@ interface ListLedgerOpts {
   counterpartyName?: string;
 }
 
-export async function listLedger(spaceId: string, opts: ListLedgerOpts = {}): Promise<LedgerEntry[]> {
+export async function listLedger(
+  spaceId: string,
+  opts: ListLedgerOpts = {},
+): Promise<LedgerEntry[]> {
   const filters = [eq(ledgerEntries.spaceId, spaceId)];
   if (opts.direction) filters.push(eq(ledgerEntries.direction, opts.direction));
   if (opts.status) filters.push(eq(ledgerEntries.status, opts.status));

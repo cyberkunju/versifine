@@ -85,7 +85,10 @@ export interface FirstContactResult {
  * never bricked by a transient API blip), but they do NOT mark the account
  * resolved, so the next message retries the check.
  */
-export async function resolveFirstContact(session: Session, body: string): Promise<FirstContactResult> {
+export async function resolveFirstContact(
+  session: Session,
+  body: string,
+): Promise<FirstContactResult> {
   try {
     const who = await botWhoami(session.phone);
     if (who.exists) {
@@ -131,7 +134,10 @@ export interface LanguagePickResult {
  *   - ALREADY-linked user (used the LANGUAGE command to switch): persist the
  *     new language and drop straight back to LINKED_MAIN — no email step.
  */
-export async function handleLanguagePick(session: Session, body: string): Promise<LanguagePickResult> {
+export async function handleLanguagePick(
+  session: Session,
+  body: string,
+): Promise<LanguagePickResult> {
   const picked = pickLanguage(body);
   if (!picked) {
     // Couldn't parse a language — re-show the menu in the current language.
@@ -227,7 +233,11 @@ export async function handleEmailStep(session: Session, body: string): Promise<E
     });
     if (err instanceof ApiClientError && err.code === 'CONFLICT') {
       setState(session.phone, 'AWAITING_EMAIL');
-      return { text: `${err.message}\n\n${m.emailInvalid}`, state: 'AWAITING_EMAIL', consumed: true };
+      return {
+        text: `${err.message}\n\n${m.emailInvalid}`,
+        state: 'AWAITING_EMAIL',
+        consumed: true,
+      };
     }
     // Stay in AWAITING_EMAIL so the next message retries provisioning.
     setState(session.phone, 'AWAITING_EMAIL');

@@ -25,9 +25,7 @@ const querySchema = z.object({
 });
 
 function parseRange(url: string): { from: string; to: string } {
-  const parsed = querySchema.safeParse(
-    Object.fromEntries(new URL(url).searchParams.entries()),
-  );
+  const parsed = querySchema.safeParse(Object.fromEntries(new URL(url).searchParams.entries()));
   if (!parsed.success) {
     throw errors.validation('Invalid range', { issues: parsed.error.issues });
   }

@@ -1,14 +1,14 @@
 <script lang="ts">
-  import type { HTMLInputAttributes } from 'svelte/elements';
-  import { cn } from '$lib/utils/cn';
+import type { HTMLInputAttributes } from 'svelte/elements';
+import { cn } from '$lib/utils/cn';
 
-  type Props = HTMLInputAttributes & {
-    class?: string;
-    /** Bound value for two-way binding. */
-    value?: string | number | undefined;
-  };
+type Props = HTMLInputAttributes & {
+  class?: string;
+  /** Bound value for two-way binding. */
+  value?: string | number | undefined;
+};
 
-  let { class: className, value = $bindable(), ...rest }: Props = $props();
+let { class: className, value = $bindable(), ...rest }: Props = $props();
 </script>
 
 <input

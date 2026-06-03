@@ -1,95 +1,119 @@
 <script lang="ts">
-  /**
-   * Animated WhatsApp conversation. A scripted exchange between a user
-   * and the Versifine bot — capture, voice, query, set-budget — with
-   * realistic typing pauses. Loops; pauses on hover.
-   *
-   * Re-skinned for the editorial light theme: a real WhatsApp-green user
-   * bubble (it IS WhatsApp, after all) against a soft paper chat ground,
-   * with the bot replying in brand navy. Framed in a clean device shell.
-   */
-  import { onDestroy, onMount } from 'svelte';
-  import { fly } from 'svelte/transition';
-  import { browser } from '$app/environment';
-  import { Mic, Plus, CheckCheck } from 'lucide-svelte';
+/**
+ * Animated WhatsApp conversation. A scripted exchange between a user
+ * and the Versifine bot — capture, voice, query, set-budget — with
+ * realistic typing pauses. Loops; pauses on hover.
+ *
+ * Re-skinned for the editorial light theme: a real WhatsApp-green user
+ * bubble (it IS WhatsApp, after all) against a soft paper chat ground,
+ * with the bot replying in brand navy. Framed in a clean device shell.
+ */
+import { onDestroy, onMount } from 'svelte';
+import { fly } from 'svelte/transition';
+import { browser } from '$app/environment';
+import { Mic, Plus, CheckCheck } from 'lucide-svelte';
 
-  type Bubble = {
-    id: number;
-    side: 'me' | 'bot';
-    text: string;
-    voice?: { seconds: number };
-    delay: number;
-    typingMs?: number;
-  };
+type Bubble = {
+  id: number;
+  side: 'me' | 'bot';
+  text: string;
+  voice?: { seconds: number };
+  delay: number;
+  typingMs?: number;
+};
 
-  const SCRIPT: Bubble[] = [
-    { id: 1, side: 'me', text: 'spent 450 on auto', delay: 800 },
-    { id: 2, side: 'bot', text: 'Logged ₹450 · Transportation\nAuto fare on your usual route.', delay: 1100, typingMs: 700 },
-    { id: 3, side: 'me', text: '', voice: { seconds: 4 }, delay: 1400 },
-    { id: 4, side: 'bot', text: 'Logged ₹320 · Restaurants\nBiryani at Paradise.', delay: 1100, typingMs: 800 },
-    { id: 5, side: 'me', text: 'how much on food this month?', delay: 1500 },
-    { id: 6, side: 'bot', text: '₹4,820 across 14 transactions — 60% restaurants, 40% delivery.', delay: 1300, typingMs: 900 },
-    { id: 7, side: 'me', text: 'set budget transport 3000', delay: 1500 },
-    { id: 8, side: 'bot', text: 'Budget set. I\'ll nudge you at ₹2,400 (80%) and again at ₹3,000.', delay: 1100, typingMs: 700 },
-  ];
+const SCRIPT: Bubble[] = [
+  { id: 1, side: 'me', text: 'spent 450 on auto', delay: 800 },
+  {
+    id: 2,
+    side: 'bot',
+    text: 'Logged ₹450 · Transportation\nAuto fare on your usual route.',
+    delay: 1100,
+    typingMs: 700,
+  },
+  { id: 3, side: 'me', text: '', voice: { seconds: 4 }, delay: 1400 },
+  {
+    id: 4,
+    side: 'bot',
+    text: 'Logged ₹320 · Restaurants\nBiryani at Paradise.',
+    delay: 1100,
+    typingMs: 800,
+  },
+  { id: 5, side: 'me', text: 'how much on food this month?', delay: 1500 },
+  {
+    id: 6,
+    side: 'bot',
+    text: '₹4,820 across 14 transactions — 60% restaurants, 40% delivery.',
+    delay: 1300,
+    typingMs: 900,
+  },
+  { id: 7, side: 'me', text: 'set budget transport 3000', delay: 1500 },
+  {
+    id: 8,
+    side: 'bot',
+    text: "Budget set. I'll nudge you at ₹2,400 (80%) and again at ₹3,000.",
+    delay: 1100,
+    typingMs: 700,
+  },
+];
 
-  let visibleIds = $state<Set<number>>(new Set());
-  let typing = $state<'me' | 'bot' | null>(null);
-  let paused = $state(false);
-  let scrollContainer = $state<HTMLElement | null>(null);
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  let runId = 0;
+let visibleIds = $state<Set<number>>(new Set());
+let typing = $state<'me' | 'bot' | null>(null);
+let paused = $state(false);
+let scrollContainer = $state<HTMLElement | null>(null);
+let timer: ReturnType<typeof setTimeout> | null = null;
+let runId = 0;
 
-  async function play() {
-    if (!browser) return;
-    runId += 1;
-    const myRun = runId;
-    visibleIds = new Set();
-    typing = null;
+async function play() {
+  if (!browser) return;
+  runId += 1;
+  const myRun = runId;
+  visibleIds = new Set();
+  typing = null;
 
-    for (const bubble of SCRIPT) {
+  for (const bubble of SCRIPT) {
+    if (myRun !== runId) return;
+    if (bubble.typingMs && bubble.typingMs > 0) {
+      await wait(bubble.delay - bubble.typingMs, () => myRun === runId);
       if (myRun !== runId) return;
-      if (bubble.typingMs && bubble.typingMs > 0) {
-        await wait(bubble.delay - bubble.typingMs, () => myRun === runId);
-        if (myRun !== runId) return;
-        typing = bubble.side;
-        await wait(bubble.typingMs, () => myRun === runId);
-      } else {
-        await wait(bubble.delay, () => myRun === runId);
-      }
-      if (myRun !== runId) return;
-      typing = null;
-      visibleIds = new Set([...visibleIds, bubble.id]);
-      queueMicrotask(scrollToBottom);
+      typing = bubble.side;
+      await wait(bubble.typingMs, () => myRun === runId);
+    } else {
+      await wait(bubble.delay, () => myRun === runId);
     }
-    await wait(2600, () => myRun === runId);
-    if (myRun === runId) play();
+    if (myRun !== runId) return;
+    typing = null;
+    visibleIds = new Set([...visibleIds, bubble.id]);
+    queueMicrotask(scrollToBottom);
   }
+  await wait(2600, () => myRun === runId);
+  if (myRun === runId) play();
+}
 
-  function wait(ms: number, alive: () => boolean): Promise<void> {
-    return new Promise((resolve) => {
-      const tick = () => {
-        if (!alive()) return resolve();
-        if (paused) {
-          timer = setTimeout(tick, 80);
-          return;
-        }
-        resolve();
-      };
-      timer = setTimeout(tick, ms);
-    });
-  }
-  function scrollToBottom() {
-    scrollContainer?.scrollTo({ top: scrollContainer.scrollHeight, behavior: 'smooth' });
-  }
-
-  onMount(play);
-  onDestroy(() => {
-    runId += 1;
-    if (timer) clearTimeout(timer);
+function wait(ms: number, alive: () => boolean): Promise<void> {
+  return new Promise((resolve) => {
+    const tick = () => {
+      if (!alive()) return resolve();
+      if (paused) {
+        timer = setTimeout(tick, 80);
+        return;
+      }
+      resolve();
+    };
+    timer = setTimeout(tick, ms);
   });
+}
+function scrollToBottom() {
+  scrollContainer?.scrollTo({ top: scrollContainer.scrollHeight, behavior: 'smooth' });
+}
 
-  const stamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+onMount(play);
+onDestroy(() => {
+  runId += 1;
+  if (timer) clearTimeout(timer);
+});
+
+const stamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 </script>
 
 <div

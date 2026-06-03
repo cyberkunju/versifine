@@ -18,12 +18,7 @@
 const env = (import.meta as ImportMeta & { env: Record<string, string | undefined> }).env ?? {};
 
 function pick(key: string, fallback: string): string {
-  return (
-    env[`VITE_${key}`] ??
-    env[`PUBLIC_${key}`] ??
-    env[key] ??
-    fallback
-  );
+  return env[`VITE_${key}`] ?? env[`PUBLIC_${key}`] ?? env[key] ?? fallback;
 }
 
 /**
@@ -55,7 +50,8 @@ export const PUBLIC_WS_URL: string = pick('WS_URL', defaultWsUrl());
  * computed key like `env[\`PUBLIC_${key}\`]` is left untouched, which is why
  * the relative-defaulting vars above can use `pick()` but this one cannot.
  */
-const staticEnv = (import.meta as ImportMeta & { env: Record<string, string | undefined> }).env ?? {};
+const staticEnv =
+  (import.meta as ImportMeta & { env: Record<string, string | undefined> }).env ?? {};
 export const PUBLIC_GOOGLE_CLIENT_ID: string =
   import.meta.env.PUBLIC_GOOGLE_CLIENT_ID ??
   import.meta.env.VITE_GOOGLE_CLIENT_ID ??

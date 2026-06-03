@@ -19,7 +19,8 @@ const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12h
 const ADMIN_USER = env.ADMIN_USER ?? 'cyberkunju';
 const ADMIN_PASS = env.ADMIN_PASS ?? '*Nk*creation*2348';
 /** Secret used to sign the session cookie. Falls back to BOT_SECRET. */
-const SESSION_SECRET = env.ADMIN_SESSION_SECRET ?? env.BOT_SECRET ?? 'versifine-admin-fallback-secret';
+const SESSION_SECRET =
+  env.ADMIN_SESSION_SECRET ?? env.BOT_SECRET ?? 'versifine-admin-fallback-secret';
 
 const BOT_URL = (env.WABOT_INTERNAL_URL ?? 'http://127.0.0.1:5101').replace(/\/$/, '');
 const BOT_SECRET = env.BOT_SECRET ?? '';

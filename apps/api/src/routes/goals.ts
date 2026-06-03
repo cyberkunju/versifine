@@ -13,12 +13,7 @@
  */
 import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
-import {
-  goalCreateInput,
-  goalProgressInput,
-  goalStatus,
-  goalUpdateInput,
-} from '@versifine/shared';
+import { goalCreateInput, goalProgressInput, goalStatus, goalUpdateInput } from '@versifine/shared';
 import { requireUser } from '../middleware/auth.ts';
 import { emit } from '../services/events/bus.ts';
 import {

@@ -1,45 +1,45 @@
 <script lang="ts">
-  /**
-   * Persistent floating WhatsApp entry point.
-   *
-   * Not the usual green circle. The mark is rendered in Versifine's OWN visual
-   * language — a deep-navy ink disc with the brand's signature periwinkle/sky
-   * aura blooming behind it (the same glow as the dashboard hero) — so it reads
-   * as part of the product, bespoke rather than bolted on. The authentic
-   * WhatsApp glyph sits in paper-white; WhatsApp green appears only as a single
-   * small "live" pulse, a precise signal of an online bot. A quiet label slides
-   * out on hover, and on first appearance until the visitor starts reading.
-   */
-  import { onMount, onDestroy } from 'svelte';
-  import { browser } from '$app/environment';
-  import { WA_DEMO_LINK } from '$lib/whatsapp';
-  import { waInvite } from '$lib/stores/waInvite.svelte';
-  import WhatsAppGlyph from './WhatsAppGlyph.svelte';
+/**
+ * Persistent floating WhatsApp entry point.
+ *
+ * Not the usual green circle. The mark is rendered in Versifine's OWN visual
+ * language — a deep-navy ink disc with the brand's signature periwinkle/sky
+ * aura blooming behind it (the same glow as the dashboard hero) — so it reads
+ * as part of the product, bespoke rather than bolted on. The authentic
+ * WhatsApp glyph sits in paper-white; WhatsApp green appears only as a single
+ * small "live" pulse, a precise signal of an online bot. A quiet label slides
+ * out on hover, and on first appearance until the visitor starts reading.
+ */
+import { onMount, onDestroy } from 'svelte';
+import { browser } from '$app/environment';
+import { WA_DEMO_LINK } from '$lib/whatsapp';
+import { waInvite } from '$lib/stores/waInvite.svelte';
+import WhatsAppGlyph from './WhatsAppGlyph.svelte';
 
-  let mounted = $state(false);
-  let showLabel = $state(true);
+let mounted = $state(false);
+let showLabel = $state(true);
 
-  // Visible once eased in AND the first-visit invite popup isn't showing
-  // (they'd otherwise overlap bottom-right).
-  const shown = $derived(mounted && !waInvite.open);
+// Visible once eased in AND the first-visit invite popup isn't showing
+// (they'd otherwise overlap bottom-right).
+const shown = $derived(mounted && !waInvite.open);
 
-  function onScroll() {
-    // Collapse the text label once the user starts reading.
-    if (window.scrollY > 600) showLabel = false;
-  }
+function onScroll() {
+  // Collapse the text label once the user starts reading.
+  if (window.scrollY > 600) showLabel = false;
+}
 
-  onMount(() => {
-    if (!browser) return;
-    // Slight delay so it eases in after first paint.
-    const t = setTimeout(() => {
-      mounted = true;
-    }, 900);
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => clearTimeout(t);
-  });
-  onDestroy(() => {
-    if (browser) window.removeEventListener('scroll', onScroll);
-  });
+onMount(() => {
+  if (!browser) return;
+  // Slight delay so it eases in after first paint.
+  const t = setTimeout(() => {
+    mounted = true;
+  }, 900);
+  window.addEventListener('scroll', onScroll, { passive: true });
+  return () => clearTimeout(t);
+});
+onDestroy(() => {
+  if (browser) window.removeEventListener('scroll', onScroll);
+});
 </script>
 
 <a

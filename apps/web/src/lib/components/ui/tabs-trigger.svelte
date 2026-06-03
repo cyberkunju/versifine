@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { Tabs as T } from 'bits-ui';
-  import type { Snippet } from 'svelte';
-  import { cn } from '$lib/utils/cn';
+import { Tabs as T } from 'bits-ui';
+import type { Snippet } from 'svelte';
+import { cn } from '$lib/utils/cn';
 
-  type Props = { value: string; class?: string; children?: Snippet; disabled?: boolean };
-  let { class: className, children, value, disabled }: Props = $props();
+type Props = { value: string; class?: string; children?: Snippet; disabled?: boolean };
+let { class: className, children, value, disabled }: Props = $props();
 </script>
 
 <T.Trigger

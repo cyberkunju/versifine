@@ -135,7 +135,8 @@ export function categoryIcon(category: string | null | undefined): string {
 export function compactINR(value: number): string {
   const abs = Math.abs(value);
   const sign = value < 0 ? '-' : '';
-  if (abs >= 1_00_00_000) return `${sign}₹${(abs / 1_00_00_000).toFixed(abs % 1_00_00_000 === 0 ? 0 : 1)}Cr`;
+  if (abs >= 1_00_00_000)
+    return `${sign}₹${(abs / 1_00_00_000).toFixed(abs % 1_00_00_000 === 0 ? 0 : 1)}Cr`;
   if (abs >= 1_00_000) return `${sign}₹${(abs / 1_00_000).toFixed(abs % 1_00_000 === 0 ? 0 : 1)}L`;
   if (abs >= 1_000) return `${sign}₹${(abs / 1_000).toFixed(abs % 1_000 === 0 ? 0 : 1)}k`;
   return `${sign}₹${Math.round(abs)}`;

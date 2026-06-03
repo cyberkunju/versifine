@@ -1,0 +1,10 @@
+=== which wire value disables Sarvam reasoning? (sarvam-30b, max_tokens 256) ===
+
+[reasoning_effort: null (json)] 1328ms finish=length reasoning=913ch comp=256 err= -> (NULL)
+[reasoning_effort: "none" (string)] 68ms finish=undefined reasoning=0ch comp=undefined err=body.reasoning_effort : Input should be 'low', 'medium' or 'high' -> (NULL)
+[reasoning_effort: "" (empty)] 66ms finish=undefined reasoning=0ch comp=undefined err=body.reasoning_effort : Input should be 'low', 'medium' or 'high' -> (NULL)
+[reasoning_effort: "low"] 982ms finish=length reasoning=977ch comp=256 err= -> (NULL)
+[omitted entirely (default)] 970ms finish=length reasoning=963ch comp=256 err= -> (NULL)
+[chat_template_kwargs enable_thinking:false] 946ms finish=length reasoning=993ch comp=256 err= -> (NULL)
+[extra_body enable_thinking:false] 931ms finish=length reasoning=937ch comp=256 err= -> (NULL)
+EXIT_CODE=0 

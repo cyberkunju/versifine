@@ -1,39 +1,39 @@
 <script lang="ts">
-  /**
-   * Landing header — light, editorial. A hairline rule appears under the
-   * bar once the page scrolls; the paper ground gets a faint blur so
-   * content reads underneath without muddying the type.
-   */
-  import { onMount, onDestroy } from 'svelte';
-  import { browser } from '$app/environment';
-  import { Menu, X } from 'lucide-svelte';
-  import Logo from '$lib/components/brand/Logo.svelte';
+/**
+ * Landing header — light, editorial. A hairline rule appears under the
+ * bar once the page scrolls; the paper ground gets a faint blur so
+ * content reads underneath without muddying the type.
+ */
+import { onMount, onDestroy } from 'svelte';
+import { browser } from '$app/environment';
+import { Menu, X } from 'lucide-svelte';
+import Logo from '$lib/components/brand/Logo.svelte';
 
-  let scrolled = $state(false);
-  let mobileOpen = $state(false);
+let scrolled = $state(false);
+let mobileOpen = $state(false);
 
-  const links = [
-    { href: '#capabilities', label: 'Capabilities' },
-    { href: '#whatsapp', label: 'WhatsApp' },
-    { href: '#copilot', label: 'Copilot' },
-    { href: '#languages', label: 'Languages' },
-    { href: '#faq', label: 'FAQ' },
-  ];
+const links = [
+  { href: '#capabilities', label: 'Capabilities' },
+  { href: '#whatsapp', label: 'WhatsApp' },
+  { href: '#copilot', label: 'Copilot' },
+  { href: '#languages', label: 'Languages' },
+  { href: '#faq', label: 'FAQ' },
+];
 
-  function onScroll() {
-    scrolled = window.scrollY > 8;
-  }
-  onMount(() => {
-    if (!browser) return;
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-  });
-  onDestroy(() => {
-    if (browser) window.removeEventListener('scroll', onScroll);
-  });
-  function close() {
-    mobileOpen = false;
-  }
+function onScroll() {
+  scrolled = window.scrollY > 8;
+}
+onMount(() => {
+  if (!browser) return;
+  onScroll();
+  window.addEventListener('scroll', onScroll, { passive: true });
+});
+onDestroy(() => {
+  if (browser) window.removeEventListener('scroll', onScroll);
+});
+function close() {
+  mobileOpen = false;
+}
 </script>
 
 <header

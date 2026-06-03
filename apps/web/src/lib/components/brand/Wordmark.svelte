@@ -1,11 +1,11 @@
 <script lang="ts">
-  /**
-   * Versifine full wordmark as inline SVG (cropped to the glyph bounds).
-   * Inlined so it paints with the page — no <img> request, no flash on a
-   * hard refresh. Uses `currentColor`; set `text-white` on the parent for
-   * the navy rail or an ink tone on light surfaces.
-   */
-  let { class: className = '', style = '' }: { class?: string; style?: string } = $props();
+/**
+ * Versifine full wordmark as inline SVG (cropped to the glyph bounds).
+ * Inlined so it paints with the page — no <img> request, no flash on a
+ * hard refresh. Uses `currentColor`; set `text-white` on the parent for
+ * the navy rail or an ink tone on light surfaces.
+ */
+let { class: className = '', style = '' }: { class?: string; style?: string } = $props();
 </script>
 
 <svg

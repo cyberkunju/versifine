@@ -130,7 +130,9 @@ async function dispatch(session: Session, message: IncomingMessage): Promise<Dis
     }
     if (!message.body.trim()) {
       return {
-        text: m.captureFollowup('I need one missing detail. Type it here, or send CANCEL to discard this draft.'),
+        text: m.captureFollowup(
+          'I need one missing detail. Type it here, or send CANCEL to discard this draft.',
+        ),
         speakable: true,
       };
     }
@@ -169,7 +171,10 @@ async function dispatch(session: Session, message: IncomingMessage): Promise<Dis
   return { text: out.text, speakable: true };
 }
 
-async function maybeTranscribe(message: IncomingMessage, session: Session): Promise<{
+async function maybeTranscribe(
+  message: IncomingMessage,
+  session: Session,
+): Promise<{
   text: string;
   language: Language;
 }> {
@@ -200,7 +205,9 @@ async function localize(text: string, language: Language): Promise<string> {
 async function speak(text: string, language: Language): Promise<OutgoingVoice | null> {
   if (language === 'ta' || language === 'ml') {
     const result = await synthesizeIndicSpeech({ text, language });
-    return result ? { buffer: result.buffer, mimetype: result.mimetype, spokenText: result.spokenText } : null;
+    return result
+      ? { buffer: result.buffer, mimetype: result.mimetype, spokenText: result.spokenText }
+      : null;
   }
   return await synthesizeSpeech({ text, language });
 }
@@ -259,7 +266,10 @@ export async function runEngine(message: IncomingMessage): Promise<OutgoingReply
   if (!onboardingExempt && (session.state === 'GREETING' || !session.accountResolved)) {
     const first = await resolveFirstContact(session, message.body);
     if (!first.proceed) {
-      const text = await localize(first.reply ?? getMessages(session.language).greeting, session.language);
+      const text = await localize(
+        first.reply ?? getMessages(session.language).greeting,
+        session.language,
+      );
       return { text, state: getSession(session.phone).state };
     }
     welcomePrefix = first.welcomePrefix;
@@ -299,9 +309,7 @@ export async function runEngine(message: IncomingMessage): Promise<OutgoingReply
   // Voice-in → prefix the reply with what we heard so the user can confirm
   // the transcription, and mirror the modality (voice-in → voice-out).
   const wasVoice = voiceTranscript !== null;
-  const withTranscript = wasVoice
-    ? `🎤 _“${voiceTranscript}”_\n\n${localized}`
-    : localized;
+  const withTranscript = wasVoice ? `🎤 _“${voiceTranscript}”_\n\n${localized}` : localized;
 
   const speakable = outcome.speakable !== false && active.replyMode !== 'text' && wasVoice;
   // Only the actual answer is spoken, never the transcript echo.

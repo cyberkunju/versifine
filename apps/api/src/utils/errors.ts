@@ -40,16 +40,13 @@ export const errors = {
     new AppError({ status: 400, code: 'VALIDATION', message, details }),
   unauthorized: (message = 'Authentication required') =>
     new AppError({ status: 401, code: 'UNAUTHORIZED', message }),
-  forbidden: (message = 'Forbidden') =>
-    new AppError({ status: 403, code: 'FORBIDDEN', message }),
-  notFound: (message = 'Not found') =>
-    new AppError({ status: 404, code: 'NOT_FOUND', message }),
+  forbidden: (message = 'Forbidden') => new AppError({ status: 403, code: 'FORBIDDEN', message }),
+  notFound: (message = 'Not found') => new AppError({ status: 404, code: 'NOT_FOUND', message }),
   conflict: (message: string, details?: Record<string, unknown>) =>
     new AppError({ status: 409, code: 'CONFLICT', message, details }),
   rateLimited: (message = 'Too many requests') =>
     new AppError({ status: 429, code: 'RATE_LIMITED', message }),
-  upstream: (message: string) =>
-    new AppError({ status: 502, code: 'UPSTREAM_AI', message }),
+  upstream: (message: string) => new AppError({ status: 502, code: 'UPSTREAM_AI', message }),
   internal: (message = 'Internal server error') =>
     new AppError({ status: 500, code: 'INTERNAL', message }),
 };

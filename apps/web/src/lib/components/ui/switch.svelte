@@ -1,24 +1,24 @@
 <script lang="ts">
-  import { Switch as S } from 'bits-ui';
-  import { cn } from '$lib/utils/cn';
+import { Switch as S } from 'bits-ui';
+import { cn } from '$lib/utils/cn';
 
-  type Props = {
-    checked: boolean;
-    onCheckedChange?: (checked: boolean) => void;
-    disabled?: boolean;
-    class?: string;
-    id?: string;
-    'aria-label'?: string;
-  };
+type Props = {
+  checked: boolean;
+  onCheckedChange?: (checked: boolean) => void;
+  disabled?: boolean;
+  class?: string;
+  id?: string;
+  'aria-label'?: string;
+};
 
-  let {
-    checked = $bindable(),
-    onCheckedChange,
-    disabled,
-    class: className,
-    id,
-    ...rest
-  }: Props = $props();
+let {
+  checked = $bindable(),
+  onCheckedChange,
+  disabled,
+  class: className,
+  id,
+  ...rest
+}: Props = $props();
 </script>
 
 <S.Root

@@ -53,9 +53,7 @@ export const phoneLinkStartInput = z.object({}).strict();
 export type PhoneLinkStartInput = z.infer<typeof phoneLinkStartInput>;
 
 export const phoneLinkConfirmInput = z.object({
-  code: z
-    .string()
-    .regex(/^\d{6}$/, 'six digits required'),
+  code: z.string().regex(/^\d{6}$/, 'six digits required'),
   /** E.164-style phone digits only (no +, no spaces). The API normalises again server-side. */
   phone: z.string().regex(/^\d{10,15}$/),
 });

@@ -80,7 +80,8 @@ function normalizeEmail(email: string | null | undefined): string | null {
  */
 export async function findAccountByPhone(phoneRaw: string): Promise<ExistingAccount> {
   const phone = normalizePhone(phoneRaw);
-  if (!phone) return { exists: false, userId: null, displayName: null, language: 'en', webLinked: false };
+  if (!phone)
+    return { exists: false, userId: null, displayName: null, language: 'en', webLinked: false };
 
   const [row] = await db
     .select({

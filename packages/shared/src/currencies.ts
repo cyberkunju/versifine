@@ -4,9 +4,182 @@
  * parser — anything not here falls back to base.
  */
 
-export const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD', 'AUD', 'CAD', 'JPY', 'MYR'] as const;
+export const CURRENCIES = [
+  'AED',
+  'AFN',
+  'ALL',
+  'AMD',
+  'ANG',
+  'AOA',
+  'ARS',
+  'AUD',
+  'AWG',
+  'AZN',
+  'BAM',
+  'BBD',
+  'BDT',
+  'BGN',
+  'BHD',
+  'BIF',
+  'BMD',
+  'BND',
+  'BOB',
+  'BRL',
+  'BSD',
+  'BTN',
+  'BWP',
+  'BYN',
+  'BZD',
+  'CAD',
+  'CDF',
+  'CHF',
+  'CLP',
+  'CNY',
+  'COP',
+  'CRC',
+  'CUC',
+  'CUP',
+  'CVE',
+  'CZK',
+  'DJF',
+  'DKK',
+  'DOP',
+  'DZD',
+  'EGP',
+  'ERN',
+  'ETB',
+  'EUR',
+  'FJD',
+  'FKP',
+  'GBP',
+  'GEL',
+  'GHS',
+  'GIP',
+  'GMD',
+  'GNF',
+  'GTQ',
+  'GYD',
+  'HKD',
+  'HNL',
+  'HRK',
+  'HTG',
+  'HUF',
+  'IDR',
+  'ILS',
+  'INR',
+  'IQD',
+  'IRR',
+  'ISK',
+  'JMD',
+  'JOD',
+  'JPY',
+  'KES',
+  'KGS',
+  'KHR',
+  'KMF',
+  'KPW',
+  'KRW',
+  'KWD',
+  'KYD',
+  'KZT',
+  'LAK',
+  'LBP',
+  'LKR',
+  'LRD',
+  'LSL',
+  'LYD',
+  'MAD',
+  'MDL',
+  'MGA',
+  'MKD',
+  'MMK',
+  'MNT',
+  'MOP',
+  'MRU',
+  'MUR',
+  'MVR',
+  'MWK',
+  'MXN',
+  'MYR',
+  'MZN',
+  'NAD',
+  'NGN',
+  'NIO',
+  'NOK',
+  'NPR',
+  'NZD',
+  'OMR',
+  'PAB',
+  'PEN',
+  'PGK',
+  'PHP',
+  'PKR',
+  'PLN',
+  'PYG',
+  'QAR',
+  'RON',
+  'RSD',
+  'RUB',
+  'RWF',
+  'SAR',
+  'SBD',
+  'SCR',
+  'SDG',
+  'SEK',
+  'SGD',
+  'SHP',
+  'SLE',
+  'SLL',
+  'SOS',
+  'SRD',
+  'SSP',
+  'STN',
+  'SVC',
+  'SYP',
+  'SZL',
+  'THB',
+  'TJS',
+  'TMT',
+  'TND',
+  'TOP',
+  'TRY',
+  'TTD',
+  'TWD',
+  'TZS',
+  'UAH',
+  'UGX',
+  'USD',
+  'UYU',
+  'UZS',
+  'VES',
+  'VND',
+  'VUV',
+  'WST',
+  'XAF',
+  'XCD',
+  'XOF',
+  'XPF',
+  'YER',
+  'ZAR',
+  'ZMW',
+  'ZWG',
+  'ZWL',
+] as const;
 
 export type Currency = (typeof CURRENCIES)[number];
+
+export const POPULAR_CURRENCIES = [
+  'INR',
+  'USD',
+  'EUR',
+  'GBP',
+  'AED',
+  'SGD',
+  'AUD',
+  'CAD',
+  'JPY',
+  'MYR',
+] as const;
 
 const CURRENCY_SET = new Set<string>(CURRENCIES);
 
@@ -14,7 +187,7 @@ export function isCurrency(value: string): value is Currency {
   return CURRENCY_SET.has(value.toUpperCase());
 }
 
-export const CURRENCY_SYMBOL: Record<Currency, string> = {
+export const CURRENCY_SYMBOL: Partial<Record<Currency, string>> = {
   INR: '₹',
   USD: '$',
   EUR: '€',
@@ -26,6 +199,26 @@ export const CURRENCY_SYMBOL: Record<Currency, string> = {
   JPY: '¥',
   MYR: 'RM',
 };
+
+export function resolveCurrencySymbol(currency: string): string {
+  const upper = currency.trim().toUpperCase() as Currency;
+  if (CURRENCY_SYMBOL[upper]) {
+    return CURRENCY_SYMBOL[upper]!;
+  }
+  try {
+    const parts = new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: upper,
+    }).formatToParts(0);
+    const part = parts.find((p) => p.type === 'currency');
+    if (part?.value) {
+      return part.value;
+    }
+  } catch {
+    // fallback
+  }
+  return upper;
+}
 
 /** Common spelled-out aliases users say in voice notes, mapped to the ISO code. */
 export const CURRENCY_ALIASES: Record<string, Currency> = {

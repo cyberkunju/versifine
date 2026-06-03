@@ -42,7 +42,10 @@ function isoRange(range: Range): { from: string; to: string } {
   return { from: safe(range.from), to: safe(range.to) };
 }
 
-function unavailable(tool: string, reason: string): {
+function unavailable(
+  tool: string,
+  reason: string,
+): {
   tool: string;
   ok: false;
   message: string;
@@ -172,10 +175,7 @@ export async function compute_category_breakdown(
     log.warn('TOOL_BREAKDOWN_FAIL', {
       error: err instanceof Error ? err.message : String(err),
     });
-    return unavailable(
-      'compute_category_breakdown',
-      'transaction services not ready',
-    );
+    return unavailable('compute_category_breakdown', 'transaction services not ready');
   }
 }
 
@@ -390,9 +390,8 @@ export async function log_transaction(
     return unavailable('log_transaction', 'a short description is required');
   }
   const type: 'expense' | 'income' = args.type === 'income' ? 'income' : 'expense';
-  const date = typeof args.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(args.date)
-    ? args.date
-    : todayIso();
+  const date =
+    typeof args.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(args.date) ? args.date : todayIso();
   const currency =
     typeof args.currency === 'string' && args.currency.trim()
       ? args.currency.trim().toUpperCase().slice(0, 3)
@@ -462,8 +461,7 @@ export const COPILOT_TOOL_SPECS = [
     type: 'function' as const,
     function: {
       name: 'compute_total',
-      description:
-        'Sum transactions in a date range. Optionally filter by category and/or type.',
+      description: 'Sum transactions in a date range. Optionally filter by category and/or type.',
       parameters: {
         type: 'object',
         properties: {
@@ -487,8 +485,7 @@ export const COPILOT_TOOL_SPECS = [
     type: 'function' as const,
     function: {
       name: 'compute_category_breakdown',
-      description:
-        'Per-category expense totals between from and to dates, sorted descending.',
+      description: 'Per-category expense totals between from and to dates, sorted descending.',
       parameters: {
         type: 'object',
         properties: {
@@ -575,7 +572,10 @@ export const COPILOT_TOOL_SPECS = [
             type: 'string',
             description: 'optional category name; omit to let the server categorise',
           },
-          currency: { type: 'string', description: 'optional ISO code like INR/USD; omit for default' },
+          currency: {
+            type: 'string',
+            description: 'optional ISO code like INR/USD; omit for default',
+          },
           date: { type: 'string', description: 'optional YYYY-MM-DD; omit for today' },
           walletHint: {
             type: 'string',

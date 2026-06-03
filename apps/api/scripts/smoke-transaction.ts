@@ -75,7 +75,9 @@ async function main() {
     },
     access,
   );
-  console.log(`  → tx ${t1.data.transaction.id} category=${t1.data.transaction.category} amount=${t1.data.transaction.amount}`);
+  console.log(
+    `  → tx ${t1.data.transaction.id} category=${t1.data.transaction.category} amount=${t1.data.transaction.amount}`,
+  );
 
   // Listing
   type ListEnvelope = { items: Array<{ id: string; amount: number }>; total: number };
@@ -83,7 +85,12 @@ async function main() {
   console.log(`  → list total=${list.data.total}`);
 
   // Update category
-  await call('POST', `/transactions/${t1.data.transaction.id}/category`, { category: 'Transportation' }, access);
+  await call(
+    'POST',
+    `/transactions/${t1.data.transaction.id}/category`,
+    { category: 'Transportation' },
+    access,
+  );
 
   // Wallet balance after expense
   const w2 = await call<WalletEnvelope>('GET', `/wallets/${walletId}`, undefined, access);

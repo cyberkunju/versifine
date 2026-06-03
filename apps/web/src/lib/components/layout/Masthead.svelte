@@ -1,67 +1,92 @@
 <script lang="ts">
-  /**
-   * Masthead — the app's navigation as a financial broadsheet nameplate.
-   *
-   * Versifine is "editorial fintech", set like a printed prospectus. So
-   * instead of the universal left-sidebar SaaS shell, the app is headed by a
-   * newspaper masthead: a dateline micro-row, the wordmark nameplate flanked
-   * by classic double-rules, and a section rail where the nav items read as
-   * tracked small-caps sections (THE LEDGER · BUDGETS · …) with a gold
-   * underline marking the page you're "reading". Timeless, unmistakably ours,
-   * and nothing like a generic dashboard chrome.
-   */
-  import { page } from '$app/stores';
-  import {
-    Search, Sun, Moon, Monitor, Sparkles, LogOut, Menu, X,
-  } from 'lucide-svelte';
-  import Wordmark from '$lib/components/brand/Wordmark.svelte';
-  import { auth } from '$lib/stores/auth.svelte';
-  import { settings } from '$lib/stores/settings.svelte';
-  import { getMessages } from '$lib/i18n';
-  import { cn } from '$lib/utils/cn';
+/**
+ * Masthead — the app's navigation as a financial broadsheet nameplate.
+ *
+ * Versifine is "editorial fintech", set like a printed prospectus. So
+ * instead of the universal left-sidebar SaaS shell, the app is headed by a
+ * newspaper masthead: a dateline micro-row, the wordmark nameplate flanked
+ * by classic double-rules, and a section rail where the nav items read as
+ * tracked small-caps sections (THE LEDGER · BUDGETS · …) with a gold
+ * underline marking the page you're "reading". Timeless, unmistakably ours,
+ * and nothing like a generic dashboard chrome.
+ */
+import { page } from '$app/stores';
+import { Search, Sun, Moon, Monitor, Sparkles, LogOut, Menu, X } from 'lucide-svelte';
+import Wordmark from '$lib/components/brand/Wordmark.svelte';
+import { auth } from '$lib/stores/auth.svelte';
+import { settings } from '$lib/stores/settings.svelte';
+import { getMessages } from '$lib/i18n';
+import { cn } from '$lib/utils/cn';
 
-  type Props = {
-    onOpenCommand: () => void;
-    onOpenCopilot: (initial?: string) => void;
-  };
-  let { onOpenCommand, onOpenCopilot }: Props = $props();
+type Props = {
+  onOpenCommand: () => void;
+  onOpenCopilot: (initial?: string) => void;
+};
+let { onOpenCommand, onOpenCopilot }: Props = $props();
 
-  const m = $derived(getMessages(settings.language));
+const m = $derived(getMessages(settings.language));
 
-  // Section labels lean editorial: "The Ledger", "The Outlook" — newspaper
-  // sections, not app tabs. Falls back to the i18n nav labels for non-English.
-  const sections = $derived([
-    { href: '/dashboard', label: m.nav.dashboard, kicker: settings.language === 'en' ? 'Front Page' : m.nav.dashboard },
-    { href: '/transactions', label: m.nav.transactions, kicker: settings.language === 'en' ? 'The Ledger' : m.nav.transactions },
-    { href: '/budgets', label: m.nav.budgets, kicker: settings.language === 'en' ? 'Budgets' : m.nav.budgets },
-    { href: '/goals', label: m.nav.goals, kicker: settings.language === 'en' ? 'Goals' : m.nav.goals },
-    { href: '/forecast', label: m.nav.forecast, kicker: settings.language === 'en' ? 'The Outlook' : m.nav.forecast },
-    { href: '/reports', label: m.nav.reports, kicker: settings.language === 'en' ? 'Reports' : m.nav.reports },
-  ]);
+// Section labels lean editorial: "The Ledger", "The Outlook" — newspaper
+// sections, not app tabs. Falls back to the i18n nav labels for non-English.
+const sections = $derived([
+  {
+    href: '/dashboard',
+    label: m.nav.dashboard,
+    kicker: settings.language === 'en' ? 'Front Page' : m.nav.dashboard,
+  },
+  {
+    href: '/transactions',
+    label: m.nav.transactions,
+    kicker: settings.language === 'en' ? 'The Ledger' : m.nav.transactions,
+  },
+  {
+    href: '/budgets',
+    label: m.nav.budgets,
+    kicker: settings.language === 'en' ? 'Budgets' : m.nav.budgets,
+  },
+  {
+    href: '/goals',
+    label: m.nav.goals,
+    kicker: settings.language === 'en' ? 'Goals' : m.nav.goals,
+  },
+  {
+    href: '/forecast',
+    label: m.nav.forecast,
+    kicker: settings.language === 'en' ? 'The Outlook' : m.nav.forecast,
+  },
+  {
+    href: '/reports',
+    label: m.nav.reports,
+    kicker: settings.language === 'en' ? 'Reports' : m.nav.reports,
+  },
+]);
 
-  const path = $derived($page.url.pathname);
-  function isActive(href: string): boolean {
-    if (href === '/dashboard') return path === '/dashboard';
-    return path === href || path.startsWith(`${href}/`);
-  }
+const path = $derived($page.url.pathname);
+function isActive(href: string): boolean {
+  if (href === '/dashboard') return path === '/dashboard';
+  return path === href || path.startsWith(`${href}/`);
+}
 
-  const today = new Date();
-  const dateline = today.toLocaleDateString('en-GB', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-  });
-  const firstName = $derived(auth.user?.displayName?.split(' ')[0] ?? '');
-  const edition = $derived(firstName ? `${firstName}'s Edition` : 'Personal Edition');
+const today = new Date();
+const dateline = today.toLocaleDateString('en-GB', {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+});
+const firstName = $derived(auth.user?.displayName?.split(' ')[0] ?? '');
+const edition = $derived(firstName ? `${firstName}'s Edition` : 'Personal Edition');
 
-  let mobileOpen = $state(false);
+let mobileOpen = $state(false);
 
-  function cycleTheme() {
-    const order: Array<'light' | 'dark' | 'system'> = ['light', 'dark', 'system'];
-    const i = order.indexOf(settings.theme);
-    settings.setTheme(order[(i + 1) % order.length] ?? 'light');
-  }
-  async function handleLogout() {
-    await auth.logout();
-  }
+function cycleTheme() {
+  const order: Array<'light' | 'dark' | 'system'> = ['light', 'dark', 'system'];
+  const i = order.indexOf(settings.theme);
+  settings.setTheme(order[(i + 1) % order.length] ?? 'light');
+}
+async function handleLogout() {
+  await auth.logout();
+}
 </script>
 
 <header class="sticky top-0 z-30 border-b border-[hsl(var(--brand-navy)/0.18)] bg-[hsl(var(--background)/0.85)] backdrop-blur-md">

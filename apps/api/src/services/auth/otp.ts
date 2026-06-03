@@ -27,7 +27,9 @@ function hashCode(code: string): string {
   return createHmac('sha256', env.JWT_REFRESH_SECRET).update(code).digest('hex');
 }
 
-export async function createOtp(userId: string): Promise<{ id: string; code: string; expiresAt: Date }> {
+export async function createOtp(
+  userId: string,
+): Promise<{ id: string; code: string; expiresAt: Date }> {
   const code = generateCode();
   const expiresAt = new Date(Date.now() + OTP_TTL_MS);
   const [row] = await db
@@ -77,10 +79,7 @@ export async function consumeOtp(code: string): Promise<{ userId: string }> {
   const now = new Date();
   const row = await getValidOtp(code);
 
-  await db
-    .update(phoneLinkOtps)
-    .set({ consumedAt: now })
-    .where(eq(phoneLinkOtps.id, row.id));
+  await db.update(phoneLinkOtps).set({ consumedAt: now }).where(eq(phoneLinkOtps.id, row.id));
 
   return { userId: row.userId };
 }

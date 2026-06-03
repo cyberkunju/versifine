@@ -69,10 +69,7 @@ export interface DetectorResult {
  * The userId is only used to address WS broadcasts — detection itself
  * is space-scoped.
  */
-export async function runDetector(
-  userId: string,
-  spaceId: string,
-): Promise<DetectorResult> {
+export async function runDetector(userId: string, spaceId: string): Promise<DetectorResult> {
   const since = new Date();
   since.setUTCDate(since.getUTCDate() - LOOKBACK_DAYS);
   const sinceIso = since.toISOString().slice(0, 10);
@@ -303,9 +300,7 @@ export async function setRecurringStatus(
   const [row] = await db
     .update(recurringItems)
     .set({ status, updatedAt: new Date() })
-    .where(
-      and(eq(recurringItems.id, recurringId), eq(recurringItems.spaceId, spaceId)),
-    )
+    .where(and(eq(recurringItems.id, recurringId), eq(recurringItems.spaceId, spaceId)))
     .returning();
   if (!row) throw errors.notFound('Recurring item not found');
   return row;

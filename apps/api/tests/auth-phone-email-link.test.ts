@@ -63,7 +63,9 @@ async function createWebUser(emailValue: string, phoneValue?: string) {
 
   await db.update(spaces).set({ createdBy: user.id }).where(eq(spaces.id, space.id));
   await db.insert(spaceMembers).values({ spaceId: space.id, userId: user.id, role: 'owner' });
-  await db.insert(wallets).values({ spaceId: space.id, name: 'Cash', type: 'cash', currency: 'INR' });
+  await db
+    .insert(wallets)
+    .values({ spaceId: space.id, name: 'Cash', type: 'cash', currency: 'INR' });
 
   return user;
 }
@@ -131,7 +133,9 @@ describe('WhatsApp email linking', () => {
       }),
     });
     expect(res.status).toBe(201);
-    const payload = (await res.json()) as { data: { user: { id: string; whatsappPhone: string | null } } };
+    const payload = (await res.json()) as {
+      data: { user: { id: string; whatsappPhone: string | null } };
+    };
     expect(payload.data.user.id).toBe(wa.userId);
     expect(payload.data.user.whatsappPhone).toBe(p);
 

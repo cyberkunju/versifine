@@ -15,11 +15,7 @@
 import { zValidator } from '@hono/zod-validator';
 import { and, eq, isNull, sql as drizzleSql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import {
-  transferInput,
-  walletCreateInput,
-  walletUpdateInput,
-} from '@versifine/shared';
+import { transferInput, walletCreateInput, walletUpdateInput } from '@versifine/shared';
 import { db } from '../db/client.ts';
 import { transactions } from '../db/schema/transactions.ts';
 import { wallets } from '../db/schema/wallets.ts';

@@ -118,16 +118,12 @@ export function useQuery<T>(
 
   // First mount: only fetch if we don't have fresh data already.
   if (enabled) {
-    const hasFresh =
-      entry.data !== null && staleMs > 0 && Date.now() - entry.fetchedAt < staleMs;
+    const hasFresh = entry.data !== null && staleMs > 0 && Date.now() - entry.fetchedAt < staleMs;
     if (!hasFresh) void run();
   }
 
   // Subscribe-to-invalidation: when invalidate(key) runs we get re-fetched.
-  invalidationListeners.set(serialized, [
-    ...(invalidationListeners.get(serialized) ?? []),
-    run,
-  ]);
+  invalidationListeners.set(serialized, [...(invalidationListeners.get(serialized) ?? []), run]);
 
   // Cleanup on the calling component's destroy.
   try {
@@ -192,10 +188,7 @@ export function invalidate(key: QueryKey): void {
  * Patch the cached data for a key without triggering a network call.
  * Used by the WS layer to graft new transactions into the list cache.
  */
-export function setQueryData<T>(
-  key: QueryKey,
-  updater: (prev: T | null) => T | null,
-): void {
+export function setQueryData<T>(key: QueryKey, updater: (prev: T | null) => T | null): void {
   const serialized = keyFor(key);
   const entry = ensureEntry<T>(serialized);
   entry.data = updater(entry.data);

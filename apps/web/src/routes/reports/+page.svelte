@@ -1,102 +1,101 @@
 <script lang="ts">
-  /**
-   * Reports page.
-   *
-   * Date-range picker with quick presets, summary tiles, breakdown
-   * tables for categories and merchants, budget adherence list, and a
-   * CSV export. The whole page is one `/reports/summary?from=&to=` call
-   * to the API plus a follow-up CSV link.
-   */
-  import { fly } from 'svelte/transition';
-  import { Calendar, Download, TrendingUp, TrendingDown, PiggyBank, Sparkles } from 'lucide-svelte';
-  import { CATEGORY_META, type Category } from '@versifine/shared';
-  import { api } from '$lib/api/client';
-  import { useQuery } from '$lib/api/queries.svelte';
-  import { settings } from '$lib/stores/settings.svelte';
-  import { toast } from '$lib/stores/toast.svelte';
-  import { getMessages } from '$lib/i18n';
-  import { formatCurrency } from '$lib/utils/format';
-  import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle,
-    Button,
-    Input,
-    Skeleton,
-    Badge,
-  } from '$lib/components/ui';
-  import type { ReportSummary } from '$lib/api/types';
+/**
+ * Reports page.
+ *
+ * Date-range picker with quick presets, summary tiles, breakdown
+ * tables for categories and merchants, budget adherence list, and a
+ * CSV export. The whole page is one `/reports/summary?from=&to=` call
+ * to the API plus a follow-up CSV link.
+ */
+import { fly } from 'svelte/transition';
+import { Calendar, Download, TrendingUp, TrendingDown, PiggyBank, Sparkles } from 'lucide-svelte';
+import { CATEGORY_META, type Category } from '@versifine/shared';
+import { api } from '$lib/api/client';
+import { useQuery } from '$lib/api/queries.svelte';
+import { settings } from '$lib/stores/settings.svelte';
+import { toast } from '$lib/stores/toast.svelte';
+import { getMessages } from '$lib/i18n';
+import { formatCurrency } from '$lib/utils/format';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Button,
+  Input,
+  Skeleton,
+  Badge,
+} from '$lib/components/ui';
+import type { ReportSummary } from '$lib/api/types';
 
-  const m = $derived(getMessages(settings.language));
+const m = $derived(getMessages(settings.language));
 
-  function iso(d: Date): string {
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+function iso(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function startOfMonth(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+function endOfMonth(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0);
+}
+function daysAgo(n: number): Date {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d;
+}
+
+const today = new Date();
+let from = $state(iso(startOfMonth(today)));
+let to = $state(iso(today));
+
+const range = $derived({ from, to });
+const summary = useQuery<{ summary: ReportSummary }>(['reports', 'summary'], () =>
+  api.reports.summary(range),
+);
+$effect(() => {
+  void from;
+  void to;
+  summary.refetch();
+});
+
+function setPreset(preset: 'thisMonth' | 'lastMonth' | 'quarter' | 'year') {
+  const now = new Date();
+  if (preset === 'thisMonth') {
+    from = iso(startOfMonth(now));
+    to = iso(now);
+  } else if (preset === 'lastMonth') {
+    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    from = iso(prev);
+    to = iso(endOfMonth(prev));
+  } else if (preset === 'quarter') {
+    from = iso(daysAgo(90));
+    to = iso(now);
+  } else {
+    from = iso(daysAgo(365));
+    to = iso(now);
   }
-  function startOfMonth(d: Date): Date {
-    return new Date(d.getFullYear(), d.getMonth(), 1);
-  }
-  function endOfMonth(d: Date): Date {
-    return new Date(d.getFullYear(), d.getMonth() + 1, 0);
-  }
-  function daysAgo(n: number): Date {
-    const d = new Date();
-    d.setDate(d.getDate() - n);
-    return d;
-  }
+}
 
-  const today = new Date();
-  let from = $state(iso(startOfMonth(today)));
-  let to = $state(iso(today));
-
-  const range = $derived({ from, to });
-  const summary = useQuery<{ summary: ReportSummary }>(
-    ['reports', 'summary'],
-    () => api.reports.summary(range),
-  );
-  $effect(() => {
-    void from;
-    void to;
-    summary.refetch();
-  });
-
-  function setPreset(preset: 'thisMonth' | 'lastMonth' | 'quarter' | 'year') {
-    const now = new Date();
-    if (preset === 'thisMonth') {
-      from = iso(startOfMonth(now));
-      to = iso(now);
-    } else if (preset === 'lastMonth') {
-      const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      from = iso(prev);
-      to = iso(endOfMonth(prev));
-    } else if (preset === 'quarter') {
-      from = iso(daysAgo(90));
-      to = iso(now);
-    } else {
-      from = iso(daysAgo(365));
-      to = iso(now);
-    }
+async function exportCsv() {
+  try {
+    await api.reports.summaryCsv(range);
+  } catch (err) {
+    toast.error('Export failed', err instanceof Error ? err.message : 'Please try again.');
   }
+}
 
-  async function exportCsv() {
-    try {
-      await api.reports.summaryCsv(range);
-    } catch (err) {
-      toast.error('Export failed', err instanceof Error ? err.message : 'Please try again.');
-    }
-  }
+const totals = $derived(
+  summary.data?.summary.totals ?? { income: 0, expense: 0, savings: 0, savingsRate: 0 },
+);
+const top = $derived(summary.data?.summary.byCategory.slice(0, 8) ?? []);
+const merchants = $derived(summary.data?.summary.byMerchant.slice(0, 8) ?? []);
+const adherence = $derived(summary.data?.summary.budgetAdherence ?? []);
 
-  const totals = $derived(
-    summary.data?.summary.totals ?? { income: 0, expense: 0, savings: 0, savingsRate: 0 },
-  );
-  const top = $derived(summary.data?.summary.byCategory.slice(0, 8) ?? []);
-  const merchants = $derived(summary.data?.summary.byMerchant.slice(0, 8) ?? []);
-  const adherence = $derived(summary.data?.summary.budgetAdherence ?? []);
-
-  function pctOf(value: number, total: number): number {
-    if (total <= 0) return 0;
-    return Math.min(100, Math.round((value / total) * 100));
-  }
+function pctOf(value: number, total: number): number {
+  if (total <= 0) return 0;
+  return Math.min(100, Math.round((value / total) * 100));
+}
 </script>
 
 <div class="flex flex-col gap-6">

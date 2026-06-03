@@ -40,7 +40,8 @@ app.get('/', async (c) => {
   const opts: Parameters<typeof listLedger>[1] = {};
   if (directionParam) {
     const parsed = ledgerDirection.safeParse(directionParam);
-    if (!parsed.success) throw errors.validation('Invalid direction', { direction: directionParam });
+    if (!parsed.success)
+      throw errors.validation('Invalid direction', { direction: directionParam });
     opts.direction = parsed.data;
   }
   if (statusParam) {
@@ -71,13 +72,7 @@ app.get('/:id', async (c) => {
 app.post('/:id/settle', zValidator('json', ledgerSettlementInput), async (c) => {
   const u = c.get('user');
   const body = c.req.valid('json');
-  const result = await settleEntry(
-    u.id,
-    u.activeSpaceId,
-    c.req.param('id'),
-    u.baseCurrency,
-    body,
-  );
+  const result = await settleEntry(u.id, u.activeSpaceId, c.req.param('id'), u.baseCurrency, body);
   return c.json(
     ok({
       entry: serializeEntry(result.entry),

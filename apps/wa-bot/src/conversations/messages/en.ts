@@ -7,6 +7,7 @@
  * is INR-first. Currency rendering keeps `₹` for INR and falls back to
  * the ISO code for everything else.
  */
+import { resolveCurrencySymbol } from '@versifine/shared';
 import type { DraftSummary, MessagePack, QuerySummaryView } from './types.ts';
 
 const PERIOD_LABELS_EN: Record<string, string> = {
@@ -28,12 +29,17 @@ function formatINR(value: number): string {
   const head = intStr.slice(0, -3);
   const grouped = head ? `${head.replace(/\B(?=(\d{2})+(?!\d))/g, ',')},${lastThree}` : lastThree;
   const sign = value < 0 ? '-' : '';
-  return fraction > 0 ? `${sign}${grouped}.${String(fraction).padStart(2, '0')}` : `${sign}${grouped}`;
+  return fraction > 0
+    ? `${sign}${grouped}.${String(fraction).padStart(2, '0')}`
+    : `${sign}${grouped}`;
 }
 
 function formatAmount(value: number, currency: string): string {
-  if (currency === 'INR') return `₹${formatINR(value)}`;
-  return `${currency} ${formatINR(value)}`;
+  const upper = currency.toUpperCase();
+  const symbol = resolveCurrencySymbol(upper);
+  const separator = symbol === upper ? ' ' : '';
+  if (upper === 'INR') return `₹${formatINR(value)}`;
+  return `${symbol}${separator}${formatINR(value)}`;
 }
 
 function describeDraft(d: DraftSummary): string {
@@ -67,7 +73,7 @@ export const en: MessagePack = {
     'One quick thing — what email should I link this to?\n\n' +
     'If you ever sign in on the web with the same email, your WhatsApp and ' +
     'web accounts join up automatically. No password needed here.\n\n' +
-    "Send your email, or reply SKIP to do it later.",
+    'Send your email, or reply SKIP to do it later.',
 
   emailLinked: (email) =>
     `Linked to ${email}. ✅ Sign in on the web with this email and it's the same account.`,
@@ -82,7 +88,7 @@ export const en: MessagePack = {
 
   onboardingReady:
     "You're all set — no sign-up needed. ✅\n\n" +
-    "Just tell me what you spent. For example:\n" +
+    'Just tell me what you spent. For example:\n' +
     '• "spent 200 on tea"\n' +
     '• send a photo of a bill\n' +
     '• or send a voice note in your language\n\n' +
@@ -110,7 +116,7 @@ export const en: MessagePack = {
     "• Log expenses — 'spent 450 on auto'\n" +
     "• Income — 'got salary 85000'\n" +
     "• Photos — send a receipt and I'll extract it\n" +
-    "• Voice notes — talk in any of 6 languages\n" +
+    '• Voice notes — talk in any of 6 languages\n' +
     "• Queries — 'how much on food this month?'\n" +
     "• Budgets — 'set budget groceries 8000'\n" +
     "• Corrections — 'last one was Transport not Food'\n\n" +
@@ -118,9 +124,10 @@ export const en: MessagePack = {
 
   captureLogged: (amount, currency, category, baseAmount, baseCurrency) => {
     const formatted = formatAmount(amount, currency);
-    const converted = baseAmount && baseCurrency && baseCurrency !== currency
-      ? ` (${formatAmount(baseAmount, baseCurrency)})`
-      : '';
+    const converted =
+      baseAmount && baseCurrency && baseCurrency !== currency
+        ? ` (${formatAmount(baseAmount, baseCurrency)})`
+        : '';
     return category
       ? `✅ Logged ${formatted}${converted} under ${category}.`
       : `✅ Logged ${formatted}${converted}.`;
@@ -167,8 +174,7 @@ export const en: MessagePack = {
   copilotNudge:
     'For deep questions, try the web copilot at versifine.com — I can also try here, just send the question.',
 
-  budgetAskCategory:
-    'Which category? (e.g., Groceries, Restaurants, Transportation)',
+  budgetAskCategory: 'Which category? (e.g., Groceries, Restaurants, Transportation)',
   budgetAskAmount: (category) => `How much per month for ${category}?`,
   budgetSet: (category, amount) =>
     `📊 Budget set: ${category} → ${formatAmount(amount, 'INR')}/month. I'll warn at 80%.`,
@@ -188,14 +194,11 @@ export const en: MessagePack = {
 
   resetDone: '🔄 Reset. Send HELP to see what I can do.',
 
-  stopAcknowledged:
-    "Okay, I'll stop replying. Message me again anytime to wake me up.",
+  stopAcknowledged: "Okay, I'll stop replying. Message me again anytime to wake me up.",
 
-  unknown:
-    "I didn't catch that. Try logging an expense ('spent 200 on coffee') or send HELP.",
+  unknown: "I didn't catch that. Try logging an expense ('spent 200 on coffee') or send HELP.",
 
-  error:
-    'Something went sideways on my end. Try again, or send RESET to start fresh.',
+  error: 'Something went sideways on my end. Try again, or send RESET to start fresh.',
 
   notLinked:
     "I see your message but this number isn't linked yet. Send LINK <6-digit code> from the web app.",

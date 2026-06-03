@@ -1,31 +1,31 @@
 <script lang="ts">
-  import { Slider as S } from 'bits-ui';
-  import { cn } from '$lib/utils/cn';
+import { Slider as S } from 'bits-ui';
+import { cn } from '$lib/utils/cn';
 
-  type Props = {
-    value: number;
-    min?: number;
-    max?: number;
-    step?: number;
-    onValueChange?: (value: number) => void;
-    class?: string;
-    disabled?: boolean;
-  };
+type Props = {
+  value: number;
+  min?: number;
+  max?: number;
+  step?: number;
+  onValueChange?: (value: number) => void;
+  class?: string;
+  disabled?: boolean;
+};
 
-  let {
-    value = $bindable(),
-    min = 0,
-    max = 100,
-    step = 1,
-    onValueChange,
-    class: className,
-    disabled,
-  }: Props = $props();
+let {
+  value = $bindable(),
+  min = 0,
+  max = 100,
+  step = 1,
+  onValueChange,
+  class: className,
+  disabled,
+}: Props = $props();
 
-  let arr = $state([value]);
-  $effect(() => {
-    arr = [value];
-  });
+let arr = $state([value]);
+$effect(() => {
+  arr = [value];
+});
 </script>
 
 <S.Root

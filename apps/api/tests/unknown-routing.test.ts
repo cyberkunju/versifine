@@ -45,9 +45,7 @@ const { extractAmount } = await import('../src/services/ai/parserRegex.ts');
 const { parseExpense } = await import('../src/services/ai/parser.ts');
 const { categorizeFromMerchantDB } = await import('../src/services/categorize/merchants.ts');
 const { normalizeMerchant } = await import('../src/services/transactions/normalize.ts');
-const { classifyIntent, __clearIntentCacheForTests } = await import(
-  '../src/services/ai/intent.ts'
-);
+const { classifyIntent, __clearIntentCacheForTests } = await import('../src/services/ai/intent.ts');
 
 describe('isExpenseLike — a bare spend word is an expense, NOT chat/copilot', () => {
   // The headline bug: each of these used to be classified "unknown" and shipped

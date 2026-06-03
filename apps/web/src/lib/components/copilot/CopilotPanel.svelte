@@ -1,203 +1,203 @@
 <script lang="ts">
-  /**
-   * Omnibar-born copilot chat. The compact panel grows upward from the bottom
-   * dock, then can expand into a near-fullscreen floating workspace.
-   */
-  import { onDestroy, onMount } from 'svelte';
-  import { Maximize2, Minimize2, Sparkles, Send, X } from 'lucide-svelte';
-  import { auth } from '$lib/stores/auth.svelte';
-  import { settings } from '$lib/stores/settings.svelte';
-  import { getMessages } from '$lib/i18n';
-  import { Button } from '$lib/components/ui';
-  import { cn } from '$lib/utils/cn';
-  import MessageBubble, { type ToolEvent } from './MessageBubble.svelte';
-  import type { CopilotMessage } from '$lib/api/types';
+/**
+ * Omnibar-born copilot chat. The compact panel grows upward from the bottom
+ * dock, then can expand into a near-fullscreen floating workspace.
+ */
+import { onDestroy, onMount } from 'svelte';
+import { Maximize2, Minimize2, Sparkles, Send, X } from 'lucide-svelte';
+import { auth } from '$lib/stores/auth.svelte';
+import { settings } from '$lib/stores/settings.svelte';
+import { getMessages } from '$lib/i18n';
+import { Button } from '$lib/components/ui';
+import { cn } from '$lib/utils/cn';
+import MessageBubble, { type ToolEvent } from './MessageBubble.svelte';
+import type { CopilotMessage } from '$lib/api/types';
 
-  type Props = {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    /** Optional prefilled prompt set when the omnibar dispatches a chat intent. */
-    seed?: string | null;
-  };
+type Props = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** Optional prefilled prompt set when the omnibar dispatches a chat intent. */
+  seed?: string | null;
+};
 
-  let { open = $bindable(), onOpenChange, seed = null }: Props = $props();
+let { open = $bindable(), onOpenChange, seed = null }: Props = $props();
 
-  type ChatMessage = {
-    id: number;
-    role: 'user' | 'assistant';
-    content: string;
-    toolEvents: ToolEvent[];
-  };
+type ChatMessage = {
+  id: number;
+  role: 'user' | 'assistant';
+  content: string;
+  toolEvents: ToolEvent[];
+};
 
-  const m = $derived(getMessages(settings.language));
-  let messages = $state<ChatMessage[]>([]);
-  let draft = $state<ChatMessage | null>(null);
-  let input = $state('');
-  let streaming = $state(false);
-  let maximized = $state(false);
-  let abort: AbortController | null = null;
-  let scrollEl: HTMLDivElement | undefined = $state(undefined);
-  let nextId = 1;
-  let appliedSeed: string | null = null;
+const m = $derived(getMessages(settings.language));
+let messages = $state<ChatMessage[]>([]);
+let draft = $state<ChatMessage | null>(null);
+let input = $state('');
+let streaming = $state(false);
+let maximized = $state(false);
+let abort: AbortController | null = null;
+let scrollEl: HTMLDivElement | undefined = $state(undefined);
+let nextId = 1;
+let appliedSeed: string | null = null;
 
-  $effect(() => {
-    if (!open) {
-      maximized = false;
-      appliedSeed = null;
-      return;
-    }
-    if (seed && seed !== appliedSeed && !streaming) {
-      input = seed;
-      appliedSeed = seed;
-      queueMicrotask(() => void send(seed));
-    }
-  });
-
-  function handleWindowKeydown(event: KeyboardEvent) {
-    if (event.key === 'Escape' && open) {
-      event.preventDefault();
-      close();
-    }
+$effect(() => {
+  if (!open) {
+    maximized = false;
+    appliedSeed = null;
+    return;
   }
+  if (seed && seed !== appliedSeed && !streaming) {
+    input = seed;
+    appliedSeed = seed;
+    queueMicrotask(() => void send(seed));
+  }
+});
 
-  onMount(() => {
-    window.addEventListener('keydown', handleWindowKeydown);
+function handleWindowKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && open) {
+    event.preventDefault();
+    close();
+  }
+}
+
+onMount(() => {
+  window.addEventListener('keydown', handleWindowKeydown);
+});
+
+onDestroy(() => {
+  window.removeEventListener('keydown', handleWindowKeydown);
+});
+
+function scrollToBottom() {
+  queueMicrotask(() => {
+    if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
   });
+}
 
-  onDestroy(() => {
-    window.removeEventListener('keydown', handleWindowKeydown);
-  });
+function quickPrompt(text: string) {
+  input = text;
+  void send();
+}
 
-  function scrollToBottom() {
-    queueMicrotask(() => {
-      if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
+async function send(textOverride?: string) {
+  const text = (textOverride ?? input).trim();
+  if (!text || streaming) return;
+  input = '';
+  const user: ChatMessage = { id: nextId++, role: 'user', content: text, toolEvents: [] };
+  messages = [...messages, user];
+  draft = { id: nextId++, role: 'assistant', content: '', toolEvents: [] };
+  streaming = true;
+  scrollToBottom();
+
+  abort?.abort();
+  abort = new AbortController();
+
+  const wireMessages: CopilotMessage[] = messages
+    .filter((mm) => mm.role !== 'assistant' || mm.content.trim().length > 0)
+    .map((mm) => ({ role: mm.role, content: mm.content }));
+  wireMessages.push({ role: 'user', content: text });
+
+  try {
+    const res = await fetch('/api/copilot/chat', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: auth.accessToken ? `Bearer ${auth.accessToken}` : '',
+      },
+      body: JSON.stringify({ messages: wireMessages }),
+      signal: abort.signal,
     });
-  }
 
-  function quickPrompt(text: string) {
-    input = text;
-    void send();
-  }
-
-  async function send(textOverride?: string) {
-    const text = (textOverride ?? input).trim();
-    if (!text || streaming) return;
-    input = '';
-    const user: ChatMessage = { id: nextId++, role: 'user', content: text, toolEvents: [] };
-    messages = [...messages, user];
-    draft = { id: nextId++, role: 'assistant', content: '', toolEvents: [] };
-    streaming = true;
-    scrollToBottom();
-
-    abort?.abort();
-    abort = new AbortController();
-
-    const wireMessages: CopilotMessage[] = messages
-      .filter((mm) => mm.role !== 'assistant' || mm.content.trim().length > 0)
-      .map((mm) => ({ role: mm.role, content: mm.content }));
-    wireMessages.push({ role: 'user', content: text });
-
-    try {
-      const res = await fetch('/api/copilot/chat', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: auth.accessToken ? `Bearer ${auth.accessToken}` : '',
-        },
-        body: JSON.stringify({ messages: wireMessages }),
-        signal: abort.signal,
-      });
-
-      if (!res.ok || !res.body) {
-        if (draft) draft.content = m.copilot.error;
-        finalizeDraft();
-        return;
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const events = buffer.split(/\n\n/);
-        buffer = events.pop() ?? '';
-        for (const block of events) {
-          handleEvent(block);
-        }
-      }
-    } catch (err) {
-      if (draft && (err as Error)?.name !== 'AbortError') {
-        draft.content = m.copilot.error;
-      }
-    } finally {
+    if (!res.ok || !res.body) {
+      if (draft) draft.content = m.copilot.error;
       finalizeDraft();
-    }
-  }
-
-  function handleEvent(block: string) {
-    const dataLine = block.split('\n').find((l) => l.startsWith('data:'));
-    if (!dataLine) return;
-    const json = dataLine.replace(/^data:\s*/, '');
-    if (!json) return;
-    let parsed: { type?: string; [k: string]: unknown };
-    try {
-      parsed = JSON.parse(json);
-    } catch {
       return;
     }
-    if (!draft) return;
-    switch (parsed.type) {
-      case 'chunk':
-        draft.content += String(parsed.delta ?? '');
-        scrollToBottom();
-        break;
-      case 'tool_call':
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const events = buffer.split(/\n\n/);
+      buffer = events.pop() ?? '';
+      for (const block of events) {
+        handleEvent(block);
+      }
+    }
+  } catch (err) {
+    if (draft && (err as Error)?.name !== 'AbortError') {
+      draft.content = m.copilot.error;
+    }
+  } finally {
+    finalizeDraft();
+  }
+}
+
+function handleEvent(block: string) {
+  const dataLine = block.split('\n').find((l) => l.startsWith('data:'));
+  if (!dataLine) return;
+  const json = dataLine.replace(/^data:\s*/, '');
+  if (!json) return;
+  let parsed: { type?: string; [k: string]: unknown };
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return;
+  }
+  if (!draft) return;
+  switch (parsed.type) {
+    case 'chunk':
+      draft.content += String(parsed.delta ?? '');
+      scrollToBottom();
+      break;
+    case 'tool_call':
+      draft.toolEvents = [
+        ...draft.toolEvents,
+        { name: String(parsed.name ?? ''), args: parsed.args as string | undefined },
+      ];
+      break;
+    case 'tool_result': {
+      const idx = draft.toolEvents.findLastIndex(
+        (e) => e.name === parsed.name && e.result === undefined,
+      );
+      if (idx >= 0) {
+        draft.toolEvents = draft.toolEvents.map((e, i) =>
+          i === idx ? { ...e, result: parsed.result } : e,
+        );
+      } else {
         draft.toolEvents = [
           ...draft.toolEvents,
-          { name: String(parsed.name ?? ''), args: parsed.args as string | undefined },
+          { name: String(parsed.name ?? ''), result: parsed.result },
         ];
-        break;
-      case 'tool_result': {
-        const idx = draft.toolEvents.findLastIndex(
-          (e) => e.name === parsed.name && e.result === undefined,
-        );
-        if (idx >= 0) {
-          draft.toolEvents = draft.toolEvents.map((e, i) =>
-            i === idx ? { ...e, result: parsed.result } : e,
-          );
-        } else {
-          draft.toolEvents = [
-            ...draft.toolEvents,
-            { name: String(parsed.name ?? ''), result: parsed.result },
-          ];
-        }
-        break;
       }
-      case 'done':
-        finalizeDraft();
-        break;
-      case 'error':
-        draft.content += `\n\n${m.copilot.error}`;
-        break;
+      break;
     }
+    case 'done':
+      finalizeDraft();
+      break;
+    case 'error':
+      draft.content += `\n\n${m.copilot.error}`;
+      break;
   }
+}
 
-  function finalizeDraft() {
-    if (draft) {
-      messages = [...messages, draft];
-      draft = null;
-    }
-    streaming = false;
-    abort = null;
-    scrollToBottom();
+function finalizeDraft() {
+  if (draft) {
+    messages = [...messages, draft];
+    draft = null;
   }
+  streaming = false;
+  abort = null;
+  scrollToBottom();
+}
 
-  function close() {
-    abort?.abort();
-    onOpenChange(false);
-  }
+function close() {
+  abort?.abort();
+  onOpenChange(false);
+}
 </script>
 
 {#if open}

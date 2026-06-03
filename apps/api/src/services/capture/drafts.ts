@@ -80,7 +80,8 @@ export function storeDraft(seed: DraftSeed): DraftRecord {
   maybeSweep();
   const id = shortId();
   const now = Date.now();
-  const locale: Language | null = seed.locale && isLanguage(seed.locale) ? (seed.locale as Language) : null;
+  const locale: Language | null =
+    seed.locale && isLanguage(seed.locale) ? (seed.locale as Language) : null;
   const record: DraftRecord = {
     id,
     spaceId: seed.spaceId,

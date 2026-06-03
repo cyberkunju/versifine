@@ -1,210 +1,343 @@
 <script lang="ts">
-  /**
-   * Register — "Login Redefined" editorial design, pixel-matched to the
-   * login page. Same split layout, same motion (aurora glow blobs, drifting
-   * background "V", staggered rise-ins, rotating headline word, the rotating
-   * brand-rail story, gradient submit button with sweeping shimmer).
-   *
-   * Only the form differs: display name, email, a password with a live
-   * strength checklist, confirm-password, and primary language. Google
-   * sign-up sits above the email form. The server enforces the password
-   * policy; we surface its message verbatim, and validate client-side first
-   * so the common mistakes never round-trip.
-   */
-  import { goto } from '$app/navigation';
-  import { cubicOut, cubicInOut } from 'svelte/easing';
-  import { LANGUAGE_META, LANGUAGES, type Language } from '@versifine/shared';
-  import { auth } from '$lib/stores/auth.svelte';
-  import { ApiError } from '$lib/api/types';
-  import GoogleSignInButton from '$lib/components/auth/GoogleSignInButton.svelte';
-  import VMark from '$lib/components/brand/VMark.svelte';
-  import Wordmark from '$lib/components/brand/Wordmark.svelte';
+/**
+ * Register — "Login Redefined" editorial design, pixel-matched to the
+ * login page. Same split layout, same motion (aurora glow blobs, drifting
+ * background "V", staggered rise-ins, rotating headline word, the rotating
+ * brand-rail story, gradient submit button with sweeping shimmer).
+ *
+ * Only the form differs: display name, email, a password with a live
+ * strength checklist, confirm-password, and primary language. Google
+ * sign-up sits above the email form. The server enforces the password
+ * policy; we surface its message verbatim, and validate client-side first
+ * so the common mistakes never round-trip.
+ */
+import { goto } from '$app/navigation';
+import { cubicOut, cubicInOut } from 'svelte/easing';
+import { LANGUAGE_META, LANGUAGES, type Language } from '@versifine/shared';
+import { auth } from '$lib/stores/auth.svelte';
+import { ApiError } from '$lib/api/types';
+import GoogleSignInButton from '$lib/components/auth/GoogleSignInButton.svelte';
+import VMark from '$lib/components/brand/VMark.svelte';
+import Wordmark from '$lib/components/brand/Wordmark.svelte';
 
-  const ROTATING_WORDS = ['workspace', 'dashboard', 'account', 'studio'];
+const ROTATING_WORDS = ['workspace', 'dashboard', 'account', 'studio'];
 
-  let email = $state('');
-  let password = $state('');
-  let confirmPassword = $state('');
-  let displayName = $state('');
-  let primaryLanguage = $state<Language>('en');
-  let error = $state<string | null>(null);
-  let wordIdx = $state(0);
+let email = $state('');
+let password = $state('');
+let confirmPassword = $state('');
+let displayName = $state('');
+let primaryLanguage = $state<Language>('en');
+let error = $state<string | null>(null);
+let wordIdx = $state(0);
 
-  const passwordChecks = $derived([
-    { label: '12+ characters', ok: password.length >= 12 },
-    { label: 'Upper & lower case', ok: /[A-Z]/.test(password) && /[a-z]/.test(password) },
-    { label: 'A number', ok: /[0-9]/.test(password) },
-    { label: 'A symbol', ok: /[^A-Za-z0-9]/.test(password) },
-  ]);
-  const passwordReady = $derived(passwordChecks.every((c) => c.ok));
-  const confirmReady = $derived(confirmPassword.length > 0 && password === confirmPassword);
+const passwordChecks = $derived([
+  { label: '12+ characters', ok: password.length >= 12 },
+  { label: 'Upper & lower case', ok: /[A-Z]/.test(password) && /[a-z]/.test(password) },
+  { label: 'A number', ok: /[0-9]/.test(password) },
+  { label: 'A symbol', ok: /[^A-Za-z0-9]/.test(password) },
+]);
+const passwordReady = $derived(passwordChecks.every((c) => c.ok));
+const confirmReady = $derived(confirmPassword.length > 0 && password === confirmPassword);
 
-  // Rotate the headline word every 2.6s, retriggering the rise animation.
-  $effect(() => {
-    const id = setInterval(() => {
-      wordIdx = (wordIdx + 1) % ROTATING_WORDS.length;
-    }, 2600);
-    return () => clearInterval(id);
-  });
+// Rotate the headline word every 2.6s, retriggering the rise animation.
+$effect(() => {
+  const id = setInterval(() => {
+    wordIdx = (wordIdx + 1) % ROTATING_WORDS.length;
+  }, 2600);
+  return () => clearInterval(id);
+});
 
-  /**
-   * The brand-rail story — identical source to the login page. Every line is
-   * true and specific, drawn from the project docs: real features, real
-   * engineering calls, real fixes. No marketing filler.
-   */
-  type SlideKind = 'feature' | 'tip' | 'craft' | 'honest' | 'voice';
-  interface Slide {
-    id: number;
-    kind: SlideKind;
-    text: string;
-    by?: string;
+/**
+ * The brand-rail story — identical source to the login page. Every line is
+ * true and specific, drawn from the project docs: real features, real
+ * engineering calls, real fixes. No marketing filler.
+ */
+type SlideKind = 'feature' | 'tip' | 'craft' | 'honest' | 'voice';
+interface Slide {
+  id: number;
+  kind: SlideKind;
+  text: string;
+  by?: string;
+}
+
+const KIND_LABEL: Record<SlideKind, string> = {
+  feature: 'What it does',
+  tip: 'Tip',
+  craft: 'Under the hood',
+  honest: 'Straight talk',
+  voice: 'In their words',
+};
+
+const SLIDES: Slide[] = [
+  {
+    id: 1,
+    kind: 'feature',
+    text: 'Capture a spend the way you’d say it — type it, speak it, or snap the receipt. Web, WhatsApp, and CSV all flow through one pipeline.',
+  },
+  {
+    id: 2,
+    kind: 'tip',
+    text: '“spent 450 on auto” is all the bar needs. Write it the way you’d say it out loud.',
+  },
+  {
+    id: 3,
+    kind: 'feature',
+    text: 'Ask the co-pilot where your money went. It reads your own transactions, in plain language — never the open internet.',
+  },
+  {
+    id: 4,
+    kind: 'craft',
+    text: 'The co-pilot can only quote a number that came back from a real query. That’s how we structurally stop it from inventing figures.',
+  },
+  {
+    id: 5,
+    kind: 'feature',
+    text: 'Privacy Mode runs categorization inside your browser. Your transaction text never leaves the device.',
+  },
+  {
+    id: 6,
+    kind: 'feature',
+    text: 'Built INR-first: UPI handles, rupee shorthand, and six languages — the way money actually moves in India.',
+  },
+  {
+    id: 7,
+    kind: 'craft',
+    text: 'A fine-tuned model sorts roughly 6,600 expenses a second at about 96% accuracy — and it runs on a plain CPU.',
+  },
+  {
+    id: 8,
+    kind: 'feature',
+    text: 'Correct a category once. The next time that merchant appears it’s labelled instantly — free, and for good.',
+  },
+  {
+    id: 9,
+    kind: 'craft',
+    text: 'Categorization is a four-tier waterfall: your own corrections first, then a 300-merchant India catalogue, then the model, then a safe default.',
+  },
+  {
+    id: 10,
+    kind: 'feature',
+    text: 'Recurring detection finds your subscriptions, rent, and EMIs on its own — and tells you when each one is due next.',
+  },
+  {
+    id: 11,
+    kind: 'feature',
+    text: 'The 30-day forecast separates what’s locked in, like rent and Netflix, from what’s only estimated, like groceries and transport.',
+  },
+  {
+    id: 12,
+    kind: 'craft',
+    text: 'We wrote the ARIMA forecaster by hand — about 120 lines — because honest math you can explain beats a black box you can’t.',
+  },
+  {
+    id: 13,
+    kind: 'feature',
+    text: 'Anomaly detection flags the day your spend jumped, and shows how far past normal it ran.',
+  },
+  {
+    id: 14,
+    kind: 'tip',
+    text: 'Press ⌘K to jump anywhere. ⌘L opens the capture bar from any screen.',
+  },
+  {
+    id: 15,
+    kind: 'feature',
+    text: 'Voice notes work in English, Hindi, Malayalam, Tamil, Telugu, and Kannada — and come back spoken in the same language.',
+  },
+  {
+    id: 16,
+    kind: 'craft',
+    text: 'Tamil and Malayalam share no Unicode block, so we check every translation’s script and retry rather than ship confident nonsense.',
+  },
+  {
+    id: 17,
+    kind: 'tip',
+    text: 'Snap a receipt. If the photo isn’t clear, you get one quick confirmation instead of a wrong guess saved silently.',
+  },
+  {
+    id: 18,
+    kind: 'honest',
+    text: 'Single-user today — but every record already carries a space, so shared household and business books arrive without a migration.',
+  },
+  {
+    id: 19,
+    kind: 'craft',
+    text: 'Three apps, one database: a Hono API, this SvelteKit dashboard, and a WhatsApp bot. One source of truth behind all of it.',
+  },
+  {
+    id: 20,
+    kind: 'craft',
+    text: 'Embeddings run in a background queue, so saving a transaction never waits on a network call.',
+  },
+  {
+    id: 21,
+    kind: 'honest',
+    text: 'We log how long every AI call takes, and never log what you spent it on. Observability without surveillance.',
+  },
+  {
+    id: 22,
+    kind: 'craft',
+    text: 'Every AI service has a fallback. No single upstream failure can lock you out of your own money.',
+  },
+  {
+    id: 23,
+    kind: 'tip',
+    text: 'Link WhatsApp once and capture spends by message — text, voice, or a photo of the bill — without opening the app.',
+  },
+  {
+    id: 24,
+    kind: 'craft',
+    text: '“Day before yesterday” used to match “yesterday.” We reordered the parser so the longer phrase wins. Small bug, real fix.',
+  },
+  {
+    id: 25,
+    kind: 'feature',
+    text: 'Set a goal and the co-pilot tracks whether you’re on pace — and flags it early when you’re drifting off.',
+  },
+  {
+    id: 26,
+    kind: 'feature',
+    text: 'Budgets warn before you breach them, not after. The alert lands while you can still do something about it.',
+  },
+  {
+    id: 27,
+    kind: 'craft',
+    text: 'The merchant key strips UPI prefixes, handles, reference codes, and city tags down to just “swiggy.” Lossy on purpose, stable forever.',
+  },
+  {
+    id: 28,
+    kind: 'feature',
+    text: 'Real-time by default: a spend captured on WhatsApp shows up on this dashboard a moment later, no refresh needed.',
+  },
+  {
+    id: 29,
+    kind: 'tip',
+    text: 'Numbers render with tabular figures, so columns line up and your eye can scan a ledger fast.',
+  },
+  {
+    id: 30,
+    kind: 'honest',
+    text: 'This is an MVP, and the docs say so out loud — every shipped feature, every open issue, every fix, kept in one place.',
+  },
+  {
+    id: 31,
+    kind: 'craft',
+    text: 'Receipts vary wildly — faded thermal prints, angled photos — so vision runs on the larger model and asks when it isn’t sure.',
+  },
+  {
+    id: 32,
+    kind: 'feature',
+    text: 'One pipeline, three doors in: the web omnibar, a WhatsApp message, or a CSV import. Parse, categorize, save, broadcast.',
+  },
+  {
+    id: 33,
+    kind: 'voice',
+    text: 'Versifine has become the quiet backbone of how our team thinks about numbers. It stays out of the way, and that is the highest praise we can give a tool.',
+    by: 'Elena Marchetti · Head of Design, Cinder',
+  },
+];
+
+function shuffle<T>(arr: readonly T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j]!, a[i]!];
   }
+  return a;
+}
 
-  const KIND_LABEL: Record<SlideKind, string> = {
-    feature: 'What it does',
-    tip: 'Tip',
-    craft: 'Under the hood',
-    honest: 'Straight talk',
-    voice: 'In their words',
+let order = $state<Slide[]>(shuffle(SLIDES));
+let slideIdx = $state(0);
+const slide = $derived(order[slideIdx]!);
+
+function readingMs(_text: string): number {
+  return 4000;
+}
+
+$effect(() => {
+  const current = order[slideIdx]!;
+  let timer: ReturnType<typeof setTimeout>;
+  const advance = () => {
+    if (typeof document !== 'undefined' && document.hidden) {
+      timer = setTimeout(advance, 1500);
+      return;
+    }
+    if (slideIdx + 1 >= order.length) {
+      const last = order[slideIdx];
+      let next = shuffle(SLIDES);
+      if (next[0]?.id === last?.id && next.length > 1) {
+        [next[0], next[1]] = [next[1]!, next[0]!];
+      }
+      order = next;
+      slideIdx = 0;
+    } else {
+      slideIdx = slideIdx + 1;
+    }
   };
+  timer = setTimeout(advance, readingMs(current.text));
+  return () => clearTimeout(timer);
+});
 
-  const SLIDES: Slide[] = [
-    { id: 1, kind: 'feature', text: 'Capture a spend the way you’d say it — type it, speak it, or snap the receipt. Web, WhatsApp, and CSV all flow through one pipeline.' },
-    { id: 2, kind: 'tip', text: '“spent 450 on auto” is all the bar needs. Write it the way you’d say it out loud.' },
-    { id: 3, kind: 'feature', text: 'Ask the co-pilot where your money went. It reads your own transactions, in plain language — never the open internet.' },
-    { id: 4, kind: 'craft', text: 'The co-pilot can only quote a number that came back from a real query. That’s how we structurally stop it from inventing figures.' },
-    { id: 5, kind: 'feature', text: 'Privacy Mode runs categorization inside your browser. Your transaction text never leaves the device.' },
-    { id: 6, kind: 'feature', text: 'Built INR-first: UPI handles, rupee shorthand, and six languages — the way money actually moves in India.' },
-    { id: 7, kind: 'craft', text: 'A fine-tuned model sorts roughly 6,600 expenses a second at about 96% accuracy — and it runs on a plain CPU.' },
-    { id: 8, kind: 'feature', text: 'Correct a category once. The next time that merchant appears it’s labelled instantly — free, and for good.' },
-    { id: 9, kind: 'craft', text: 'Categorization is a four-tier waterfall: your own corrections first, then a 300-merchant India catalogue, then the model, then a safe default.' },
-    { id: 10, kind: 'feature', text: 'Recurring detection finds your subscriptions, rent, and EMIs on its own — and tells you when each one is due next.' },
-    { id: 11, kind: 'feature', text: 'The 30-day forecast separates what’s locked in, like rent and Netflix, from what’s only estimated, like groceries and transport.' },
-    { id: 12, kind: 'craft', text: 'We wrote the ARIMA forecaster by hand — about 120 lines — because honest math you can explain beats a black box you can’t.' },
-    { id: 13, kind: 'feature', text: 'Anomaly detection flags the day your spend jumped, and shows how far past normal it ran.' },
-    { id: 14, kind: 'tip', text: 'Press ⌘K to jump anywhere. ⌘L opens the capture bar from any screen.' },
-    { id: 15, kind: 'feature', text: 'Voice notes work in English, Hindi, Malayalam, Tamil, Telugu, and Kannada — and come back spoken in the same language.' },
-    { id: 16, kind: 'craft', text: 'Tamil and Malayalam share no Unicode block, so we check every translation’s script and retry rather than ship confident nonsense.' },
-    { id: 17, kind: 'tip', text: 'Snap a receipt. If the photo isn’t clear, you get one quick confirmation instead of a wrong guess saved silently.' },
-    { id: 18, kind: 'honest', text: 'Single-user today — but every record already carries a space, so shared household and business books arrive without a migration.' },
-    { id: 19, kind: 'craft', text: 'Three apps, one database: a Hono API, this SvelteKit dashboard, and a WhatsApp bot. One source of truth behind all of it.' },
-    { id: 20, kind: 'craft', text: 'Embeddings run in a background queue, so saving a transaction never waits on a network call.' },
-    { id: 21, kind: 'honest', text: 'We log how long every AI call takes, and never log what you spent it on. Observability without surveillance.' },
-    { id: 22, kind: 'craft', text: 'Every AI service has a fallback. No single upstream failure can lock you out of your own money.' },
-    { id: 23, kind: 'tip', text: 'Link WhatsApp once and capture spends by message — text, voice, or a photo of the bill — without opening the app.' },
-    { id: 24, kind: 'craft', text: '“Day before yesterday” used to match “yesterday.” We reordered the parser so the longer phrase wins. Small bug, real fix.' },
-    { id: 25, kind: 'feature', text: 'Set a goal and the co-pilot tracks whether you’re on pace — and flags it early when you’re drifting off.' },
-    { id: 26, kind: 'feature', text: 'Budgets warn before you breach them, not after. The alert lands while you can still do something about it.' },
-    { id: 27, kind: 'craft', text: 'The merchant key strips UPI prefixes, handles, reference codes, and city tags down to just “swiggy.” Lossy on purpose, stable forever.' },
-    { id: 28, kind: 'feature', text: 'Real-time by default: a spend captured on WhatsApp shows up on this dashboard a moment later, no refresh needed.' },
-    { id: 29, kind: 'tip', text: 'Numbers render with tabular figures, so columns line up and your eye can scan a ledger fast.' },
-    { id: 30, kind: 'honest', text: 'This is an MVP, and the docs say so out loud — every shipped feature, every open issue, every fix, kept in one place.' },
-    { id: 31, kind: 'craft', text: 'Receipts vary wildly — faded thermal prints, angled photos — so vision runs on the larger model and asks when it isn’t sure.' },
-    { id: 32, kind: 'feature', text: 'One pipeline, three doors in: the web omnibar, a WhatsApp message, or a CSV import. Parse, categorize, save, broadcast.' },
-    { id: 33, kind: 'voice', text: 'Versifine has become the quiet backbone of how our team thinks about numbers. It stays out of the way, and that is the highest praise we can give a tool.', by: 'Elena Marchetti · Head of Design, Cinder' },
-  ];
+const prefersReduced =
+  typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-  function shuffle<T>(arr: readonly T[]): T[] {
-    const a = [...arr];
-    for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [a[i], a[j]] = [a[j]!, a[i]!];
-    }
-    return a;
+function revealIn(_node: Element, { duration = 620 } = {}) {
+  if (prefersReduced) return { duration: 160, css: (t: number) => `opacity:${t}` };
+  return {
+    duration,
+    easing: cubicOut,
+    css: (t: number) => `opacity:${t}; transform:translateY(${(1 - t) * 8}px);`,
+  };
+}
+
+function concealOut(_node: Element, { duration = 380 } = {}) {
+  if (prefersReduced) return { duration: 120, css: (t: number) => `opacity:${t}` };
+  return {
+    duration,
+    easing: cubicInOut,
+    css: (t: number) => `opacity:${t}; transform:translateY(${-(1 - t) * 6}px);`,
+  };
+}
+
+async function submit(e: SubmitEvent) {
+  e.preventDefault();
+  error = null;
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail || !cleanEmail.includes('@')) {
+    error = 'Enter a valid email address.';
+    return;
   }
-
-  let order = $state<Slide[]>(shuffle(SLIDES));
-  let slideIdx = $state(0);
-  const slide = $derived(order[slideIdx]!);
-
-  function readingMs(_text: string): number {
-    return 4000;
+  if (!passwordReady) {
+    error = 'Your password needs 12+ characters with upper & lower case, a number, and a symbol.';
+    return;
   }
-
-  $effect(() => {
-    const current = order[slideIdx]!;
-    let timer: ReturnType<typeof setTimeout>;
-    const advance = () => {
-      if (typeof document !== 'undefined' && document.hidden) {
-        timer = setTimeout(advance, 1500);
-        return;
-      }
-      if (slideIdx + 1 >= order.length) {
-        const last = order[slideIdx];
-        let next = shuffle(SLIDES);
-        if (next[0]?.id === last?.id && next.length > 1) {
-          [next[0], next[1]] = [next[1]!, next[0]!];
-        }
-        order = next;
-        slideIdx = 0;
-      } else {
-        slideIdx = slideIdx + 1;
-      }
-    };
-    timer = setTimeout(advance, readingMs(current.text));
-    return () => clearTimeout(timer);
-  });
-
-  const prefersReduced =
-    typeof window !== 'undefined' &&
-    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-
-  function revealIn(_node: Element, { duration = 620 } = {}) {
-    if (prefersReduced) return { duration: 160, css: (t: number) => `opacity:${t}` };
-    return {
-      duration,
-      easing: cubicOut,
-      css: (t: number) => `opacity:${t}; transform:translateY(${(1 - t) * 8}px);`,
-    };
+  if (password !== confirmPassword) {
+    error = 'Those passwords don’t match.';
+    return;
   }
-
-  function concealOut(_node: Element, { duration = 380 } = {}) {
-    if (prefersReduced) return { duration: 120, css: (t: number) => `opacity:${t}` };
-    return {
-      duration,
-      easing: cubicInOut,
-      css: (t: number) => `opacity:${t}; transform:translateY(${-(1 - t) * 6}px);`,
-    };
+  try {
+    await auth.register({
+      email: cleanEmail,
+      password,
+      ...(displayName.trim() ? { displayName: displayName.trim() } : {}),
+      primaryLanguage,
+    });
+    void goto('/dashboard');
+  } catch (err) {
+    error =
+      err instanceof ApiError ? err.message : 'We couldn’t create your account. Please try again.';
   }
+}
 
-  async function submit(e: SubmitEvent) {
-    e.preventDefault();
-    error = null;
-    const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail || !cleanEmail.includes('@')) {
-      error = 'Enter a valid email address.';
-      return;
-    }
-    if (!passwordReady) {
-      error = 'Your password needs 12+ characters with upper & lower case, a number, and a symbol.';
-      return;
-    }
-    if (password !== confirmPassword) {
-      error = 'Those passwords don’t match.';
-      return;
-    }
-    try {
-      await auth.register({
-        email: cleanEmail,
-        password,
-        ...(displayName.trim() ? { displayName: displayName.trim() } : {}),
-        primaryLanguage,
-      });
-      void goto('/dashboard');
-    } catch (err) {
-      error = err instanceof ApiError ? err.message : 'We couldn’t create your account. Please try again.';
-    }
+async function handleGoogleCredential(credential: string) {
+  error = null;
+  try {
+    await auth.loginWithGoogle({ credential, primaryLanguage });
+    void goto('/dashboard');
+  } catch (err) {
+    error = err instanceof ApiError ? err.message : 'Google sign-up failed. Please try again.';
   }
-
-  async function handleGoogleCredential(credential: string) {
-    error = null;
-    try {
-      await auth.loginWithGoogle({ credential, primaryLanguage });
-      void goto('/dashboard');
-    } catch (err) {
-      error = err instanceof ApiError ? err.message : 'Google sign-up failed. Please try again.';
-    }
-  }
+}
 </script>
 
 <svelte:head>

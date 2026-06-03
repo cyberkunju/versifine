@@ -1,0 +1,41 @@
+
+PROMPT: "how do I start an emergency fund"
+  [gpt-4o-mini (stream)] firstWord=1544ms total=3046ms chars=311 thinking=false
+  [sarvam-105b null+stream] firstWord=nullms total=1609ms chars=0 thinking=true
+  [sarvam-105b low+stream] firstWord=nullms total=1545ms chars=0 thinking=true
+  [sarvam-30b null+stream] firstWord=nullms total=1074ms chars=0 thinking=true
+  [sarvam-30b low+stream] firstWord=nullms total=1128ms chars=0 thinking=true
+
+PROMPT: "how can I save money on a tight budget"
+  [gpt-4o-mini (stream)] firstWord=832ms total=1592ms chars=367 thinking=false
+  [sarvam-105b null+stream] firstWord=nullms total=1477ms chars=0 thinking=true
+  [sarvam-105b low+stream] firstWord=nullms total=1508ms chars=0 thinking=true
+  [sarvam-30b null+stream] firstWord=nullms total=1081ms chars=0 thinking=true
+  [sarvam-30b low+stream] firstWord=nullms total=1078ms chars=0 thinking=true
+
+PROMPT: "mujhe paise bachane ke tips do"
+  [gpt-4o-mini (stream)] firstWord=538ms total=1714ms chars=298 thinking=false
+  [sarvam-105b null+stream] firstWord=nullms total=1471ms chars=0 thinking=true
+  [sarvam-105b low+stream] firstWord=nullms total=1525ms chars=0 thinking=true
+  [sarvam-30b null+stream] firstWord=nullms total=1081ms chars=0 thinking=true
+  [sarvam-30b low+stream] firstWord=nullms total=1067ms chars=0 thinking=true
+
+
+==== LATENCY SUMMARY (streaming) ====
+Key metric = "first word" (time-to-first-content-token) — what the user actually feels.
+
+gpt-4o-mini (stream)
+  first-word median: 832ms | total median: 1714ms | thinking fired: 0/3 | errs: 0
+
+sarvam-105b null+stream
+  first-word median: 1477ms | total median: 1477ms | thinking fired: 3/3 | errs: 0
+
+sarvam-105b low+stream
+  first-word median: 1525ms | total median: 1525ms | thinking fired: 3/3 | errs: 0
+
+sarvam-30b null+stream
+  first-word median: 1081ms | total median: 1081ms | thinking fired: 3/3 | errs: 0
+
+sarvam-30b low+stream
+  first-word median: 1078ms | total median: 1078ms | thinking fired: 3/3 | errs: 0
+DONE 

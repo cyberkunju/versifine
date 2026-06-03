@@ -20,10 +20,7 @@ app.use('*', requireUser);
 
 const querySchema = z.object({
   days: z
-    .preprocess(
-      (v) => (typeof v === 'string' ? Number(v) : v),
-      z.number().int(),
-    )
+    .preprocess((v) => (typeof v === 'string' ? Number(v) : v), z.number().int())
     .refine((v) => [7, 14, 30, 60, 90].includes(v), {
       message: 'days must be one of 7, 14, 30, 60, 90',
     })

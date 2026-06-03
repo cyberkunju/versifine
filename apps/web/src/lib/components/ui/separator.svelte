@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { cn } from '$lib/utils/cn';
+import { cn } from '$lib/utils/cn';
 
-  type Props = {
-    class?: string;
-    orientation?: 'horizontal' | 'vertical';
-  };
-  let { class: className, orientation = 'horizontal' }: Props = $props();
+type Props = {
+  class?: string;
+  orientation?: 'horizontal' | 'vertical';
+};
+let { class: className, orientation = 'horizontal' }: Props = $props();
 </script>
 
 <div

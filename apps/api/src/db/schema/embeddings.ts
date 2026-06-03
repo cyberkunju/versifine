@@ -38,10 +38,7 @@ export const transactionEmbeddings = pgTable(
     // tuned `WITH (lists = 100)` variant; this declaration is just so
     // Drizzle generates the bare CREATE INDEX. Tuning lives in
     // 0001_add_cyclic_fk_and_index_tuning.sql.
-    index('transaction_embeddings_vector_idx').using(
-      'ivfflat',
-      sql`embedding vector_cosine_ops`,
-    ),
+    index('transaction_embeddings_vector_idx').using('ivfflat', sql`embedding vector_cosine_ops`),
     index('transaction_embeddings_space_idx').on(t.spaceId),
   ],
 );

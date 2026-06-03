@@ -75,8 +75,7 @@ export async function createTransfer(opts: CreateTransferOptions): Promise<Trans
   }
 
   const transferId = crypto.randomUUID();
-  const description =
-    parsed.description ?? `Transfer ${fromWallet.name} → ${toWallet.name}`;
+  const description = parsed.description ?? `Transfer ${fromWallet.name} → ${toWallet.name}`;
 
   const result = await db.transaction(async (tx) => {
     const [fromRow] = await tx

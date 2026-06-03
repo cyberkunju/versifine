@@ -1,63 +1,81 @@
 <script lang="ts">
-  /**
-   * Landing page — editorial fintech. White ground, indigo ink, the Outfit
-   * typeface, a restrained periwinkle accent. Numbered sections read like a
-   * well-set prospectus rather than a SaaS template.
-   */
-  import { onMount } from 'svelte';
-  import { browser } from '$app/environment';
-  import { ArrowRight, Check, ArrowUpRight } from 'lucide-svelte';
-  import Header from '$lib/components/landing/Header.svelte';
-  import Footer from '$lib/components/landing/Footer.svelte';
-  import FeatureGrid from '$lib/components/landing/FeatureGrid.svelte';
-  import WhatsAppDemo from '$lib/components/landing/WhatsAppDemo.svelte';
-  import WhatsAppGlyph from '$lib/components/landing/WhatsAppGlyph.svelte';
-  import CopilotDemo from '$lib/components/landing/CopilotDemo.svelte';
-  import WhatsAppInvite from '$lib/components/landing/WhatsAppInvite.svelte';
-  import WhatsAppFab from '$lib/components/landing/WhatsAppFab.svelte';
-  import { WA_DEMO_LINK } from '$lib/whatsapp';
+/**
+ * Landing page — editorial fintech. White ground, indigo ink, the Outfit
+ * typeface, a restrained periwinkle accent. Numbered sections read like a
+ * well-set prospectus rather than a SaaS template.
+ */
+import { onMount } from 'svelte';
+import { browser } from '$app/environment';
+import { ArrowRight, Check, ArrowUpRight } from 'lucide-svelte';
+import Header from '$lib/components/landing/Header.svelte';
+import Footer from '$lib/components/landing/Footer.svelte';
+import FeatureGrid from '$lib/components/landing/FeatureGrid.svelte';
+import WhatsAppDemo from '$lib/components/landing/WhatsAppDemo.svelte';
+import WhatsAppGlyph from '$lib/components/landing/WhatsAppGlyph.svelte';
+import CopilotDemo from '$lib/components/landing/CopilotDemo.svelte';
+import WhatsAppInvite from '$lib/components/landing/WhatsAppInvite.svelte';
+import WhatsAppFab from '$lib/components/landing/WhatsAppFab.svelte';
+import { WA_DEMO_LINK } from '$lib/whatsapp';
 
-  const LANGS = [
-    { native: 'English', english: 'English', sample: 'Logged ₹450 — Transportation.' },
-    { native: 'हिन्दी', english: 'Hindi', sample: '₹450 दर्ज किया गया — परिवहन।' },
-    { native: 'മലയാളം', english: 'Malayalam', sample: '₹450 രേഖപ്പെടുത്തി — ഗതാഗതം.' },
-    { native: 'தமிழ்', english: 'Tamil', sample: '₹450 பதிவு செய்யப்பட்டது — போக்குவரத்து.' },
-    { native: 'తెలుగు', english: 'Telugu', sample: '₹450 నమోదు చేయబడింది — రవాణా.' },
-    { native: 'ಕನ್ನಡ', english: 'Kannada', sample: '₹450 ದಾಖಲಿಸಲಾಗಿದೆ — ಸಾರಿಗೆ.' },
-  ];
+const LANGS = [
+  { native: 'English', english: 'English', sample: 'Logged ₹450 — Transportation.' },
+  { native: 'हिन्दी', english: 'Hindi', sample: '₹450 दर्ज किया गया — परिवहन।' },
+  { native: 'മലയാളം', english: 'Malayalam', sample: '₹450 രേഖപ്പെടുത്തി — ഗതാഗതം.' },
+  { native: 'தமிழ்', english: 'Tamil', sample: '₹450 பதிவு செய்யப்பட்டது — போக்குவரத்து.' },
+  { native: 'తెలుగు', english: 'Telugu', sample: '₹450 నమోదు చేయబడింది — రవాణా.' },
+  { native: 'ಕನ್ನಡ', english: 'Kannada', sample: '₹450 ದಾಖಲಿಸಲಾಗಿದೆ — ಸಾರಿಗೆ.' },
+];
 
-  const FAQ: Array<{ q: string; a: string }> = [
-    { q: 'Is my data private?', a: 'Your transactions live in your own database row and never leave the server unless you explicitly ask the copilot. Toggle Privacy Mode and even categorisation runs in your browser — the raw text never reaches us.' },
-    { q: 'Do I have to use WhatsApp?', a: 'Not at all. Versifine is fully usable from the web dashboard. WhatsApp is a second surface — same data, same intelligence — for when a quick voice note beats opening an app.' },
-    { q: 'Which languages are supported?', a: 'Six, end-to-end: English, Hindi, Malayalam, Tamil, Telugu, and Kannada. Capture, replies, and voice synthesis all respect your primary language. The dashboard shell ships in English, Hindi, and Malayalam today.' },
-    { q: 'How is the forecast computed?', a: 'Two layers. Recurring detection finds charges that repeat on 7-, 30-, or 90-day rhythms with low variance — your locked-in base. The variable component runs through an in-house ARIMA(1,1,1) with a rolling-mean fallback. You see both, plus a 95% band.' },
-    { q: 'Can the AI make numbers up?', a: 'No. The copilot can\u2019t do arithmetic in prose — every total, breakdown, forecast and comparison comes from a tool function it calls explicitly, and you see each call inline. If the data doesn\u2019t answer, it says so.' },
-    { q: 'Is it open source?', a: 'The code is public on GitHub. The hosted instance, WhatsApp pairing, and API keys are ours to run. Self-hosting is straightforward: bring your own Postgres, an OpenAI key, and a phone number.' },
-  ];
+const FAQ: Array<{ q: string; a: string }> = [
+  {
+    q: 'Is my data private?',
+    a: 'Your transactions live in your own database row and never leave the server unless you explicitly ask the copilot. Toggle Privacy Mode and even categorisation runs in your browser — the raw text never reaches us.',
+  },
+  {
+    q: 'Do I have to use WhatsApp?',
+    a: 'Not at all. Versifine is fully usable from the web dashboard. WhatsApp is a second surface — same data, same intelligence — for when a quick voice note beats opening an app.',
+  },
+  {
+    q: 'Which languages are supported?',
+    a: 'Six, end-to-end: English, Hindi, Malayalam, Tamil, Telugu, and Kannada. Capture, replies, and voice synthesis all respect your primary language. The dashboard shell ships in English, Hindi, and Malayalam today.',
+  },
+  {
+    q: 'How is the forecast computed?',
+    a: 'Two layers. Recurring detection finds charges that repeat on 7-, 30-, or 90-day rhythms with low variance — your locked-in base. The variable component runs through an in-house ARIMA(1,1,1) with a rolling-mean fallback. You see both, plus a 95% band.',
+  },
+  {
+    q: 'Can the AI make numbers up?',
+    a: 'No. The copilot can\u2019t do arithmetic in prose — every total, breakdown, forecast and comparison comes from a tool function it calls explicitly, and you see each call inline. If the data doesn\u2019t answer, it says so.',
+  },
+  {
+    q: 'Is it open source?',
+    a: 'The code is public on GitHub. The hosted instance, WhatsApp pairing, and API keys are ours to run. Self-hosting is straightforward: bring your own Postgres, an OpenAI key, and a phone number.',
+  },
+];
 
-  let openFaq = $state<number | null>(0);
-  function toggleFaq(i: number) {
-    openFaq = openFaq === i ? null : i;
-  }
+let openFaq = $state<number | null>(0);
+function toggleFaq(i: number) {
+  openFaq = openFaq === i ? null : i;
+}
 
-  // Lightweight scroll-reveal: add `is-visible` when sections enter view.
-  let revealEls: HTMLElement[] = [];
-  onMount(() => {
-    if (!browser || !('IntersectionObserver' in window)) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (e.isIntersecting) {
-            e.target.classList.add('is-visible');
-            io.unobserve(e.target);
-          }
+// Lightweight scroll-reveal: add `is-visible` when sections enter view.
+let revealEls: HTMLElement[] = [];
+onMount(() => {
+  if (!browser || !('IntersectionObserver' in window)) return;
+  const io = new IntersectionObserver(
+    (entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) {
+          e.target.classList.add('is-visible');
+          io.unobserve(e.target);
         }
-      },
-      { threshold: 0.12, rootMargin: '0px 0px -8% 0px' },
-    );
-    for (const el of document.querySelectorAll('[data-reveal]')) io.observe(el);
-    return () => io.disconnect();
-  });
+      }
+    },
+    { threshold: 0.12, rootMargin: '0px 0px -8% 0px' },
+  );
+  for (const el of document.querySelectorAll('[data-reveal]')) io.observe(el);
+  return () => io.disconnect();
+});
 </script>
 
 <svelte:head>

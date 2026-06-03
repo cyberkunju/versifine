@@ -1,27 +1,27 @@
 <script lang="ts">
-  import { Popover as P } from 'bits-ui';
-  import type { Snippet } from 'svelte';
-  import { cn } from '$lib/utils/cn';
+import { Popover as P } from 'bits-ui';
+import type { Snippet } from 'svelte';
+import { cn } from '$lib/utils/cn';
 
-  type Props = {
-    open?: boolean;
-    onOpenChange?: (open: boolean) => void;
-    trigger: Snippet;
-    content: Snippet;
-    align?: 'start' | 'center' | 'end';
-    side?: 'top' | 'right' | 'bottom' | 'left';
-    class?: string;
-  };
+type Props = {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  trigger: Snippet;
+  content: Snippet;
+  align?: 'start' | 'center' | 'end';
+  side?: 'top' | 'right' | 'bottom' | 'left';
+  class?: string;
+};
 
-  let {
-    open = $bindable(),
-    onOpenChange,
-    trigger,
-    content,
-    align = 'center',
-    side = 'bottom',
-    class: className,
-  }: Props = $props();
+let {
+  open = $bindable(),
+  onOpenChange,
+  trigger,
+  content,
+  align = 'center',
+  side = 'bottom',
+  class: className,
+}: Props = $props();
 </script>
 
 <P.Root bind:open onOpenChange={(v) => onOpenChange?.(v)}>

@@ -272,10 +272,7 @@ export const api = {
         body: JSON.stringify(input),
       });
     },
-    patch(
-      id: string,
-      input: TransactionUpdateInput,
-    ): Promise<{ transaction: TransactionSummary }> {
+    patch(id: string, input: TransactionUpdateInput): Promise<{ transaction: TransactionSummary }> {
       return request(`/transactions/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(input),
@@ -284,10 +281,7 @@ export const api = {
     delete(id: string): Promise<{ deleted: boolean }> {
       return request(`/transactions/${id}`, { method: 'DELETE' });
     },
-    correctCategory(
-      id: string,
-      category: Category,
-    ): Promise<{ transaction: TransactionSummary }> {
+    correctCategory(id: string, category: Category): Promise<{ transaction: TransactionSummary }> {
       return request(`/transactions/${id}/category`, {
         method: 'POST',
         body: JSON.stringify({ category }),
@@ -436,10 +430,7 @@ export const api = {
     run(): Promise<{ summary: unknown; items: RecurringItem[] }> {
       return request('/recurring/run', { method: 'POST' });
     },
-    patchStatus(
-      id: string,
-      status: 'active' | 'dismissed',
-    ): Promise<{ item: RecurringItem }> {
+    patchStatus(id: string, status: 'active' | 'dismissed'): Promise<{ item: RecurringItem }> {
       return request(`/recurring/${id}`, {
         method: 'PATCH',
         body: JSON.stringify({ status }),

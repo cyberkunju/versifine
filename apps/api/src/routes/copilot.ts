@@ -21,18 +21,23 @@
  *   - Vivien is locked to personal finance; everything else is refused.
  */
 import { Hono } from 'hono';
-import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/chat/completions';
+import type {
+  ChatCompletionMessageParam,
+  ChatCompletionTool,
+} from 'openai/resources/chat/completions';
 import { copilotChatInput } from '@versifine/shared';
 import { env } from '../env.ts';
 import { requireBot, requireUser } from '../middleware/auth.ts';
 import { limits, rateLimit } from '../middleware/rateLimit.ts';
-import { getOpenAI, isAIConfigured, normalizeChatParams, withLatency } from '../services/ai/client.ts';
+import {
+  getOpenAI,
+  isAIConfigured,
+  normalizeChatParams,
+  withLatency,
+} from '../services/ai/client.ts';
 import { answerFinanceQuestion } from '../services/ai/copilotAnswer.ts';
 import { buildContext, renderContextBlock } from '../services/ai/copilotContext.ts';
-import {
-  COPILOT_TOOL_SPECS,
-  dispatchTool,
-} from '../services/ai/copilotTools.ts';
+import { COPILOT_TOOL_SPECS, dispatchTool } from '../services/ai/copilotTools.ts';
 import {
   FINANCE_SYSTEM_PROMPT,
   fenceUntrusted,
@@ -68,10 +73,11 @@ app.post('/chat', requireUser, copilotLimit, async (c) => {
   }
   const user = c.get('user');
 
-  const lastUserMessage = parsed.data.messages
-    .slice()
-    .reverse()
-    .find((m) => m.role === 'user')?.content ?? '';
+  const lastUserMessage =
+    parsed.data.messages
+      .slice()
+      .reverse()
+      .find((m) => m.role === 'user')?.content ?? '';
 
   // 1. Guard: refuse injection / off-topic before spending a token. The
   //    refusal is streamed back in the same SSE shape the client expects.
@@ -113,10 +119,10 @@ app.post('/chat', requireUser, copilotLimit, async (c) => {
   const conversation: ChatCompletionMessageParam[] = [
     { role: 'system', content: FINANCE_SYSTEM_PROMPT },
     { role: 'system', content: `User context:\n${contextBlock}` },
-    ...parsed.data.messages.map((m) => ({
+    ...(parsed.data.messages.map((m) => ({
       role: m.role,
       content: m.role === 'user' ? fenceUntrusted(m.content) : m.content,
-    })) as ChatCompletionMessageParam[],
+    })) as ChatCompletionMessageParam[]),
   ];
 
   const tools = COPILOT_TOOL_SPECS as ChatCompletionTool[];
@@ -148,19 +154,17 @@ app.post('/chat', requireUser, copilotLimit, async (c) => {
         try {
           const MAX_ROUNDS = 4;
           for (let round = 0; round < MAX_ROUNDS; round += 1) {
-            const stream = await withLatency(
-              `copilot.chat.round${round}`,
-              async () =>
-                client.chat.completions.create(
-                  normalizeChatParams({
-                    model: env.OPENAI_CHAT_MODEL,
-                    temperature: 0.4,
-                    stream: true,
-                    messages: conversation,
-                    tools,
-                    tool_choice: 'auto',
-                  }),
-                ),
+            const stream = await withLatency(`copilot.chat.round${round}`, async () =>
+              client.chat.completions.create(
+                normalizeChatParams({
+                  model: env.OPENAI_CHAT_MODEL,
+                  temperature: 0.4,
+                  stream: true,
+                  messages: conversation,
+                  tools,
+                  tool_choice: 'auto',
+                }),
+              ),
             );
 
             const toolCalls: Array<{ id: string; name: string; args: string }> = [];

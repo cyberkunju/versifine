@@ -36,7 +36,10 @@ function upper(value: string): string {
   return value.trim().toUpperCase();
 }
 
-async function readCached(base: string, quote: string): Promise<{ rate: number; fetchedAt: Date } | null> {
+async function readCached(
+  base: string,
+  quote: string,
+): Promise<{ rate: number; fetchedAt: Date } | null> {
   const [row] = await db
     .select({ rate: fxRates.rate, fetchedAt: fxRates.fetchedAt })
     .from(fxRates)

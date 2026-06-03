@@ -21,7 +21,11 @@ import { z } from 'zod';
 import { env } from '../env.ts';
 import { rateLimit } from '../middleware/rateLimit.ts';
 import { validate } from '../middleware/validate.ts';
-import { ensureUserByPhone, findAccountByPhone, isSyntheticEmail } from '../services/auth/provision.ts';
+import {
+  ensureUserByPhone,
+  findAccountByPhone,
+  isSyntheticEmail,
+} from '../services/auth/provision.ts';
 import { ok } from '../utils/envelope.ts';
 import { errors } from '../utils/errors.ts';
 import { normalizePhone } from '../utils/phone.ts';

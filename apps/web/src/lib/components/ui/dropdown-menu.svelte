@@ -1,21 +1,21 @@
 <script lang="ts">
-  /**
-   * Wrapper around bits-ui DropdownMenu that applies the shadcn skin.
-   * Pass `trigger` and `content` snippets; `content` should compose
-   * `<DropdownMenuItem>` children.
-   */
-  import { DropdownMenu as DM } from 'bits-ui';
-  import type { Snippet } from 'svelte';
-  import { cn } from '$lib/utils/cn';
+/**
+ * Wrapper around bits-ui DropdownMenu that applies the shadcn skin.
+ * Pass `trigger` and `content` snippets; `content` should compose
+ * `<DropdownMenuItem>` children.
+ */
+import { DropdownMenu as DM } from 'bits-ui';
+import type { Snippet } from 'svelte';
+import { cn } from '$lib/utils/cn';
 
-  type Props = {
-    trigger: Snippet;
-    content: Snippet;
-    align?: 'start' | 'center' | 'end';
-    class?: string;
-  };
+type Props = {
+  trigger: Snippet;
+  content: Snippet;
+  align?: 'start' | 'center' | 'end';
+  class?: string;
+};
 
-  let { trigger, content, align = 'end', class: className }: Props = $props();
+let { trigger, content, align = 'end', class: className }: Props = $props();
 </script>
 
 <DM.Root>

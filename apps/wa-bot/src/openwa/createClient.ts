@@ -390,7 +390,9 @@ export async function unlinkSession(): Promise<{ ok: boolean; method: string }> 
   return { ok: true, method };
 }
 
-export async function startWatchdog(client: WhatsAppLikeClient): Promise<ReturnType<typeof setInterval>> {
+export async function startWatchdog(
+  client: WhatsAppLikeClient,
+): Promise<ReturnType<typeof setInterval>> {
   const probe = async () => {
     // Don't run health probes until pairing has completed at least once.
     // The pre-pair states (UNPAIRED, OPENING, PAIRING, ...) are normal

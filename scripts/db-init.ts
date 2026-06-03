@@ -50,10 +50,9 @@ async function withDb<T>(
 
 async function ensureRole(): Promise<void> {
   await withDb('postgres', async (q) => {
-    const rows = await q<{ rolname: string }>(
-      'SELECT rolname FROM pg_roles WHERE rolname = $1',
-      ['versifine'],
-    );
+    const rows = await q<{ rolname: string }>('SELECT rolname FROM pg_roles WHERE rolname = $1', [
+      'versifine',
+    ]);
     if (rows.length === 0) {
       await q(`CREATE ROLE versifine LOGIN PASSWORD 'versifine' CREATEDB`);
       console.log('  ✓ created role versifine');

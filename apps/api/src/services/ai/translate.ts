@@ -11,11 +11,7 @@
  * still fails we return the source text — better one untranslated line
  * than a confidently wrong one.
  */
-import {
-  LANGUAGE_META,
-  SIBLING_SCRIPTS,
-  type Language,
-} from '@versifine/shared';
+import { LANGUAGE_META, SIBLING_SCRIPTS, type Language } from '@versifine/shared';
 import { env } from '../../env.ts';
 import { log } from '../../utils/logger.ts';
 import { getOpenAI, isAIConfigured, normalizeChatParams, withLatency } from './client.ts';
@@ -158,10 +154,7 @@ async function callTranslate(
  *   - the API key is missing
  *   - the model failed validation twice
  */
-export async function translateForUser(
-  text: string,
-  targetLanguage: Language,
-): Promise<string> {
+export async function translateForUser(text: string, targetLanguage: Language): Promise<string> {
   if (!text.trim()) return text;
   if ((NATIVE_PACK_LANGS as ReadonlyArray<Language>).includes(targetLanguage)) return text;
   if (!isAIConfigured()) return text;

@@ -28,16 +28,8 @@ import { recurringRoutes } from './routes/recurring.ts';
 import { reportRoutes } from './routes/reports.ts';
 import { transactionRoutes } from './routes/transactions.ts';
 import { walletRoutes } from './routes/wallets.ts';
-import {
-  authoriseUpgrade,
-  selectedSubprotocol,
-  wsRoutes,
-} from './routes/ws.ts';
-import {
-  attachSocket,
-  detachSocket,
-  type WsAttachment,
-} from './services/events/ws.ts';
+import { authoriseUpgrade, selectedSubprotocol, wsRoutes } from './routes/ws.ts';
+import { attachSocket, detachSocket, type WsAttachment } from './services/events/ws.ts';
 import { log } from './utils/logger.ts';
 
 const app = new Hono();
@@ -99,9 +91,7 @@ const server = Bun.serve<WsAttachment>({
         const auth = await authoriseUpgrade(req);
         const subprotocol = selectedSubprotocol(req);
         const upgraded = srv.upgrade(req, {
-          headers: subprotocol
-            ? { 'Sec-WebSocket-Protocol': subprotocol }
-            : undefined,
+          headers: subprotocol ? { 'Sec-WebSocket-Protocol': subprotocol } : undefined,
           data: { userId: auth.userId, attachedAt: Date.now() },
         });
         if (upgraded) return undefined as unknown as Response;

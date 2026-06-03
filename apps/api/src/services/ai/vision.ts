@@ -155,7 +155,10 @@ export async function extractFromReceipt(
                   type: 'text',
                   text: 'Extract the receipt fields. Return only JSON with the schema given.',
                 },
-                { type: 'image_url', image_url: { url: dataUrlFor(image, mimetype), detail: 'auto' } },
+                {
+                  type: 'image_url',
+                  image_url: { url: dataUrlFor(image, mimetype), detail: 'auto' },
+                },
               ],
             },
           ],

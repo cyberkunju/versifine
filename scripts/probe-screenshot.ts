@@ -26,27 +26,38 @@ mkdirSync(outDir, { recursive: true });
 
 console.log(`probe: ${TARGET}`);
 
-const chrome = spawn(findChrome(), [
-  `--remote-debugging-port=${PORT}`,
-  `--user-data-dir=${profileDir}`,
-  '--headless=new',
-  '--disable-gpu',
-  '--window-size=1280,900',
-  '--no-first-run',
-  '--no-default-browser-check',
-  '--ignore-certificate-errors',
-  // Optional DNS override so Chrome sends versifine.com straight to an origin
-  // host, e.g. VERSIFINE_ORIGIN_HOST=<reticule-ip>.
-  // Format docs: https://www.chromium.org/developers/design-documents/network-stack/socks-proxy
-  ...(ORIGIN_HOST
-    ? [`--host-resolver-rules=MAP versifine.com ${ORIGIN_HOST}, MAP www.versifine.com ${ORIGIN_HOST}`]
-    : []),
-  'about:blank',
-], { stdio: 'pipe' });
+const chrome = spawn(
+  findChrome(),
+  [
+    `--remote-debugging-port=${PORT}`,
+    `--user-data-dir=${profileDir}`,
+    '--headless=new',
+    '--disable-gpu',
+    '--window-size=1280,900',
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--ignore-certificate-errors',
+    // Optional DNS override so Chrome sends versifine.com straight to an origin
+    // host, e.g. VERSIFINE_ORIGIN_HOST=<reticule-ip>.
+    // Format docs: https://www.chromium.org/developers/design-documents/network-stack/socks-proxy
+    ...(ORIGIN_HOST
+      ? [
+          `--host-resolver-rules=MAP versifine.com ${ORIGIN_HOST}, MAP www.versifine.com ${ORIGIN_HOST}`,
+        ]
+      : []),
+    'about:blank',
+  ],
+  { stdio: 'pipe' },
+);
 
 await new Promise((r) => setTimeout(r, 1500));
 
-interface CdpTarget { id: string; type: string; url: string; webSocketDebuggerUrl: string; }
+interface CdpTarget {
+  id: string;
+  type: string;
+  url: string;
+  webSocketDebuggerUrl: string;
+}
 
 async function getTarget(): Promise<CdpTarget> {
   for (let i = 0; i < 20; i += 1) {
@@ -78,20 +89,40 @@ const failed: string[] = [];
 const requestUrls = new Map<string, string>();
 
 ws.addEventListener('message', (e) => {
-  const data = JSON.parse(e.data as string) as { id?: number; result?: unknown; method?: string; params?: Record<string, unknown> };
+  const data = JSON.parse(e.data as string) as {
+    id?: number;
+    result?: unknown;
+    method?: string;
+    params?: Record<string, unknown>;
+  };
   if (data.id !== undefined && pending.has(data.id)) {
     pending.get(data.id)?.(data.result);
     pending.delete(data.id);
     return;
   }
   if (data.method === 'Runtime.consoleAPICalled' && data.params) {
-    const params = data.params as { type: string; args: Array<{ value?: unknown; description?: string }> };
-    consoleLines.push(`[${params.type}] ${params.args.map((a) => a.value ?? a.description ?? '').join(' ')}`);
+    const params = data.params as {
+      type: string;
+      args: Array<{ value?: unknown; description?: string }>;
+    };
+    consoleLines.push(
+      `[${params.type}] ${params.args.map((a) => a.value ?? a.description ?? '').join(' ')}`,
+    );
   }
   if (data.method === 'Runtime.exceptionThrown' && data.params) {
-    const p = data.params as { exceptionDetails: { text?: string; exception?: { description?: string }; url?: string; lineNumber?: number } };
+    const p = data.params as {
+      exceptionDetails: {
+        text?: string;
+        exception?: { description?: string };
+        url?: string;
+        lineNumber?: number;
+      };
+    };
     const d = p.exceptionDetails;
-    exceptions.push(`${d.text ?? ''} ${d.exception?.description ?? ''}`.trim() + (d.url ? ` @ ${d.url}:${d.lineNumber}` : ''));
+    exceptions.push(
+      `${d.text ?? ''} ${d.exception?.description ?? ''}`.trim() +
+        (d.url ? ` @ ${d.url}:${d.lineNumber}` : ''),
+    );
   }
   if (data.method === 'Network.loadingFailed' && data.params) {
     const p = data.params as { errorText?: string; requestId?: string; type?: string };
@@ -113,7 +144,10 @@ await send('Network.enable');
 await send('Page.navigate', { url: TARGET });
 await new Promise((r) => setTimeout(r, 7000));
 
-const dom = (await send('Runtime.evaluate', { expression: 'JSON.stringify({title: document.title, bodyChars: document.body?.innerText?.length || 0, bodyText: (document.body?.innerText || "").slice(0, 500), bodyHTML: (document.body?.innerHTML || "").slice(0, 1500)})' })) as { result?: { value?: string } };
+const dom = (await send('Runtime.evaluate', {
+  expression:
+    'JSON.stringify({title: document.title, bodyChars: document.body?.innerText?.length || 0, bodyText: (document.body?.innerText || "").slice(0, 500), bodyHTML: (document.body?.innerHTML || "").slice(0, 1500)})',
+})) as { result?: { value?: string } };
 console.log(`probe: dom snapshot = ${dom.result?.value}`);
 
 const shot = (await send('Page.captureScreenshot', { format: 'png' })) as { data?: string };

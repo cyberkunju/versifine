@@ -1,105 +1,105 @@
 <script lang="ts">
-  /**
-   * Production Google Identity Services button.
-   *
-   * We render Google's official button instead of hand-rolling the OAuth UI.
-   * GIS returns an ID token in the callback; the API verifies that token and
-   * exchanges it for Versifine's normal access/refresh pair.
-   */
-  import { onMount } from 'svelte';
-  import { PUBLIC_GOOGLE_CLIENT_ID } from '$lib/config';
+/**
+ * Production Google Identity Services button.
+ *
+ * We render Google's official button instead of hand-rolling the OAuth UI.
+ * GIS returns an ID token in the callback; the API verifies that token and
+ * exchanges it for Versifine's normal access/refresh pair.
+ */
+import { onMount } from 'svelte';
+import { PUBLIC_GOOGLE_CLIENT_ID } from '$lib/config';
 
-  type ButtonText = 'signin_with' | 'signup_with' | 'continue_with';
+type ButtonText = 'signin_with' | 'signup_with' | 'continue_with';
 
-  type Props = {
-    text?: ButtonText;
-    disabled?: boolean;
-    onCredential: (credential: string) => void | Promise<void>;
-  };
+type Props = {
+  text?: ButtonText;
+  disabled?: boolean;
+  onCredential: (credential: string) => void | Promise<void>;
+};
 
-  let { text = 'continue_with', disabled = false, onCredential }: Props = $props();
+let { text = 'continue_with', disabled = false, onCredential }: Props = $props();
 
-  let host = $state<HTMLDivElement | null>(null);
-  let status = $state<'loading' | 'ready' | 'unconfigured' | 'error'>('loading');
+let host = $state<HTMLDivElement | null>(null);
+let status = $state<'loading' | 'ready' | 'unconfigured' | 'error'>('loading');
 
-  let scriptPromise: Promise<void> | null = null;
+let scriptPromise: Promise<void> | null = null;
 
-  function loadScript(): Promise<void> {
-    if (typeof window === 'undefined') return Promise.reject(new Error('browser-only'));
-    if (window.google?.accounts?.id) return Promise.resolve();
-    if (scriptPromise) return scriptPromise;
+function loadScript(): Promise<void> {
+  if (typeof window === 'undefined') return Promise.reject(new Error('browser-only'));
+  if (window.google?.accounts?.id) return Promise.resolve();
+  if (scriptPromise) return scriptPromise;
 
-    scriptPromise = new Promise((resolve, reject) => {
-      const existing = document.querySelector<HTMLScriptElement>(
-        'script[src="https://accounts.google.com/gsi/client"]',
-      );
-      if (existing) {
-        existing.addEventListener('load', () => resolve(), { once: true });
-        existing.addEventListener('error', () => reject(new Error('Google script failed')), {
-          once: true,
-        });
-        return;
-      }
-
-      const script = document.createElement('script');
-      script.src = 'https://accounts.google.com/gsi/client';
-      script.async = true;
-      script.defer = true;
-      script.onload = () => resolve();
-      script.onerror = () => reject(new Error('Google script failed'));
-      document.head.appendChild(script);
-    });
-
-    return scriptPromise;
-  }
-
-  function handleCredential(response: GoogleCredentialResponse): void {
-    const credential = response.credential;
-    if (!credential) {
-      status = 'error';
+  scriptPromise = new Promise((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(
+      'script[src="https://accounts.google.com/gsi/client"]',
+    );
+    if (existing) {
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener('error', () => reject(new Error('Google script failed')), {
+        once: true,
+      });
       return;
     }
-    void onCredential(credential);
-  }
 
-  onMount(() => {
-    let alive = true;
-
-    void (async () => {
-      if (!PUBLIC_GOOGLE_CLIENT_ID) {
-        status = 'unconfigured';
-        return;
-      }
-      try {
-        await loadScript();
-        if (!alive || !host || !window.google?.accounts?.id) return;
-        window.google.accounts.id.initialize({
-          client_id: PUBLIC_GOOGLE_CLIENT_ID,
-          callback: handleCredential,
-          auto_select: false,
-          cancel_on_tap_outside: true,
-          use_fedcm_for_prompt: true,
-        });
-        const width = Math.max(240, Math.min(400, Math.floor(host.clientWidth || 360)));
-        window.google.accounts.id.renderButton(host, {
-          type: 'standard',
-          theme: 'outline',
-          size: 'large',
-          text,
-          shape: 'rectangular',
-          logo_alignment: 'left',
-          width,
-        });
-        status = 'ready';
-      } catch {
-        if (alive) status = 'error';
-      }
-    })();
-
-    return () => {
-      alive = false;
-    };
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Google script failed'));
+    document.head.appendChild(script);
   });
+
+  return scriptPromise;
+}
+
+function handleCredential(response: GoogleCredentialResponse): void {
+  const credential = response.credential;
+  if (!credential) {
+    status = 'error';
+    return;
+  }
+  void onCredential(credential);
+}
+
+onMount(() => {
+  let alive = true;
+
+  void (async () => {
+    if (!PUBLIC_GOOGLE_CLIENT_ID) {
+      status = 'unconfigured';
+      return;
+    }
+    try {
+      await loadScript();
+      if (!alive || !host || !window.google?.accounts?.id) return;
+      window.google.accounts.id.initialize({
+        client_id: PUBLIC_GOOGLE_CLIENT_ID,
+        callback: handleCredential,
+        auto_select: false,
+        cancel_on_tap_outside: true,
+        use_fedcm_for_prompt: true,
+      });
+      const width = Math.max(240, Math.min(400, Math.floor(host.clientWidth || 360)));
+      window.google.accounts.id.renderButton(host, {
+        type: 'standard',
+        theme: 'outline',
+        size: 'large',
+        text,
+        shape: 'rectangular',
+        logo_alignment: 'left',
+        width,
+      });
+      status = 'ready';
+    } catch {
+      if (alive) status = 'error';
+    }
+  })();
+
+  return () => {
+    alive = false;
+  };
+});
 </script>
 
 <div

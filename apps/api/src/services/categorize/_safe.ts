@@ -13,12 +13,7 @@
  * file evolves.
  */
 import { log } from '../../utils/logger.ts';
-import {
-  categorize,
-  normalizeMerchant,
-  upsertOverride,
-  type CategorizeResult,
-} from './index.ts';
+import { categorize, normalizeMerchant, upsertOverride, type CategorizeResult } from './index.ts';
 
 export type { CategorizeResult } from './index.ts';
 
@@ -36,11 +31,7 @@ export async function safeCategorize(
 ): Promise<CategorizeResult> {
   try {
     const result = await categorize(spaceId, description, hint);
-    if (
-      !result ||
-      typeof result.category !== 'string' ||
-      typeof result.confidence !== 'number'
-    ) {
+    if (!result || typeof result.category !== 'string' || typeof result.confidence !== 'number') {
       return DEFAULT_RESULT;
     }
     return result;

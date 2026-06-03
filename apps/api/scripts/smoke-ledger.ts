@@ -90,7 +90,9 @@ async function main() {
     access,
   );
   const lentId = lent.data.entry.id;
-  console.log(`  → lent ${lentId} outstanding=${lent.data.entry.outstanding} status=${lent.data.entry.status}`);
+  console.log(
+    `  → lent ${lentId} outstanding=${lent.data.entry.outstanding} status=${lent.data.entry.status}`,
+  );
 
   // 2. Borrow 1,500 from "Priya".
   const borrowed = await call<EntryEnvelope>(

@@ -78,14 +78,15 @@ async function main() {
   );
 
   // A handful of expenses across categories.
-  const expenses: Array<{ amount: number; description: string; offset: number; category: string }> = [
-    { amount: 1200, description: 'Swiggy Order', offset: 18, category: 'Food Delivery' },
-    { amount: 4500, description: 'Big Basket Groceries', offset: 15, category: 'Groceries' },
-    { amount: 2200, description: 'Uber Ride', offset: 12, category: 'Transportation' },
-    { amount: 950, description: 'Starbucks Coffee', offset: 10, category: 'Coffee & Beverages' },
-    { amount: 599, description: 'Netflix Subscription', offset: 8, category: 'Subscriptions' },
-    { amount: 7200, description: 'Amazon Order', offset: 5, category: 'Shopping & Retail' },
-  ];
+  const expenses: Array<{ amount: number; description: string; offset: number; category: string }> =
+    [
+      { amount: 1200, description: 'Swiggy Order', offset: 18, category: 'Food Delivery' },
+      { amount: 4500, description: 'Big Basket Groceries', offset: 15, category: 'Groceries' },
+      { amount: 2200, description: 'Uber Ride', offset: 12, category: 'Transportation' },
+      { amount: 950, description: 'Starbucks Coffee', offset: 10, category: 'Coffee & Beverages' },
+      { amount: 599, description: 'Netflix Subscription', offset: 8, category: 'Subscriptions' },
+      { amount: 7200, description: 'Amazon Order', offset: 5, category: 'Shopping & Retail' },
+    ];
   for (const e of expenses) {
     await call(
       'POST',
@@ -125,7 +126,9 @@ async function main() {
   console.log(
     `  → income=₹${s.totals.income} expense=₹${s.totals.expense} savings=₹${s.totals.savings} (${s.totals.savingsRate}%)`,
   );
-  console.log(`  → categories=${s.byCategory.length}, merchants=${s.byMerchant.length}, wallets=${s.byWallet.length}`);
+  console.log(
+    `  → categories=${s.byCategory.length}, merchants=${s.byMerchant.length}, wallets=${s.byWallet.length}`,
+  );
   console.log(`  → transactions counted: ${s.transactionCount}`);
 
   if (s.totals.expense <= 0) throw new Error('expected non-zero expense total');

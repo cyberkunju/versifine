@@ -173,7 +173,9 @@ function regexFallback(text: string): IntentResult {
     };
   }
   if (
-    /\b(summary|how much in total|net worth|this month|last month|this week|last week|today|yesterday|total spent|kitna kharch|how much did i spend|how much have i spent|spend today|spent today|today spend|month spend|week spend)\b/.test(lower) &&
+    /\b(summary|how much in total|net worth|this month|last month|this week|last week|today|yesterday|total spent|kitna kharch|how much did i spend|how much have i spent|spend today|spent today|today spend|month spend|week spend)\b/.test(
+      lower,
+    ) &&
     !/spent\s+\d/.test(lower)
   ) {
     return {
@@ -184,7 +186,10 @@ function regexFallback(text: string): IntentResult {
       source: 'regex',
     };
   }
-  if (/\b(how much did i spend on|spent on|spending on)\b/.test(lower) && !/^\s*spent\s+\d/.test(lower)) {
+  if (
+    /\b(how much did i spend on|spent on|spending on)\b/.test(lower) &&
+    !/^\s*spent\s+\d/.test(lower)
+  ) {
     return {
       intent: 'query_spending',
       category: null,
@@ -194,7 +199,13 @@ function regexFallback(text: string): IntentResult {
     };
   }
   if (/\b(set budget|budget for|monthly budget)\b/.test(lower)) {
-    return { intent: 'set_budget', category: null, amount: null, confidence: 0.55, source: 'regex' };
+    return {
+      intent: 'set_budget',
+      category: null,
+      amount: null,
+      confidence: 0.55,
+      source: 'regex',
+    };
   }
   if (/\b(advice|advise|suggest|tip)\b/.test(lower)) {
     return { intent: 'ask_advice', category: null, amount: null, confidence: 0.5, source: 'regex' };
@@ -240,7 +251,13 @@ function regexFallback(text: string): IntentResult {
   // Finance QUESTIONS ("how do i save money") miss the catalogue and stay chat.
   const merchantHit = categorizeFromMerchantDB(normalizeMerchant(lower));
   if (merchantHit && merchantHit.category !== 'Other') {
-    return { intent: 'expense', category: merchantHit.category, amount: null, confidence: 0.45, source: 'regex' };
+    return {
+      intent: 'expense',
+      category: merchantHit.category,
+      amount: null,
+      confidence: 0.45,
+      source: 'regex',
+    };
   }
   return { intent: 'chat', category: null, amount: null, confidence: 0.3, source: 'regex' };
 }

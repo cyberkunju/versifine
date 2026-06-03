@@ -1,0 +1,16 @@
+=== sarvam-30b, reasoning_effort:null, sweeping max_tokens ===
+
+[intent mt=256: spent 450 on auto] 1746ms finish=length reasoning=963ch completion=256 -> (NULL)
+[intent mt=384: spent 450 on auto] 1325ms finish=length reasoning=1496ch completion=384 -> (NULL)
+[intent mt=512: spent 450 on auto] 1709ms finish=length reasoning=1975ch completion=512 -> (NULL)
+[intent mt=768: spent 450 on auto] 2193ms finish=stop reasoning=2526ch completion=685 -> "{\"intent\":\"expense\"}"
+
+[chat mt=384: emergency fund] 1377ms finish=length reasoning=1454ch completion=384 -> (NULL)
+[chat mt=512: emergency fund] 1746ms finish=length reasoning=2046ch completion=512 -> (NULL)
+[chat mt=768: emergency fund] 2669ms finish=length reasoning=2926ch completion=768 -> (NULL)
+
+=== sarvam-105b for comparison ===
+
+[105b chat mt=384: emergency fund] 3380ms finish=length reasoning=1468ch completion=384 -> (NULL)
+[105b chat mt=512: emergency fund] 2548ms finish=length reasoning=2030ch completion=512 -> (NULL)
+EXIT_CODE=0 

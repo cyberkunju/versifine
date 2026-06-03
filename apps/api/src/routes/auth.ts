@@ -38,10 +38,7 @@ import { createOtp, getValidOtp } from '../services/auth/otp.ts';
 import { ok } from '../utils/envelope.ts';
 import { errors } from '../utils/errors.ts';
 import { normalizePhone } from '../utils/phone.ts';
-import {
-  isAuthoritativeGoogleEmail,
-  verifyGoogleCredential,
-} from '../services/auth/google.ts';
+import { isAuthoritativeGoogleEmail, verifyGoogleCredential } from '../services/auth/google.ts';
 
 const app = new Hono();
 
@@ -369,12 +366,7 @@ app.post('/refresh', validate('json', refreshInput), async (c) => {
         revokedAt: refreshTokens.revokedAt,
       })
       .from(refreshTokens)
-      .where(
-        and(
-          eq(refreshTokens.tokenHash, tokenHash),
-          gt(refreshTokens.expiresAt, new Date()),
-        ),
-      )
+      .where(and(eq(refreshTokens.tokenHash, tokenHash), gt(refreshTokens.expiresAt, new Date())))
       .limit(1);
 
     if (!row || row.userId !== claims.sub) {
@@ -389,7 +381,10 @@ app.post('/refresh', validate('json', refreshInput), async (c) => {
       throw errors.unauthorized('Refresh token reused, all sessions revoked');
     }
 
-    await tx.update(refreshTokens).set({ rotatedAt: new Date() }).where(eq(refreshTokens.id, row.id));
+    await tx
+      .update(refreshTokens)
+      .set({ rotatedAt: new Date() })
+      .where(eq(refreshTokens.id, row.id));
 
     const [user] = await tx
       .select({
@@ -427,7 +422,12 @@ app.post('/refresh', validate('json', refreshInput), async (c) => {
 
 app.post('/logout', requireUser, async (c) => {
   const body = await c.req.json().catch(() => ({}) as { refreshToken?: unknown });
-  if (body && typeof body === 'object' && 'refreshToken' in body && typeof (body as { refreshToken: unknown }).refreshToken === 'string') {
+  if (
+    body &&
+    typeof body === 'object' &&
+    'refreshToken' in body &&
+    typeof (body as { refreshToken: unknown }).refreshToken === 'string'
+  ) {
     const tokenHash = hashRefreshToken((body as { refreshToken: string }).refreshToken);
     await db
       .update(refreshTokens)

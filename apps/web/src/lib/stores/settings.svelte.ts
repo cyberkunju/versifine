@@ -47,11 +47,9 @@ function applyThemeAttribute(_theme: Theme): void {
 
 class SettingsStore {
   theme = $state<Theme>('light');
-  language = $state<Language>(((readStorage(KEYS.language) as Language | null) ?? 'en'));
+  language = $state<Language>((readStorage(KEYS.language) as Language | null) ?? 'en');
   privacyMode = $state<boolean>(readStorage(KEYS.privacy) === '1');
-  baseCurrency = $state<Currency>(
-    (readStorage(KEYS.currency) as Currency | null) ?? 'INR',
-  );
+  baseCurrency = $state<Currency>((readStorage(KEYS.currency) as Currency | null) ?? 'INR');
   /** True while the privacy-mode model is loading or refusing to load. */
   privacyModeStatus = $state<'idle' | 'loading' | 'ready' | 'unavailable' | 'error'>('idle');
   privacyModeMessage = $state<string | null>(null);

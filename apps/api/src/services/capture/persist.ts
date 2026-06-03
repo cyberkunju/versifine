@@ -57,9 +57,7 @@ export interface PersistFailure {
   message: string;
 }
 
-export async function persistDraft(
-  input: PersistInput,
-): Promise<PersistResult | PersistFailure> {
+export async function persistDraft(input: PersistInput): Promise<PersistResult | PersistFailure> {
   const { draft } = input;
   if (draft.amount === null) {
     return { ok: false, reason: 'bad_input', message: 'Draft has no amount' };

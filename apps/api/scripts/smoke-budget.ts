@@ -61,7 +61,9 @@ async function main() {
     access,
   );
   const budgetId = create.data.budget.id;
-  console.log(`  → created ${budgetId} warn=${create.data.budget.warnThreshold} exceed=${create.data.budget.exceedThreshold}`);
+  console.log(
+    `  → created ${budgetId} warn=${create.data.budget.warnThreshold} exceed=${create.data.budget.exceedThreshold}`,
+  );
 
   await call('GET', '/budgets', undefined, access);
   await call(`GET`, `/budgets/${budgetId}/progress`, undefined, access);

@@ -19,12 +19,7 @@ import { CURRENCY_ALIASES, type Currency, isCurrency } from '@versifine/shared';
 import { env } from '../../env.ts';
 import { log } from '../../utils/logger.ts';
 import { getOpenAI, isAIConfigured, normalizeChatParams, withLatency } from './client.ts';
-import {
-  extractAmount,
-  extractCurrency,
-  extractDate,
-  extractSplitCount,
-} from './parserRegex.ts';
+import { extractAmount, extractCurrency, extractDate, extractSplitCount } from './parserRegex.ts';
 
 export type ExpenseType = 'expense' | 'income' | 'transfer';
 export type MissingField = 'amount' | 'description' | 'wallet' | 'currency';
@@ -297,7 +292,12 @@ const DESCRIPTION_NORMALIZATIONS: Record<string, string> = {
 
 const CURRENCY_WORDS = new Set(
   Object.keys(CURRENCY_ALIASES)
-    .flatMap((key) => key.toLowerCase().replace(/[^a-z]+/g, ' ').split(/\s+/))
+    .flatMap((key) =>
+      key
+        .toLowerCase()
+        .replace(/[^a-z]+/g, ' ')
+        .split(/\s+/),
+    )
     .filter(Boolean),
 );
 const CURRENCY_TOKEN_PATTERN = Object.keys(CURRENCY_ALIASES)
@@ -313,8 +313,20 @@ function inferDescriptionFallback(text: string): string | null {
   const amountPattern = String.raw`\d[\d,]*(?:\.\d+)?\s*(?:k|thousand|lakh|crore)?`;
   const cleaned = text
     .toLowerCase()
-    .replace(new RegExp(String.raw`(?:^|[^\p{L}\p{M}])(?:${CURRENCY_TOKEN_PATTERN})\s*${amountPattern}\b`, 'giu'), ' ')
-    .replace(new RegExp(String.raw`\b${amountPattern}\s*(?:${CURRENCY_TOKEN_PATTERN})(?:[^\p{L}\p{M}]|$)`, 'giu'), ' ')
+    .replace(
+      new RegExp(
+        String.raw`(?:^|[^\p{L}\p{M}])(?:${CURRENCY_TOKEN_PATTERN})\s*${amountPattern}\b`,
+        'giu',
+      ),
+      ' ',
+    )
+    .replace(
+      new RegExp(
+        String.raw`\b${amountPattern}\s*(?:${CURRENCY_TOKEN_PATTERN})(?:[^\p{L}\p{M}]|$)`,
+        'giu',
+      ),
+      ' ',
+    )
     .replace(new RegExp(String.raw`\b${amountPattern}`, 'gi'), ' ')
     .replace(/[^\p{L}\p{M}]+/gu, ' ');
 
@@ -448,9 +460,7 @@ export async function parseExpense(input: ParseInput): Promise<ParsedExpense> {
   // Regex hits boost confidence even when the LLM missed; this is the
   // signal the route layer trusts to skip confirmation.
   const regexBoost =
-    (regexAmount.amount !== null ? 0.15 : 0) +
-    (regexCurrency ? 0.05 : 0) +
-    (regexDate ? 0.05 : 0);
+    (regexAmount.amount !== null ? 0.15 : 0) + (regexCurrency ? 0.05 : 0) + (regexDate ? 0.05 : 0);
   const confidence = Math.min(1, Math.max(0, baseConfidence + regexBoost));
 
   const draft: Omit<ParsedExpense, 'needs'> = {
@@ -517,7 +527,9 @@ async function callBatchLLM(input: ParseInput): Promise<ParsedExpenseBatch | nul
     }
     const parsed = batchLlmSchema.safeParse(payload);
     if (!parsed.success) return null;
-    const items = parsed.data.items.map(parsedFromLlmData).filter((item) => item.amount !== null || item.description);
+    const items = parsed.data.items
+      .map(parsedFromLlmData)
+      .filter((item) => item.amount !== null || item.description);
     if (items.length === 0) return null;
     return { items, confidence: coerceConfidence(parsed.data.confidence) };
   } catch (err) {

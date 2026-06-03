@@ -8,21 +8,15 @@
 import { sql } from 'drizzle-orm';
 import { numeric, timestamp, uuid } from 'drizzle-orm/pg-core';
 
-export const primaryUuid = () =>
-  uuid('id').primaryKey().default(sql`gen_random_uuid()`);
+export const primaryUuid = () => uuid('id').primaryKey().default(sql`gen_random_uuid()`);
 
 export const createdAt = () =>
-  timestamp('created_at', { withTimezone: true, mode: 'date' })
-    .notNull()
-    .default(sql`now()`);
+  timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().default(sql`now()`);
 
 export const updatedAt = () =>
-  timestamp('updated_at', { withTimezone: true, mode: 'date' })
-    .notNull()
-    .default(sql`now()`);
+  timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().default(sql`now()`);
 
-export const deletedAt = () =>
-  timestamp('deleted_at', { withTimezone: true, mode: 'date' });
+export const deletedAt = () => timestamp('deleted_at', { withTimezone: true, mode: 'date' });
 
 /** Money column. Always positive; sign is encoded in the row's `type`. */
 export const money = (name: string) => numeric(name, { precision: 14, scale: 2 });

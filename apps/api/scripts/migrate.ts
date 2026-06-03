@@ -29,7 +29,10 @@ export async function runMigrate(): Promise<void> {
 // imported (e.g. by reset.ts).
 const isCli = (() => {
   try {
-    return import.meta.url.endsWith(process.argv[1] ?? '') || process.argv[1]?.endsWith('migrate.ts') === true;
+    return (
+      import.meta.url.endsWith(process.argv[1] ?? '') ||
+      process.argv[1]?.endsWith('migrate.ts') === true
+    );
   } catch {
     return true;
   }

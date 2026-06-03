@@ -49,10 +49,7 @@ export const categoryOverrides = pgTable(
       .$onUpdate(() => new Date()),
   },
   (t) => [
-    uniqueIndex('category_overrides_space_merchant_unique').on(
-      t.spaceId,
-      t.merchantNormalized,
-    ),
+    uniqueIndex('category_overrides_space_merchant_unique').on(t.spaceId, t.merchantNormalized),
   ],
 );
 

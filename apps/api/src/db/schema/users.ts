@@ -58,9 +58,7 @@ export const users = pgTable(
   },
   (t) => [
     uniqueIndex('users_email_unique').on(t.email),
-    uniqueIndex('users_google_sub_unique')
-      .on(t.googleSub)
-      .where(sql`${t.googleSub} IS NOT NULL`),
+    uniqueIndex('users_google_sub_unique').on(t.googleSub).where(sql`${t.googleSub} IS NOT NULL`),
     uniqueIndex('users_whatsapp_phone_unique')
       .on(t.whatsappPhone)
       .where(sql`${t.whatsappPhone} IS NOT NULL`),

@@ -31,13 +31,13 @@ import { emit } from '../events/bus.ts';
 
 const PROJECTION_WINDOW_DAYS = 30;
 
-export async function listGoals(
-  spaceId: string,
-  opts?: { status?: GoalStatus },
-): Promise<Goal[]> {
+export async function listGoals(spaceId: string, opts?: { status?: GoalStatus }): Promise<Goal[]> {
   const filters = [eq(goals.spaceId, spaceId)];
   if (opts?.status) filters.push(eq(goals.status, opts.status));
-  return await db.select().from(goals).where(and(...filters));
+  return await db
+    .select()
+    .from(goals)
+    .where(and(...filters));
 }
 
 export async function getGoal(spaceId: string, goalId: string): Promise<Goal | null> {
@@ -174,8 +174,7 @@ export async function recordProgress(
 export async function serializeGoal(row: Goal): Promise<GoalSummary> {
   const target = Number(row.targetAmount);
   const current = Number(row.currentAmount);
-  const progressPercentage =
-    target > 0 ? Math.min(100, Math.max(0, (current / target) * 100)) : 0;
+  const progressPercentage = target > 0 ? Math.min(100, Math.max(0, (current / target) * 100)) : 0;
 
   const projectedCompletion = await computeProjectedCompletion(row);
   const deadline = row.deadline ?? null;

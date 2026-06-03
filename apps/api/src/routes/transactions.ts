@@ -300,7 +300,9 @@ async function recordCategoryCorrection(
   if (merchant) await safeUpsertOverride(spaceId, merchant, toCategory);
 }
 
-async function loadWalletsByName(spaceId: string): Promise<Map<string, { id: string; currency: string }>> {
+async function loadWalletsByName(
+  spaceId: string,
+): Promise<Map<string, { id: string; currency: string }>> {
   const rows = await db
     .select({ id: wallets.id, name: wallets.name, currency: wallets.currency })
     .from(wallets)
@@ -358,7 +360,12 @@ function mapCsvRow(
   }
 
   const tagsRaw = (lc.tags ?? '').trim();
-  const tags = tagsRaw ? tagsRaw.split('|').map((t) => t.trim()).filter(Boolean) : [];
+  const tags = tagsRaw
+    ? tagsRaw
+        .split('|')
+        .map((t) => t.trim())
+        .filter(Boolean)
+    : [];
 
   const result: CsvCandidateInput = {
     type,

@@ -1,97 +1,97 @@
 <script lang="ts">
-  /**
-   * Right-side detail drawer for a single transaction. Inline editable
-   * fields (amount, date, description, category, wallet); the category
-   * chip itself is the picker. Delete button at the bottom.
-   */
-  import { CATEGORIES, CATEGORY_META, type Category } from '@versifine/shared';
-  import { api } from '$lib/api/client';
-  import { invalidate } from '$lib/api/queries.svelte';
-  import type { TransactionSummary, WalletSummary } from '$lib/api/types';
-  import { toast } from '$lib/stores/toast.svelte';
-  import { settings } from '$lib/stores/settings.svelte';
-  import { getMessages } from '$lib/i18n';
-  import { formatCurrency, formatDate } from '$lib/utils/format';
-  import { Sheet, Button, Input, Label, Badge, Popover } from '$lib/components/ui';
+/**
+ * Right-side detail drawer for a single transaction. Inline editable
+ * fields (amount, date, description, category, wallet); the category
+ * chip itself is the picker. Delete button at the bottom.
+ */
+import { CATEGORIES, CATEGORY_META, type Category } from '@versifine/shared';
+import { api } from '$lib/api/client';
+import { invalidate } from '$lib/api/queries.svelte';
+import type { TransactionSummary, WalletSummary } from '$lib/api/types';
+import { toast } from '$lib/stores/toast.svelte';
+import { settings } from '$lib/stores/settings.svelte';
+import { getMessages } from '$lib/i18n';
+import { formatCurrency, formatDate } from '$lib/utils/format';
+import { Sheet, Button, Input, Label, Badge, Popover } from '$lib/components/ui';
 
-  type Props = {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    transaction: TransactionSummary | null;
-    wallets: WalletSummary[];
-  };
+type Props = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  transaction: TransactionSummary | null;
+  wallets: WalletSummary[];
+};
 
-  let { open = $bindable(), onOpenChange, transaction, wallets }: Props = $props();
-  const m = $derived(getMessages(settings.language));
+let { open = $bindable(), onOpenChange, transaction, wallets }: Props = $props();
+const m = $derived(getMessages(settings.language));
 
-  let amount = $state<number>(0);
-  let description = $state('');
-  let date = $state('');
-  let walletId = $state('');
-  let saving = $state(false);
-  let categoryPickerOpen = $state(false);
+let amount = $state<number>(0);
+let description = $state('');
+let date = $state('');
+let walletId = $state('');
+let saving = $state(false);
+let categoryPickerOpen = $state(false);
 
-  $effect(() => {
-    if (transaction) {
-      amount = transaction.amount;
-      description = transaction.description;
-      date = transaction.date;
-      walletId = transaction.walletId;
-    }
-  });
+$effect(() => {
+  if (transaction) {
+    amount = transaction.amount;
+    description = transaction.description;
+    date = transaction.date;
+    walletId = transaction.walletId;
+  }
+});
 
-  async function save() {
-    if (!transaction) return;
-    saving = true;
-    try {
-      const body: Record<string, unknown> = {};
-      if (amount !== transaction.amount) body.amount = amount;
-      if (description !== transaction.description) body.description = description;
-      if (date !== transaction.date) body.date = date;
-      if (walletId !== transaction.walletId) body.walletId = walletId;
-      if (Object.keys(body).length === 0) {
-        onOpenChange(false);
-        return;
-      }
-      await api.transactions.patch(transaction.id, body as never);
-      invalidate(['transactions']);
-      invalidate(['wallets']);
-      invalidate(['budgets']);
-      toast.success(m.transactions.saved);
+async function save() {
+  if (!transaction) return;
+  saving = true;
+  try {
+    const body: Record<string, unknown> = {};
+    if (amount !== transaction.amount) body.amount = amount;
+    if (description !== transaction.description) body.description = description;
+    if (date !== transaction.date) body.date = date;
+    if (walletId !== transaction.walletId) body.walletId = walletId;
+    if (Object.keys(body).length === 0) {
       onOpenChange(false);
-    } catch (err) {
-      toast.error('Save failed', err instanceof Error ? err.message : String(err));
-    } finally {
-      saving = false;
+      return;
     }
+    await api.transactions.patch(transaction.id, body as never);
+    invalidate(['transactions']);
+    invalidate(['wallets']);
+    invalidate(['budgets']);
+    toast.success(m.transactions.saved);
+    onOpenChange(false);
+  } catch (err) {
+    toast.error('Save failed', err instanceof Error ? err.message : String(err));
+  } finally {
+    saving = false;
   }
+}
 
-  async function pickCategory(cat: Category) {
-    if (!transaction) return;
-    categoryPickerOpen = false;
-    try {
-      await api.transactions.correctCategory(transaction.id, cat);
-      invalidate(['transactions']);
-      invalidate(['budgets']);
-      toast.success('Category updated');
-    } catch (err) {
-      toast.error('Failed', err instanceof Error ? err.message : String(err));
-    }
+async function pickCategory(cat: Category) {
+  if (!transaction) return;
+  categoryPickerOpen = false;
+  try {
+    await api.transactions.correctCategory(transaction.id, cat);
+    invalidate(['transactions']);
+    invalidate(['budgets']);
+    toast.success('Category updated');
+  } catch (err) {
+    toast.error('Failed', err instanceof Error ? err.message : String(err));
   }
+}
 
-  async function remove() {
-    if (!transaction) return;
-    try {
-      await api.transactions.delete(transaction.id);
-      invalidate(['transactions']);
-      invalidate(['wallets']);
-      invalidate(['budgets']);
-      toast.success(m.transactions.deleted);
-      onOpenChange(false);
-    } catch (err) {
-      toast.error('Delete failed', err instanceof Error ? err.message : String(err));
-    }
+async function remove() {
+  if (!transaction) return;
+  try {
+    await api.transactions.delete(transaction.id);
+    invalidate(['transactions']);
+    invalidate(['wallets']);
+    invalidate(['budgets']);
+    toast.success(m.transactions.deleted);
+    onOpenChange(false);
+  } catch (err) {
+    toast.error('Delete failed', err instanceof Error ? err.message : String(err));
   }
+}
 </script>
 
 <Sheet bind:open onOpenChange={(v) => onOpenChange(v)} side="right" title={transaction?.description ?? ''}>

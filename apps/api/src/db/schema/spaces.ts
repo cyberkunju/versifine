@@ -5,14 +5,7 @@
  * but exists so that v2 can grant collaborators without a migration.
  */
 import { sql } from 'drizzle-orm';
-import {
-  char,
-  pgTable,
-  primaryKey,
-  timestamp,
-  uuid,
-  varchar,
-} from 'drizzle-orm/pg-core';
+import { char, pgTable, primaryKey, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
 import { users } from './users.ts';
 
 export const spaces = pgTable('spaces', {

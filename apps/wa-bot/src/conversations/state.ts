@@ -92,10 +92,7 @@ export function setReplyMode(phone: string, mode: ReplyMode): Session {
   return updateSession(phone, { replyMode: mode });
 }
 
-export function setLinked(
-  phone: string,
-  linked: { userId: string; spaceId: string },
-): Session {
+export function setLinked(phone: string, linked: { userId: string; spaceId: string }): Session {
   return updateSession(phone, {
     linked: true,
     userId: linked.userId,

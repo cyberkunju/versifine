@@ -15,7 +15,7 @@ export function normalizeCurrencyCode(input: string): string {
 export function roundMoney(value: number): number {
   if (!Number.isFinite(value)) return 0;
   const sign = value < 0 ? -1 : 1;
-  return sign * Math.round(Math.abs(value) * 100) / 100;
+  return (sign * Math.round(Math.abs(value) * 100)) / 100;
 }
 
 /**

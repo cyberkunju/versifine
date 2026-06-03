@@ -1,72 +1,81 @@
 <script lang="ts">
-  /**
-   * Primary navigation — navy workspace rail.
-   *
-   * A deep-indigo sidebar that blends into the navy app ground, so the white
-   * content panel reads as a framed sheet set into one continuous brand
-   * surface. Workspace switcher up top, grouped nav, utility links, and a
-   * profile block at the foot. Collapses to a slide-in drawer on mobile via
-   * the `mobileOpen` prop from the topbar's hamburger.
-   */
-  import { page } from '$app/stores';
-  import {
-    LayoutDashboard, Receipt, Wallet, Target, LineChart, BarChart3,
-    Settings as SettingsIcon, LogOut, ChevronsUpDown, BookOpen, MessageSquare,
-  } from 'lucide-svelte';
-  import Wordmark from '$lib/components/brand/Wordmark.svelte';
-  import { auth } from '$lib/stores/auth.svelte';
-  import { settings } from '$lib/stores/settings.svelte';
-  import { panels } from '$lib/stores/panels.svelte';
-  import { getMessages } from '$lib/i18n';
-  import { cn } from '$lib/utils/cn';
+/**
+ * Primary navigation — navy workspace rail.
+ *
+ * A deep-indigo sidebar that blends into the navy app ground, so the white
+ * content panel reads as a framed sheet set into one continuous brand
+ * surface. Workspace switcher up top, grouped nav, utility links, and a
+ * profile block at the foot. Collapses to a slide-in drawer on mobile via
+ * the `mobileOpen` prop from the topbar's hamburger.
+ */
+import { page } from '$app/stores';
+import {
+  LayoutDashboard,
+  Receipt,
+  Wallet,
+  Target,
+  LineChart,
+  BarChart3,
+  Settings as SettingsIcon,
+  LogOut,
+  ChevronsUpDown,
+  BookOpen,
+  MessageSquare,
+} from 'lucide-svelte';
+import Wordmark from '$lib/components/brand/Wordmark.svelte';
+import { auth } from '$lib/stores/auth.svelte';
+import { settings } from '$lib/stores/settings.svelte';
+import { panels } from '$lib/stores/panels.svelte';
+import { getMessages } from '$lib/i18n';
+import { cn } from '$lib/utils/cn';
 
-  type Props = {
-    mobileOpen: boolean;
-    onClose?: () => void;
-  };
-  let { mobileOpen, onClose }: Props = $props();
+type Props = {
+  mobileOpen: boolean;
+  onClose?: () => void;
+};
+let { mobileOpen, onClose }: Props = $props();
 
-  const m = $derived(getMessages(settings.language));
+const m = $derived(getMessages(settings.language));
 
-  const groups = $derived([
-    { label: '', items: [{ href: '/dashboard', label: m.nav.dashboard, icon: LayoutDashboard }] },
-    {
-      label: 'Money',
-      items: [
-        { href: '/transactions', label: m.nav.transactions, icon: Receipt },
-        { href: '/budgets', label: m.nav.budgets, icon: Wallet },
-        { href: '/goals', label: m.nav.goals, icon: Target },
-      ],
-    },
-    {
-      label: 'Planning',
-      items: [
-        { href: '/forecast', label: m.nav.forecast, icon: LineChart },
-        { href: '/reports', label: m.nav.reports, icon: BarChart3 },
-      ],
-    },
-  ]);
+const groups = $derived([
+  { label: '', items: [{ href: '/dashboard', label: m.nav.dashboard, icon: LayoutDashboard }] },
+  {
+    label: 'Money',
+    items: [
+      { href: '/transactions', label: m.nav.transactions, icon: Receipt },
+      { href: '/budgets', label: m.nav.budgets, icon: Wallet },
+      { href: '/goals', label: m.nav.goals, icon: Target },
+    ],
+  },
+  {
+    label: 'Planning',
+    items: [
+      { href: '/forecast', label: m.nav.forecast, icon: LineChart },
+      { href: '/reports', label: m.nav.reports, icon: BarChart3 },
+    ],
+  },
+]);
 
-  const path = $derived($page.url.pathname);
-  function isActive(href: string): boolean {
-    if (href === '/dashboard') return path === '/dashboard';
-    return path === href || path.startsWith(`${href}/`);
-  }
+const path = $derived($page.url.pathname);
+function isActive(href: string): boolean {
+  if (href === '/dashboard') return path === '/dashboard';
+  return path === href || path.startsWith(`${href}/`);
+}
 
-  const displayName = $derived(auth.user?.displayName ?? '');
-  const email = $derived(auth.user?.email ?? '');
-  const initials = $derived(
-    (displayName || email || '?')
-      .split(/[\s@.]+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((s) => s[0]?.toUpperCase() ?? '')
-      .join('') || '?',
-  );
+const displayName = $derived(auth.user?.displayName ?? '');
+const email = $derived(auth.user?.email ?? '');
+const initials = $derived(
+  (displayName || email || '?')
+    .split(/[\s@.]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((s) => s[0]?.toUpperCase() ?? '')
+    .join('') || '?',
+);
 
-  async function handleLogout() {
-    await auth.logout();
-  }
+async function handleLogout() {
+  await auth.logout();
+}
 </script>
 
 <!-- Backdrop on mobile -->

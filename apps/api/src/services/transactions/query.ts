@@ -6,17 +6,7 @@
  * default. Search uses Postgres trigram on the description; the GIN index
  * on `transactions.description` keeps this snappy for the demo dataset.
  */
-import {
-  and,
-  desc,
-  eq,
-  gte,
-  ilike,
-  isNull,
-  lte,
-  sql as drizzleSql,
-  type SQL,
-} from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, isNull, lte, sql as drizzleSql, type SQL } from 'drizzle-orm';
 import {
   type TransactionListQuery,
   transactionListQuery,
@@ -98,8 +88,7 @@ export function serializeTransaction(row: Transaction): TransactionSummary {
     date: row.date,
     description: row.description,
     category: (row.category as TransactionSummary['category']) ?? null,
-    categoryConfidence:
-      row.categoryConfidence !== null ? Number(row.categoryConfidence) : null,
+    categoryConfidence: row.categoryConfidence !== null ? Number(row.categoryConfidence) : null,
     categorizedBy: (row.categorizedBy as TransactionSummary['categorizedBy']) ?? null,
     walletId: row.walletId,
     notes: row.notes,

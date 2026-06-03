@@ -29,9 +29,7 @@ export interface WhatsAppLikeClient {
    * whatsapp-web.js ≥1.34; optional here so the type survives older libs
    * and the test/simulator transport.
    */
-  getContactLidAndPhone?(
-    userIds: string[],
-  ): Promise<Array<{ lid?: string; pn?: string }>>;
+  getContactLidAndPhone?(userIds: string[]): Promise<Array<{ lid?: string; pn?: string }>>;
 }
 
 export interface QrSnapshot {

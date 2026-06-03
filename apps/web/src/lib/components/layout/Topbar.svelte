@@ -1,24 +1,30 @@
 <script lang="ts">
-  /**
-   * Topbar: hamburger (mobile), a spacer, and the right-side cluster of
-   * command palette + theme toggle + copilot trigger. The capture omnibar
-   * now floats in a bottom dock (OmnibarDock), so the top bar stays a quiet,
-   * uncluttered control strip.
-   */
-  import { Menu, Sun, Moon, Monitor, MessageSquare, Command } from 'lucide-svelte';
-  import { settings } from '$lib/stores/settings.svelte';
-  import { getMessages } from '$lib/i18n';
-  import Wordmark from '$lib/components/brand/Wordmark.svelte';
-  import { Button, DropdownMenu, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '$lib/components/ui';
+/**
+ * Topbar: hamburger (mobile), a spacer, and the right-side cluster of
+ * command palette + theme toggle + copilot trigger. The capture omnibar
+ * now floats in a bottom dock (OmnibarDock), so the top bar stays a quiet,
+ * uncluttered control strip.
+ */
+import { Menu, Sun, Moon, Monitor, MessageSquare, Command } from 'lucide-svelte';
+import { settings } from '$lib/stores/settings.svelte';
+import { getMessages } from '$lib/i18n';
+import Wordmark from '$lib/components/brand/Wordmark.svelte';
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from '$lib/components/ui';
 
-  type Props = {
-    onMenu: () => void;
-    onOpenCommand: () => void;
-    onOpenCopilot: (initial?: string) => void;
-  };
-  let { onMenu, onOpenCommand, onOpenCopilot }: Props = $props();
+type Props = {
+  onMenu: () => void;
+  onOpenCommand: () => void;
+  onOpenCopilot: (initial?: string) => void;
+};
+let { onMenu, onOpenCommand, onOpenCopilot }: Props = $props();
 
-  const m = $derived(getMessages(settings.language));
+const m = $derived(getMessages(settings.language));
 </script>
 
 <header class="flex h-14 shrink-0 items-center gap-3 border-b border-[hsl(var(--border))] px-4 sm:px-6">

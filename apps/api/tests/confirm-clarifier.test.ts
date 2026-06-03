@@ -21,11 +21,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { resolveClarifier } from '../src/routes/capture.ts';
 import type { ParsedExpense } from '../src/services/ai/parser.ts';
-import {
-  _resetDraftStoreForTests,
-  getDraft,
-  storeDraft,
-} from '../src/services/capture/drafts.ts';
+import { _resetDraftStoreForTests, getDraft, storeDraft } from '../src/services/capture/drafts.ts';
 
 /** A pending draft from a low-confidence voice note: has a description, no amount. */
 function draftMissingAmount(overrides: Partial<ParsedExpense> = {}): ParsedExpense {

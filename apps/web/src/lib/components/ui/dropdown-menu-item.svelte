@@ -1,16 +1,16 @@
 <script lang="ts">
-  import { DropdownMenu as DM } from 'bits-ui';
-  import type { Snippet } from 'svelte';
-  import { cn } from '$lib/utils/cn';
+import { DropdownMenu as DM } from 'bits-ui';
+import type { Snippet } from 'svelte';
+import { cn } from '$lib/utils/cn';
 
-  type Props = {
-    onSelect?: () => void;
-    class?: string;
-    disabled?: boolean;
-    children?: Snippet;
-  };
+type Props = {
+  onSelect?: () => void;
+  class?: string;
+  disabled?: boolean;
+  children?: Snippet;
+};
 
-  let { onSelect, class: className, disabled, children }: Props = $props();
+let { onSelect, class: className, disabled, children }: Props = $props();
 </script>
 
 <DM.Item

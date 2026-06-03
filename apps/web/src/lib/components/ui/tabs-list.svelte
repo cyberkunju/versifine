@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { Tabs as T } from 'bits-ui';
-  import type { Snippet } from 'svelte';
-  import { cn } from '$lib/utils/cn';
+import { Tabs as T } from 'bits-ui';
+import type { Snippet } from 'svelte';
+import { cn } from '$lib/utils/cn';
 
-  type Props = { class?: string; children?: Snippet };
-  let { class: className, children, ...rest }: Props = $props();
+type Props = { class?: string; children?: Snippet };
+let { class: className, children, ...rest }: Props = $props();
 </script>
 
 <T.List

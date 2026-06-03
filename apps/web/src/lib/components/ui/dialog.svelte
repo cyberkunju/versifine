@@ -1,33 +1,33 @@
 <script lang="ts">
-  /**
-   * Modal dialog. Pass `bind:open` from the parent and use `header`,
-   * `description`, and `children` snippets to fill the body. The X button
-   * top-right is wired to bits-ui's Close primitive.
-   */
-  import { Dialog as D } from 'bits-ui';
-  import { X } from 'lucide-svelte';
-  import type { Snippet } from 'svelte';
-  import { cn } from '$lib/utils/cn';
+/**
+ * Modal dialog. Pass `bind:open` from the parent and use `header`,
+ * `description`, and `children` snippets to fill the body. The X button
+ * top-right is wired to bits-ui's Close primitive.
+ */
+import { Dialog as D } from 'bits-ui';
+import { X } from 'lucide-svelte';
+import type { Snippet } from 'svelte';
+import { cn } from '$lib/utils/cn';
 
-  type Props = {
-    open: boolean;
-    onOpenChange?: (open: boolean) => void;
-    title?: string;
-    description?: string;
-    class?: string;
-    children?: Snippet;
-    footer?: Snippet;
-  };
+type Props = {
+  open: boolean;
+  onOpenChange?: (open: boolean) => void;
+  title?: string;
+  description?: string;
+  class?: string;
+  children?: Snippet;
+  footer?: Snippet;
+};
 
-  let {
-    open = $bindable(),
-    onOpenChange,
-    title,
-    description,
-    class: className,
-    children,
-    footer,
-  }: Props = $props();
+let {
+  open = $bindable(),
+  onOpenChange,
+  title,
+  description,
+  class: className,
+  children,
+  footer,
+}: Props = $props();
 </script>
 
 <D.Root bind:open onOpenChange={(v) => onOpenChange?.(v)}>

@@ -37,7 +37,9 @@ export interface CaptureResult {
 function summarizeQueryResult(result: Record<string, unknown> | undefined): string {
   if (!result) return '';
   // Recognise the shapes our API services return.
-  const tx = result.transaction as { amount?: number; currency?: string; category?: string | null } | undefined;
+  const tx = result.transaction as
+    | { amount?: number; currency?: string; category?: string | null }
+    | undefined;
   if (tx && typeof tx.amount === 'number') {
     const cur = tx.currency ?? 'INR';
     const cat = tx.category ?? null;
@@ -60,9 +62,19 @@ function renderCaptureResponse(session: Session, response: CaptureResponseShape)
 
   // Successful persist → server returns intent + queryResult.transaction.
   if (!response.needsConfirmation) {
-    if (response.intent === 'expense' || response.intent === 'income' || response.intent === 'transfer') {
+    if (
+      response.intent === 'expense' ||
+      response.intent === 'income' ||
+      response.intent === 'transfer'
+    ) {
       const txs = response.queryResult?.transactions as
-        | Array<{ id?: string; amount: number; currency: string; description: string; category: string | null }>
+        | Array<{
+            id?: string;
+            amount: number;
+            currency: string;
+            description: string;
+            category: string | null;
+          }>
         | undefined;
       if (Array.isArray(txs) && txs.length > 0) {
         const last = txs[txs.length - 1];
@@ -82,7 +94,14 @@ function renderCaptureResponse(session: Session, response: CaptureResponseShape)
       }
 
       const tx = response.queryResult?.transaction as
-        | { id?: string; amount: number; currency: string; category: string | null; baseAmount?: number; baseCurrency?: string }
+        | {
+            id?: string;
+            amount: number;
+            currency: string;
+            category: string | null;
+            baseAmount?: number;
+            baseCurrency?: string;
+          }
         | undefined;
       if (tx) {
         // Remember the just-created transaction so the "actually, that was
@@ -91,7 +110,13 @@ function renderCaptureResponse(session: Session, response: CaptureResponseShape)
         if (tx.id) {
           updateSession(session.phone, { lastTransactionId: tx.id });
         }
-        const text = m.captureLogged(tx.amount, tx.currency, tx.category, tx.baseAmount, tx.baseCurrency);
+        const text = m.captureLogged(
+          tx.amount,
+          tx.currency,
+          tx.category,
+          tx.baseAmount,
+          tx.baseCurrency,
+        );
         return {
           text,
           speakable: text,

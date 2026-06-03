@@ -134,9 +134,7 @@ function readLabels(modelDir: string): string[] {
       const firstKey = firstEntry[0];
       const looksLikeIdKey = /^\d+$/.test(firstKey);
       if (looksLikeIdKey) {
-        return entries
-          .sort(([a], [b]) => Number(a) - Number(b))
-          .map(([, v]) => String(v));
+        return entries.sort(([a], [b]) => Number(a) - Number(b)).map(([, v]) => String(v));
       }
       return Object.keys(parsed);
     } catch {
@@ -145,7 +143,9 @@ function readLabels(modelDir: string): string[] {
   }
   if (existsSync(configPath)) {
     try {
-      const cfg = JSON.parse(readFileSync(configPath, 'utf8')) as { id2label?: Record<string, string> };
+      const cfg = JSON.parse(readFileSync(configPath, 'utf8')) as {
+        id2label?: Record<string, string>;
+      };
       if (cfg.id2label) {
         return Object.entries(cfg.id2label)
           .sort(([a], [b]) => Number(a) - Number(b))
@@ -158,9 +158,7 @@ function readLabels(modelDir: string): string[] {
   return [];
 }
 
-async function tryInference(
-  modelDir: string,
-): Promise<{ category: string; score: number } | null> {
+async function tryInference(modelDir: string): Promise<{ category: string; score: number } | null> {
   // Lazy import — the package is heavy (loads ONNX runtime).
   const mod = await import('@huggingface/transformers');
   // Make the loader prefer our local files. Transformers.js uses
@@ -273,7 +271,9 @@ async function main() {
   console.log(`  api dir     : ${summary.apiDir}`);
   console.log(`  web dir     : ${summary.webDir}`);
   console.log(`  size on disk: ${(manifest.sizeBytes / 1024 / 1024).toFixed(2)} MB`);
-  console.log(`  labels      : ${summary.labels.length} (first: ${summary.labels.slice(0, 3).join(', ')}${summary.labels.length > 3 ? ', …' : ''})`);
+  console.log(
+    `  labels      : ${summary.labels.length} (first: ${summary.labels.slice(0, 3).join(', ')}${summary.labels.length > 3 ? ', …' : ''})`,
+  );
   console.log(`  ONNX ready  : ${summary.hasOnnx ? 'yes' : 'no — fallback active'}`);
   if (summary.testCategory) {
     console.log(

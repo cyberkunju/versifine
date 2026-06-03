@@ -74,7 +74,9 @@ async function main() {
     try {
       const parsed = JSON.parse(text) as WsMessage;
       wsMessages.push(parsed);
-      console.log(`  ← ws ${parsed.type ?? 'unknown'}${parsed.entityId ? ` (${parsed.entityId.slice(0, 8)})` : ''}`);
+      console.log(
+        `  ← ws ${parsed.type ?? 'unknown'}${parsed.entityId ? ` (${parsed.entityId.slice(0, 8)})` : ''}`,
+      );
     } catch {
       console.log(`  ← ws (raw) ${text.slice(0, 80)}`);
     }
@@ -190,7 +192,12 @@ async function main() {
       try {
         const parsed = JSON.parse(payload) as { type: string };
         events.push(parsed);
-        if (parsed.type === 'tool_call' || parsed.type === 'tool_result' || parsed.type === 'done' || parsed.type === 'error') {
+        if (
+          parsed.type === 'tool_call' ||
+          parsed.type === 'tool_result' ||
+          parsed.type === 'done' ||
+          parsed.type === 'error'
+        ) {
           console.log(`  ← sse ${parsed.type}`);
         }
       } catch {
@@ -205,7 +212,9 @@ async function main() {
   const done = events.find((e) => e.type === 'done');
   const errored = events.find((e) => e.type === 'error');
 
-  console.log(`  → sse chunks=${chunks.length} tool_calls=${toolCalls.length} tool_results=${toolResults.length}`);
+  console.log(
+    `  → sse chunks=${chunks.length} tool_calls=${toolCalls.length} tool_results=${toolResults.length}`,
+  );
   if (errored) throw new Error(`copilot stream errored: ${JSON.stringify(errored)}`);
   if (!done) throw new Error('copilot stream did not finish with done');
   if (chunks.length === 0) throw new Error('copilot produced no text chunks');

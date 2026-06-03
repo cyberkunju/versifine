@@ -1,29 +1,29 @@
 <script lang="ts">
-  /**
-   * Drag-drop / paste / file-picker wrapper. When a file lands, we hand it
-   * back via `onPick`; the parent decides whether to upload or stash it.
-   */
-  import { ImagePlus } from 'lucide-svelte';
+/**
+ * Drag-drop / paste / file-picker wrapper. When a file lands, we hand it
+ * back via `onPick`; the parent decides whether to upload or stash it.
+ */
+import { ImagePlus } from 'lucide-svelte';
 
-  type Props = { onPick: (file: File) => void };
-  let { onPick }: Props = $props();
+type Props = { onPick: (file: File) => void };
+let { onPick }: Props = $props();
 
-  let dragOver = $state(false);
-  let inputEl: HTMLInputElement | undefined = $state(undefined);
+let dragOver = $state(false);
+let inputEl: HTMLInputElement | undefined = $state(undefined);
 
-  function handleDrop(e: DragEvent) {
-    e.preventDefault();
-    dragOver = false;
-    const file = e.dataTransfer?.files?.[0];
-    if (file && file.type.startsWith('image/')) onPick(file);
-  }
+function handleDrop(e: DragEvent) {
+  e.preventDefault();
+  dragOver = false;
+  const file = e.dataTransfer?.files?.[0];
+  if (file && file.type.startsWith('image/')) onPick(file);
+}
 
-  function handleSelect(e: Event) {
-    const target = e.currentTarget as HTMLInputElement;
-    const file = target.files?.[0];
-    if (file) onPick(file);
-    target.value = '';
-  }
+function handleSelect(e: Event) {
+  const target = e.currentTarget as HTMLInputElement;
+  const file = target.files?.[0];
+  if (file) onPick(file);
+  target.value = '';
+}
 </script>
 
 <div

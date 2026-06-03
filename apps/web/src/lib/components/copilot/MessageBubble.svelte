@@ -1,68 +1,68 @@
 <script lang="ts">
-  /**
-   * One chat bubble. Renders the assistant or user message; for assistant
-   * messages we also render the tool calls inline (with results below)
-   * so the user sees Vivien's reasoning instead of a black box.
-   */
-  import { Sparkles, User, Wrench } from 'lucide-svelte';
-  import { formatCurrency } from '$lib/utils/format';
-  import { cn } from '$lib/utils/cn';
+/**
+ * One chat bubble. Renders the assistant or user message; for assistant
+ * messages we also render the tool calls inline (with results below)
+ * so the user sees Vivien's reasoning instead of a black box.
+ */
+import { Sparkles, User, Wrench } from 'lucide-svelte';
+import { formatCurrency } from '$lib/utils/format';
+import { cn } from '$lib/utils/cn';
 
-  export type ToolEvent = {
-    name: string;
-    args?: string;
-    result?: unknown;
-  };
+export type ToolEvent = {
+  name: string;
+  args?: string;
+  result?: unknown;
+};
 
-  type Props = {
-    role: 'user' | 'assistant';
-    content: string;
-    streaming?: boolean;
-    toolEvents?: ToolEvent[];
-  };
+type Props = {
+  role: 'user' | 'assistant';
+  content: string;
+  streaming?: boolean;
+  toolEvents?: ToolEvent[];
+};
 
-  let { role, content, streaming = false, toolEvents = [] }: Props = $props();
+let { role, content, streaming = false, toolEvents = [] }: Props = $props();
 
-  function renderToolResult(name: string, result: unknown): string {
-    if (!result || typeof result !== 'object') return '';
-    const r = result as Record<string, unknown>;
-    if (name === 'compute_total' && typeof r.total === 'number') {
-      const total = r.total;
-      const currency = (r.currency as string) ?? 'INR';
-      const count = (r.count as number | undefined) ?? 0;
-      return `${formatCurrency(total, currency as never)} across ${count} entries`;
-    }
-    if (name === 'compute_category_breakdown' && Array.isArray(r.items)) {
-      const items = r.items as Array<{ category: string; total: number }>;
-      return items
-        .slice(0, 5)
-        .map((it) => `${it.category}: ${formatCurrency(it.total, 'INR')}`)
-        .join('  •  ');
-    }
-    if (name === 'compute_forecast' && typeof r.total === 'number') {
-      return `Projected ${formatCurrency(r.total as number, 'INR')} (recurring ${formatCurrency(
-        (r.recurringBase as number) ?? 0,
-        'INR',
-      )})`;
-    }
-    if (name === 'find_recurring' && Array.isArray(r.items)) {
-      return `${(r.items as unknown[]).length} active recurring items`;
-    }
-    if (name === 'compare_periods') {
-      return 'Comparison ready';
-    }
-    if (name === 'log_transaction') {
-      const tx = r.transaction as
-        | { amount: number; currency: string; description: string; wallet?: string }
-        | undefined;
-      if (r.ok && tx) {
-        const amount = formatCurrency(tx.amount, (tx.currency as never) ?? 'INR');
-        return `Logged ${amount} — ${tx.description}${tx.wallet ? ` (${tx.wallet})` : ''}`;
-      }
-      if (typeof r.message === 'string') return String(r.message);
-    }
-    return JSON.stringify(r).slice(0, 140);
+function renderToolResult(name: string, result: unknown): string {
+  if (!result || typeof result !== 'object') return '';
+  const r = result as Record<string, unknown>;
+  if (name === 'compute_total' && typeof r.total === 'number') {
+    const total = r.total;
+    const currency = (r.currency as string) ?? 'INR';
+    const count = (r.count as number | undefined) ?? 0;
+    return `${formatCurrency(total, currency as never)} across ${count} entries`;
   }
+  if (name === 'compute_category_breakdown' && Array.isArray(r.items)) {
+    const items = r.items as Array<{ category: string; total: number }>;
+    return items
+      .slice(0, 5)
+      .map((it) => `${it.category}: ${formatCurrency(it.total, 'INR')}`)
+      .join('  •  ');
+  }
+  if (name === 'compute_forecast' && typeof r.total === 'number') {
+    return `Projected ${formatCurrency(r.total as number, 'INR')} (recurring ${formatCurrency(
+      (r.recurringBase as number) ?? 0,
+      'INR',
+    )})`;
+  }
+  if (name === 'find_recurring' && Array.isArray(r.items)) {
+    return `${(r.items as unknown[]).length} active recurring items`;
+  }
+  if (name === 'compare_periods') {
+    return 'Comparison ready';
+  }
+  if (name === 'log_transaction') {
+    const tx = r.transaction as
+      | { amount: number; currency: string; description: string; wallet?: string }
+      | undefined;
+    if (r.ok && tx) {
+      const amount = formatCurrency(tx.amount, (tx.currency as never) ?? 'INR');
+      return `Logged ${amount} — ${tx.description}${tx.wallet ? ` (${tx.wallet})` : ''}`;
+    }
+    if (typeof r.message === 'string') return String(r.message);
+  }
+  return JSON.stringify(r).slice(0, 140);
+}
 </script>
 
 <div

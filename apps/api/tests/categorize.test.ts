@@ -92,8 +92,12 @@ test('merchant DB returns null for empty / unknown strings', () => {
 });
 
 test('merchant DB categorizes common WhatsApp item words', () => {
-  expect(categorizeFromMerchantDB(normalizeMerchant('coffee'))?.category).toBe('Coffee & Beverages');
-  expect(categorizeFromMerchantDB(normalizeMerchant('coffie'))?.category).toBe('Coffee & Beverages');
+  expect(categorizeFromMerchantDB(normalizeMerchant('coffee'))?.category).toBe(
+    'Coffee & Beverages',
+  );
+  expect(categorizeFromMerchantDB(normalizeMerchant('coffie'))?.category).toBe(
+    'Coffee & Beverages',
+  );
   expect(categorizeFromMerchantDB(normalizeMerchant('lunch'))?.category).toBe('Restaurants');
   expect(categorizeFromMerchantDB(normalizeMerchant('food'))?.category).toBe('Restaurants');
 });
@@ -112,32 +116,29 @@ test('MiniLM tier returns null when no ONNX artifact is available', async () => 
 
 // --- Tier 1 (overrides) — DB-backed --------------------------------------
 
-test.skipIf(!dbReady)(
-  'upsertOverride + getOverride round-trip and bump occurrences',
-  async () => {
-    if (!testSpaceId) throw new Error('expected testSpaceId after dbReady === true');
-    const merchant = 'cafe test xyz';
+test.skipIf(!dbReady)('upsertOverride + getOverride round-trip and bump occurrences', async () => {
+  if (!testSpaceId) throw new Error('expected testSpaceId after dbReady === true');
+  const merchant = 'cafe test xyz';
 
-    // First write: creates the row.
-    await upsertOverride(testSpaceId, merchant, 'Coffee & Beverages');
-    let hit = await getOverride(testSpaceId, merchant);
-    expect(hit?.category).toBe('Coffee & Beverages');
+  // First write: creates the row.
+  await upsertOverride(testSpaceId, merchant, 'Coffee & Beverages');
+  let hit = await getOverride(testSpaceId, merchant);
+  expect(hit?.category).toBe('Coffee & Beverages');
 
-    // Second write with a different category should replace + bump occurrences.
-    await upsertOverride(testSpaceId, merchant, 'Restaurants');
-    hit = await getOverride(testSpaceId, merchant);
-    expect(hit?.category).toBe('Restaurants');
+  // Second write with a different category should replace + bump occurrences.
+  await upsertOverride(testSpaceId, merchant, 'Restaurants');
+  hit = await getOverride(testSpaceId, merchant);
+  expect(hit?.category).toBe('Restaurants');
 
-    const [row] = await db
-      .select({ occurrences: categoryOverrides.occurrences })
-      .from(categoryOverrides)
-      .where(eq(categoryOverrides.spaceId, testSpaceId))
-      .limit(1);
-    expect(row).toBeDefined();
-    // numeric(6,0) round-trips as a string in postgres-js.
-    expect(Number(row?.occurrences ?? '0')).toBe(2);
-  },
-);
+  const [row] = await db
+    .select({ occurrences: categoryOverrides.occurrences })
+    .from(categoryOverrides)
+    .where(eq(categoryOverrides.spaceId, testSpaceId))
+    .limit(1);
+  expect(row).toBeDefined();
+  // numeric(6,0) round-trips as a string in postgres-js.
+  expect(Number(row?.occurrences ?? '0')).toBe(2);
+});
 
 test.skipIf(!dbReady)('getOverride returns null for unknown merchant', async () => {
   if (!testSpaceId) throw new Error('expected testSpaceId after dbReady === true');

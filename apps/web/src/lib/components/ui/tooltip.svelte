@@ -1,19 +1,19 @@
 <script lang="ts">
-  import { Tooltip as T } from 'bits-ui';
-  import type { Snippet } from 'svelte';
-  import { cn } from '$lib/utils/cn';
+import { Tooltip as T } from 'bits-ui';
+import type { Snippet } from 'svelte';
+import { cn } from '$lib/utils/cn';
 
-  type Props = {
-    /** Trigger snippet — typically a button or icon. */
-    trigger: Snippet;
-    /** Content snippet — the floating bubble. */
-    content?: Snippet;
-    text?: string;
-    class?: string;
-    side?: 'top' | 'right' | 'bottom' | 'left';
-  };
+type Props = {
+  /** Trigger snippet — typically a button or icon. */
+  trigger: Snippet;
+  /** Content snippet — the floating bubble. */
+  content?: Snippet;
+  text?: string;
+  class?: string;
+  side?: 'top' | 'right' | 'bottom' | 'left';
+};
 
-  let { trigger, content, text, class: className, side = 'top' }: Props = $props();
+let { trigger, content, text, class: className, side = 'top' }: Props = $props();
 </script>
 
 <T.Provider>

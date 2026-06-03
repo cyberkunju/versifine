@@ -9,7 +9,17 @@
  * Run with `bun run scripts/rename-finehance-to-versifine.ts`.
  * Add `--dry-run` to print what WOULD change without touching disk.
  */
-import { readdirSync, readFileSync, statSync, writeFileSync, existsSync, renameSync, mkdirSync, cpSync, rmSync } from 'node:fs';
+import {
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+  existsSync,
+  renameSync,
+  mkdirSync,
+  cpSync,
+  rmSync,
+} from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 
 const ROOT = resolve(import.meta.dir, '..');
@@ -142,7 +152,9 @@ for (const file of files) {
 
 changes.sort((a, b) => b.matches - a.matches);
 for (const c of changes) console.log(`${String(c.matches).padStart(4)}  ${c.path}`);
-console.log(`rebrand: ${changes.length} files updated, ${totalMatches} total replacements${DRY ? ' (dry-run)' : ''}`);
+console.log(
+  `rebrand: ${changes.length} files updated, ${totalMatches} total replacements${DRY ? ' (dry-run)' : ''}`,
+);
 
 // ---------- Path renames ------------------------------------------------
 // Only safe if the moves don't break paths referenced from gitignore'd

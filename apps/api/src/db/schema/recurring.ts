@@ -43,10 +43,7 @@ export const recurringItems = pgTable(
       .$onUpdate(() => new Date()),
   },
   (t) => [
-    uniqueIndex('recurring_items_space_merchant_unique').on(
-      t.spaceId,
-      t.merchantNormalized,
-    ),
+    uniqueIndex('recurring_items_space_merchant_unique').on(t.spaceId, t.merchantNormalized),
     index('recurring_items_space_status_idx').on(t.spaceId, t.status),
   ],
 );

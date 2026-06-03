@@ -6,6 +6,7 @@
  * and mixing Malayalam digits would break the curated merchant DB
  * patterns when the bot echoes user input back.
  */
+import { resolveCurrencySymbol } from '@versifine/shared';
 import type { DraftSummary, MessagePack, QuerySummaryView } from './types.ts';
 
 const PERIOD_LABELS_ML: Record<string, string> = {
@@ -26,12 +27,17 @@ function formatINR(value: number): string {
   const head = intStr.slice(0, -3);
   const grouped = head ? `${head.replace(/\B(?=(\d{2})+(?!\d))/g, ',')},${lastThree}` : lastThree;
   const sign = value < 0 ? '-' : '';
-  return fraction > 0 ? `${sign}${grouped}.${String(fraction).padStart(2, '0')}` : `${sign}${grouped}`;
+  return fraction > 0
+    ? `${sign}${grouped}.${String(fraction).padStart(2, '0')}`
+    : `${sign}${grouped}`;
 }
 
 function formatAmount(value: number, currency: string): string {
-  if (currency === 'INR') return `₹${formatINR(value)}`;
-  return `${currency} ${formatINR(value)}`;
+  const upper = currency.toUpperCase();
+  const symbol = resolveCurrencySymbol(upper);
+  const separator = symbol === upper ? ' ' : '';
+  if (upper === 'INR') return `₹${formatINR(value)}`;
+  return `${symbol}${separator}${formatINR(value)}`;
 }
 
 function describeDraft(d: DraftSummary): string {
@@ -97,14 +103,13 @@ export const ml: MessagePack = {
       ? `✅ ലിങ്ക് ചെയ്തു! സ്വാഗതം, ${name}. പരീക്ഷിക്കൂ: "200 chai" അല്ലെങ്കിൽ HELP അയക്കൂ.`
       : '✅ ലിങ്ക് ചെയ്തു! പരീക്ഷിക്കൂ: "200 chai" അല്ലെങ്കിൽ HELP അയക്കൂ.',
 
-  linkInvalid:
-    'ഈ കോഡ് പ്രവർത്തിച്ചില്ല. വെബ് Settings → Link WhatsApp-ൽ പുതിയ കോഡ് നേടി LINK <code> അയക്കൂ.',
+  linkInvalid: 'ഈ കോഡ് പ്രവർത്തിച്ചില്ല. വെബ് Settings → Link WhatsApp-ൽ പുതിയ കോഡ് നേടി LINK <code> അയക്കൂ.',
 
   helpCard:
     'ഞാൻ ഇതൊക്കെ ചെയ്യാം:\n' +
     "• ചെലവ് രേഖപ്പെടുത്തൂ — 'auto-inu 450 spent'\n" +
     "• വരുമാനം — 'salary 85000 kitti'\n" +
-    "• ചിത്രങ്ങൾ — receipt അയക്കൂ, ഞാൻ വായിക്കാം\n" +
+    '• ചിത്രങ്ങൾ — receipt അയക്കൂ, ഞാൻ വായിക്കാം\n' +
     '• വോയ്സ് നോട്ട് — 6 ഭാഷകളിൽ സംസാരിക്കാം\n' +
     "• ചോദ്യങ്ങൾ — 'ee maasam food-inu ethra?'\n" +
     "• ബജറ്റ് — 'set budget groceries 8000'\n" +
@@ -113,9 +118,10 @@ export const ml: MessagePack = {
 
   captureLogged: (amount, currency, category, baseAmount, baseCurrency) => {
     const formatted = formatAmount(amount, currency);
-    const converted = baseAmount && baseCurrency && baseCurrency !== currency
-      ? ` (${formatAmount(baseAmount, baseCurrency)})`
-      : '';
+    const converted =
+      baseAmount && baseCurrency && baseCurrency !== currency
+        ? ` (${formatAmount(baseAmount, baseCurrency)})`
+        : '';
     return category
       ? `✅ ${formatted}${converted} ${category}-ൽ ചേർത്തു.`
       : `✅ ${formatted}${converted} രേഖപ്പെടുത്തി.`;
@@ -135,8 +141,7 @@ export const ml: MessagePack = {
 
   captureCancelled: 'റദ്ദാക്കി. ഒന്നും സേവ് ചെയ്തിട്ടില്ല.',
 
-  captureFailed:
-    'ഇത് രേഖപ്പെടുത്താൻ കഴിഞ്ഞില്ല. വീണ്ടും ശ്രമിക്കൂ അല്ലെങ്കിൽ RESET അയക്കൂ.',
+  captureFailed: 'ഇത് രേഖപ്പെടുത്താൻ കഴിഞ്ഞില്ല. വീണ്ടും ശ്രമിക്കൂ അല്ലെങ്കിൽ RESET അയക്കൂ.',
 
   queryAnswer: (text) => text,
 
@@ -164,8 +169,7 @@ export const ml: MessagePack = {
   copilotNudge:
     'വിശദമായ ചോദ്യങ്ങൾക്ക് വെബ് copilot ഉപയോഗിക്കാം: versifine.com. ഇവിടെയും ചോദിക്കാം — ചോദ്യം നേരിട്ട് അയക്കൂ.',
 
-  budgetAskCategory:
-    'ഏത് കാറ്റഗറിക്കാണ്? (Groceries, Restaurants, Transportation പോലെ)',
+  budgetAskCategory: 'ഏത് കാറ്റഗറിക്കാണ്? (Groceries, Restaurants, Transportation പോലെ)',
   budgetAskAmount: (category) => `${category}-നു ഓരോ മാസവും എത്ര?`,
   budgetSet: (category, amount) =>
     `📊 ബജറ്റ് സെറ്റ്: ${category} → ${formatAmount(amount, 'INR')}/മാസം. 80%-ൽ ഞാൻ alert ചെയ്യാം.`,
@@ -183,17 +187,13 @@ export const ml: MessagePack = {
   replyModeVoice: '✅ ശരി — ഓരോ മറുപടിയോടൊപ്പവും ഒരു വോയ്സ് നോട്ട് അയക്കും.',
   replyModeAuto: '✅ ശരി — നിങ്ങൾ അയക്കുന്നത് പോലെ മറുപടി തരും: വോയ്സിന് വോയ്സ്, ടെക്സ്റ്റിന് ടെക്സ്റ്റ്.',
 
-  resetDone:
-    '🔄 റീസെറ്റ് ചെയ്തു. എന്ത് ചെയ്യാമെന്ന് കാണാൻ HELP അയക്കൂ.',
+  resetDone: '🔄 റീസെറ്റ് ചെയ്തു. എന്ത് ചെയ്യാമെന്ന് കാണാൻ HELP അയക്കൂ.',
 
-  stopAcknowledged:
-    'ശരി, ഇനി ഞാൻ മറുപടി തരില്ല. എപ്പോൾ വേണമെങ്കിലും message അയച്ച് ഉണർത്താം.',
+  stopAcknowledged: 'ശരി, ഇനി ഞാൻ മറുപടി തരില്ല. എപ്പോൾ വേണമെങ്കിലും message അയച്ച് ഉണർത്താം.',
 
-  unknown:
-    "മനസ്സിലായില്ല. ഒരു ചെലവ് അയക്കൂ ('200 chai') അല്ലെങ്കിൽ HELP അയക്കൂ.",
+  unknown: "മനസ്സിലായില്ല. ഒരു ചെലവ് അയക്കൂ ('200 chai') അല്ലെങ്കിൽ HELP അയക്കൂ.",
 
-  error:
-    'എന്റെ ഭാഗത്ത് എന്തോ കുഴപ്പം. വീണ്ടും ശ്രമിക്കൂ അല്ലെങ്കിൽ RESET അയക്കൂ.',
+  error: 'എന്റെ ഭാഗത്ത് എന്തോ കുഴപ്പം. വീണ്ടും ശ്രമിക്കൂ അല്ലെങ്കിൽ RESET അയക്കൂ.',
 
   notLinked:
     'നിങ്ങളുടെ message കിട്ടി, പക്ഷേ ഈ നമ്പർ ലിങ്ക് ചെയ്തിട്ടില്ല. വെബിൽ നിന്ന് 6 അക്ക കോഡ് നേടി LINK <code> അയക്കൂ.',

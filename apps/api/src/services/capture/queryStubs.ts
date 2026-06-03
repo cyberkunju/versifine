@@ -146,7 +146,11 @@ export function detectPeriod(text: string, now: Date = new Date()): Period {
     startLast.setDate(startLast.getDate() - 7);
     const endLast = new Date(startThis);
     endLast.setDate(endLast.getDate() - 1);
-    return { key: 'last_week', label: 'last week', range: { from: iso(startLast), to: iso(endLast) } };
+    return {
+      key: 'last_week',
+      label: 'last week',
+      range: { from: iso(startLast), to: iso(endLast) },
+    };
   }
   if (/\b(last month|previous month|pichle mahine)\b/.test(t) || /കഴിഞ്ഞ മാസം/.test(text)) {
     const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -188,8 +192,9 @@ export async function answerQuery(
       const expense = Number(
         (data as unknown as { totals?: { expense?: number } }).totals?.expense ?? 0,
       );
-      const top = (data as unknown as { topCategories?: Array<{ category: string; total: number }> })
-        .topCategories?.[0];
+      const top = (
+        data as unknown as { topCategories?: Array<{ category: string; total: number }> }
+      ).topCategories?.[0];
       let message = `You've spent ${inr(expense)} ${period.label}.`;
       if (top && top.total > 0) {
         message += ` Biggest: ${top.category} (${inr(top.total)}).`;

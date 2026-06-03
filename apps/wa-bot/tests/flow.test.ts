@@ -85,7 +85,9 @@ mock.module('../src/services/apiClient.ts', () => {
       return { linked: false, phone };
     },
     createBudget: async () => ({ budget: { id: 'b1', name: 'mock' } }),
-    patchTransactionCategory: async () => ({ transaction: { id: 'tx_test_1', category: 'Restaurants' } }),
+    patchTransactionCategory: async () => ({
+      transaction: { id: 'tx_test_1', category: 'Restaurants' },
+    }),
   };
   return m;
 });
@@ -192,7 +194,12 @@ test('returning user: first message is processed, not discarded', async () => {
         intent: 'expense',
         needsConfirmation: false,
         queryResult: {
-          transaction: { id: 'tx_rt', amount: 200, currency: 'INR', category: 'Coffee & Beverages' },
+          transaction: {
+            id: 'tx_rt',
+            amount: 200,
+            currency: 'INR',
+            category: 'Coffee & Beverages',
+          },
         },
         echo: text,
       };
@@ -201,7 +208,12 @@ test('returning user: first message is processed, not discarded', async () => {
     captureImage: async () => ({ intent: 'unknown', needsConfirmation: false, echo: '' }),
     captureConfirm: async () => ({ intent: 'unknown', needsConfirmation: false, echo: '' }),
     askCopilot: async () => ({ answer: 'a', outcome: 'answered' }),
-    botWhoami: async () => ({ exists: true, displayName: 'Asha', language: 'en', webLinked: false }),
+    botWhoami: async () => ({
+      exists: true,
+      displayName: 'Asha',
+      language: 'en',
+      webLinked: false,
+    }),
     botEnsureUser: async (phone: string, language: string, email?: string) => ({
       userId: 'u_rt',
       spaceId: 's_rt',
@@ -327,7 +339,12 @@ test('expired draft reprocesses the follow-up instead of trapping the user', asy
           intent: 'expense',
           needsConfirmation: false,
           queryResult: {
-            transaction: { id: 'tx_recovered', amount: 90, currency: 'INR', category: 'Coffee & Beverages' },
+            transaction: {
+              id: 'tx_recovered',
+              amount: 90,
+              currency: 'INR',
+              category: 'Coffee & Beverages',
+            },
           },
           echo: text,
         };

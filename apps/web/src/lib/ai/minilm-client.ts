@@ -54,12 +54,16 @@ export async function loadMinilm(
       const pipeline = transformers.pipeline as unknown as (
         task: string,
         model: string,
-        options?: { progress_callback?: (p: { status: string; loaded?: number; total?: number }) => void },
+        options?: {
+          progress_callback?: (p: { status: string; loaded?: number; total?: number }) => void;
+        },
       ) => Promise<unknown>;
 
       const classifier = (await pipeline('text-classification', 'models', {
         progress_callback: onProgress ?? (() => undefined),
-      })) as (text: string) => Promise<Array<{ label: string; score: number }> | { label: string; score: number }>;
+      })) as (
+        text: string,
+      ) => Promise<Array<{ label: string; score: number }> | { label: string; score: number }>;
 
       cached = async (text: string) => {
         const out = await classifier(text);

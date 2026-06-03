@@ -12,16 +12,7 @@
  * through `sanitizeUntrusted` and the whole block is wrapped in
  * `fenceUntrusted` so the model treats it as DATA, never instructions.
  */
-import {
-  and,
-  desc,
-  eq,
-  gte,
-  isNotNull,
-  isNull,
-  lte,
-  sql as drizzleSql,
-} from 'drizzle-orm';
+import { and, desc, eq, gte, isNotNull, isNull, lte, sql as drizzleSql } from 'drizzle-orm';
 import { db } from '../../db/client.ts';
 import { goals } from '../../db/schema/goals.ts';
 import { recurringItems } from '../../db/schema/recurring.ts';
@@ -43,7 +34,13 @@ export interface ContextSummary {
     frequencyDays: number;
     nextExpectedDate: string | null;
   }>;
-  goals: Array<{ name: string; target: number; current: number; progress: number; deadline: string | null }>;
+  goals: Array<{
+    name: string;
+    target: number;
+    current: number;
+    progress: number;
+    deadline: string | null;
+  }>;
   retrieved: Array<{
     date: string;
     amount: number;
@@ -139,12 +136,7 @@ async function retrieveRelevant(
     })
     .from(transactionEmbeddings)
     .innerJoin(transactions, eq(transactions.id, transactionEmbeddings.transactionId))
-    .where(
-      and(
-        eq(transactionEmbeddings.spaceId, spaceId),
-        isNull(transactions.deletedAt),
-      ),
-    )
+    .where(and(eq(transactionEmbeddings.spaceId, spaceId), isNull(transactions.deletedAt)))
     .orderBy(drizzleSql`${transactionEmbeddings.embedding} <=> ${literal}::vector`)
     .limit(20);
   return rows.map((r) => ({
@@ -155,7 +147,10 @@ async function retrieveRelevant(
   }));
 }
 
-export async function buildContext(spaceId: string, lastUserMessage: string): Promise<ContextSummary> {
+export async function buildContext(
+  spaceId: string,
+  lastUserMessage: string,
+): Promise<ContextSummary> {
   const today = new Date();
   const thisMonthRange = monthBounds(today);
   const lastMonthRef = new Date(today);
@@ -170,9 +165,7 @@ export async function buildContext(spaceId: string, lastUserMessage: string): Pr
     db
       .select()
       .from(recurringItems)
-      .where(
-        and(eq(recurringItems.spaceId, spaceId), eq(recurringItems.status, 'active')),
-      )
+      .where(and(eq(recurringItems.spaceId, spaceId), eq(recurringItems.status, 'active')))
       .limit(20),
     db
       .select()
@@ -208,7 +201,7 @@ export async function buildContext(spaceId: string, lastUserMessage: string): Pr
       target: Number(g.targetAmount),
       current: Number(g.currentAmount),
       progress:
-        Math.round(((Number(g.currentAmount) / Math.max(1, Number(g.targetAmount))) * 100) * 100) /
+        Math.round((Number(g.currentAmount) / Math.max(1, Number(g.targetAmount))) * 100 * 100) /
         100,
       deadline: g.deadline,
     })),
@@ -229,9 +222,13 @@ export function renderContextBlock(context: ContextSummary, user: AuthedUser): s
   lines.push(`BASE CURRENCY: ${sanitizeUntrusted(user.baseCurrency, 6)}`);
   lines.push('');
   lines.push('THIS MONTH:');
-  lines.push(`  income=₹${context.thisMonth.income} expense=₹${context.thisMonth.expense} savings=₹${context.thisMonth.savings}`);
+  lines.push(
+    `  income=₹${context.thisMonth.income} expense=₹${context.thisMonth.expense} savings=₹${context.thisMonth.savings}`,
+  );
   lines.push('LAST MONTH:');
-  lines.push(`  income=₹${context.lastMonth.income} expense=₹${context.lastMonth.expense} savings=₹${context.lastMonth.savings}`);
+  lines.push(
+    `  income=₹${context.lastMonth.income} expense=₹${context.lastMonth.expense} savings=₹${context.lastMonth.savings}`,
+  );
   if (context.topCategoriesThisMonth.length > 0) {
     lines.push('TOP CATEGORIES THIS MONTH:');
     for (const c of context.topCategoriesThisMonth) {
@@ -241,19 +238,25 @@ export function renderContextBlock(context: ContextSummary, user: AuthedUser): s
   if (context.recurring.length > 0) {
     lines.push('ACTIVE RECURRING:');
     for (const r of context.recurring) {
-      lines.push(`  ${sanitizeUntrusted(r.displayName, 60)}: ₹${r.averageAmount} every ${r.frequencyDays}d (next ${r.nextExpectedDate ?? '?'})`);
+      lines.push(
+        `  ${sanitizeUntrusted(r.displayName, 60)}: ₹${r.averageAmount} every ${r.frequencyDays}d (next ${r.nextExpectedDate ?? '?'})`,
+      );
     }
   }
   if (context.goals.length > 0) {
     lines.push('ACTIVE GOALS:');
     for (const g of context.goals) {
-      lines.push(`  ${sanitizeUntrusted(g.name, 60)}: ₹${g.current}/₹${g.target} (${g.progress}%)${g.deadline ? ` by ${g.deadline}` : ''}`);
+      lines.push(
+        `  ${sanitizeUntrusted(g.name, 60)}: ₹${g.current}/₹${g.target} (${g.progress}%)${g.deadline ? ` by ${g.deadline}` : ''}`,
+      );
     }
   }
   if (context.retrieved.length > 0) {
     lines.push('RELEVANT RECENT TRANSACTIONS (top by similarity):');
     for (const t of context.retrieved.slice(0, 12)) {
-      lines.push(`  ${t.date} ₹${t.amount} ${sanitizeUntrusted(t.category ?? '-', 30)} — ${sanitizeUntrusted(t.description, 120)}`);
+      lines.push(
+        `  ${t.date} ₹${t.amount} ${sanitizeUntrusted(t.category ?? '-', 30)} — ${sanitizeUntrusted(t.description, 120)}`,
+      );
     }
   }
   lines.push('');

@@ -27,11 +27,7 @@ const SHOULD_SKIP = [
   'नहीं',
 ];
 
-const SHOULD_NOT_SKIP = [
-  'me@example.com',
-  'my email is asha@gmail.com',
-  'asha.k@company.co.in',
-];
+const SHOULD_NOT_SKIP = ['me@example.com', 'my email is asha@gmail.com', 'asha.k@company.co.in'];
 
 test('forgiving skip detection accepts typos and full sentences', () => {
   for (const t of SHOULD_SKIP) {

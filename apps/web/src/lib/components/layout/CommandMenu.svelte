@@ -1,65 +1,65 @@
 <script lang="ts">
-  /**
-   * ⌘K command menu. Sections: Navigate (the seven primary pages),
-   * Quick actions, Recent transactions, Settings. Filters via the cmdk
-   * primitive provided by bits-ui.
-   */
-  import { Command } from 'bits-ui';
-  import {
-    LayoutDashboard,
-    Receipt,
-    Wallet,
-    Target,
-    LineChart,
-    BarChart3,
-    Settings as SettingsIcon,
-    Sparkles,
-    Plus,
-    MessageSquare,
-  } from 'lucide-svelte';
-  import { goto } from '$app/navigation';
-  import type { TransactionSummary } from '$lib/api/types';
-  import { api } from '$lib/api/client';
-  import { useQuery } from '$lib/api/queries.svelte';
-  import { settings } from '$lib/stores/settings.svelte';
-  import { getMessages } from '$lib/i18n';
-  import { formatCurrency } from '$lib/utils/format';
-  import { cn } from '$lib/utils/cn';
-  import { Dialog as D } from 'bits-ui';
+/**
+ * ⌘K command menu. Sections: Navigate (the seven primary pages),
+ * Quick actions, Recent transactions, Settings. Filters via the cmdk
+ * primitive provided by bits-ui.
+ */
+import { Command } from 'bits-ui';
+import {
+  LayoutDashboard,
+  Receipt,
+  Wallet,
+  Target,
+  LineChart,
+  BarChart3,
+  Settings as SettingsIcon,
+  Sparkles,
+  Plus,
+  MessageSquare,
+} from 'lucide-svelte';
+import { goto } from '$app/navigation';
+import type { TransactionSummary } from '$lib/api/types';
+import { api } from '$lib/api/client';
+import { useQuery } from '$lib/api/queries.svelte';
+import { settings } from '$lib/stores/settings.svelte';
+import { getMessages } from '$lib/i18n';
+import { formatCurrency } from '$lib/utils/format';
+import { cn } from '$lib/utils/cn';
+import { Dialog as D } from 'bits-ui';
 
-  type Props = {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    onAskCopilot?: () => void;
-  };
+type Props = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onAskCopilot?: () => void;
+};
 
-  let { open = $bindable(), onOpenChange, onAskCopilot }: Props = $props();
-  const m = $derived(getMessages(settings.language));
+let { open = $bindable(), onOpenChange, onAskCopilot }: Props = $props();
+const m = $derived(getMessages(settings.language));
 
-  const recent = useQuery<{ items: TransactionSummary[] }>(
-    ['transactions', 'recent', 5],
-    () => api.transactions.list({ limit: 5 }),
-    { enabled: false },
-  );
+const recent = useQuery<{ items: TransactionSummary[] }>(
+  ['transactions', 'recent', 5],
+  () => api.transactions.list({ limit: 5 }),
+  { enabled: false },
+);
 
-  $effect(() => {
-    if (open) recent.refetch();
-  });
+$effect(() => {
+  if (open) recent.refetch();
+});
 
-  function go(href: string) {
-    onOpenChange(false);
-    void goto(href);
-  }
+function go(href: string) {
+  onOpenChange(false);
+  void goto(href);
+}
 
-  const items = $derived([
-    { href: '/', label: m.nav.dashboard, icon: LayoutDashboard },
-    { href: '/transactions', label: m.nav.transactions, icon: Receipt },
-    { href: '/budgets', label: m.nav.budgets, icon: Wallet },
-    { href: '/goals', label: m.nav.goals, icon: Target },
-    { href: '/forecast', label: m.nav.forecast, icon: LineChart },
-    { href: '/reports', label: m.nav.reports, icon: BarChart3 },
-    { href: '/settings', label: m.nav.settings, icon: SettingsIcon },
-  ]);
+const items = $derived([
+  { href: '/', label: m.nav.dashboard, icon: LayoutDashboard },
+  { href: '/transactions', label: m.nav.transactions, icon: Receipt },
+  { href: '/budgets', label: m.nav.budgets, icon: Wallet },
+  { href: '/goals', label: m.nav.goals, icon: Target },
+  { href: '/forecast', label: m.nav.forecast, icon: LineChart },
+  { href: '/reports', label: m.nav.reports, icon: BarChart3 },
+  { href: '/settings', label: m.nav.settings, icon: SettingsIcon },
+]);
 </script>
 
 <D.Root bind:open onOpenChange={(v) => onOpenChange(v)}>

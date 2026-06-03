@@ -113,7 +113,10 @@ export async function dispatchSimulator(
 let pendingClient: WhatsAppLikeClient | null = null;
 let MessageMediaCtor: { new (mimetype: string, data: string): unknown } | null = null;
 
-export function bindClient(client: WhatsAppLikeClient, media: { new (mimetype: string, data: string): unknown }): void {
+export function bindClient(
+  client: WhatsAppLikeClient,
+  media: { new (mimetype: string, data: string): unknown },
+): void {
   pendingClient = client;
   MessageMediaCtor = media;
 }
@@ -121,7 +124,9 @@ export function bindClient(client: WhatsAppLikeClient, media: { new (mimetype: s
 async function deliver(
   phone: string,
   text: string,
-  voicePromise: Promise<{ buffer: Buffer; mimetype: string; spokenText?: string } | null> | undefined,
+  voicePromise:
+    | Promise<{ buffer: Buffer; mimetype: string; spokenText?: string } | null>
+    | undefined,
   state: ConversationState,
 ): Promise<void> {
   if (!pendingClient) {
@@ -173,7 +178,7 @@ export async function onMessage(raw: RawMessageLike): Promise<void> {
   // Diagnostic: log the raw addressing scheme (lid vs c.us) so pairing
   // issues are debuggable without leaking the full id.
   log.debug('MESSAGE_RAW', {
-    scheme: raw.from.includes('@lid') ? 'lid' : raw.from.split('@')[1] ?? 'unknown',
+    scheme: raw.from.includes('@lid') ? 'lid' : (raw.from.split('@')[1] ?? 'unknown'),
     idHint: maskPhone(phoneFromWhatsAppId(raw.from)),
   });
 

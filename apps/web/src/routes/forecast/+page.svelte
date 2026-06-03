@@ -1,65 +1,64 @@
 <script lang="ts">
-  /**
-   * Forecast page.
-   *
-   * Big chart at the top, recurring items list, anomalies callout. The
-   * forecast service is recurring-decomposed ARIMA (with rolling-average
-   * fallback for sparse data) — we surface the `method` so the UI can be
-   * honest when the model couldn't fit.
-   */
-  import { fly } from 'svelte/transition';
-  import { TrendingUp, AlertTriangle, Repeat, RefreshCw } from 'lucide-svelte';
-  import { api } from '$lib/api/client';
-  import { useQuery, invalidate } from '$lib/api/queries.svelte';
-  import { toast } from '$lib/stores/toast.svelte';
-  import { settings } from '$lib/stores/settings.svelte';
-  import { getMessages } from '$lib/i18n';
-  import { formatCurrency, formatDate, relativeDate } from '$lib/utils/format';
-  import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle,
-    Button,
-    Skeleton,
-    Badge,
-  } from '$lib/components/ui';
-  import ForecastCard from '$lib/components/forecast/ForecastCard.svelte';
-  import type { ForecastResult, RecurringItem } from '$lib/api/types';
+/**
+ * Forecast page.
+ *
+ * Big chart at the top, recurring items list, anomalies callout. The
+ * forecast service is recurring-decomposed ARIMA (with rolling-average
+ * fallback for sparse data) — we surface the `method` so the UI can be
+ * honest when the model couldn't fit.
+ */
+import { fly } from 'svelte/transition';
+import { TrendingUp, AlertTriangle, Repeat, RefreshCw } from 'lucide-svelte';
+import { api } from '$lib/api/client';
+import { useQuery, invalidate } from '$lib/api/queries.svelte';
+import { toast } from '$lib/stores/toast.svelte';
+import { settings } from '$lib/stores/settings.svelte';
+import { getMessages } from '$lib/i18n';
+import { formatCurrency, formatDate, relativeDate } from '$lib/utils/format';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Button,
+  Skeleton,
+  Badge,
+} from '$lib/components/ui';
+import ForecastCard from '$lib/components/forecast/ForecastCard.svelte';
+import type { ForecastResult, RecurringItem } from '$lib/api/types';
 
-  const m = $derived(getMessages(settings.language));
+const m = $derived(getMessages(settings.language));
 
-  let days = $state<7 | 14 | 30 | 60 | 90>(30);
+let days = $state<7 | 14 | 30 | 60 | 90>(30);
 
-  const forecast = useQuery<{ forecast: ForecastResult }>(
-    ['forecast'],
-    () => api.forecast.get(days),
-    { staleMs: 60_000 },
-  );
-  $effect(() => {
-    void days;
-    forecast.refetch();
-  });
+const forecast = useQuery<{ forecast: ForecastResult }>(
+  ['forecast'],
+  () => api.forecast.get(days),
+  { staleMs: 60_000 },
+);
+$effect(() => {
+  void days;
+  forecast.refetch();
+});
 
-  const recurring = useQuery<{ items: RecurringItem[] }>(
-    ['recurring', 'active'],
-    () => api.recurring.list('active'),
-  );
+const recurring = useQuery<{ items: RecurringItem[] }>(['recurring', 'active'], () =>
+  api.recurring.list('active'),
+);
 
-  let runningDetector = $state(false);
-  async function runDetector() {
-    runningDetector = true;
-    try {
-      await api.recurring.run();
-      invalidate(['recurring']);
-      invalidate(['forecast']);
-      toast.success('Recurring items refreshed');
-    } catch (err) {
-      toast.error('Failed', err instanceof Error ? err.message : String(err));
-    } finally {
-      runningDetector = false;
-    }
+let runningDetector = $state(false);
+async function runDetector() {
+  runningDetector = true;
+  try {
+    await api.recurring.run();
+    invalidate(['recurring']);
+    invalidate(['forecast']);
+    toast.success('Recurring items refreshed');
+  } catch (err) {
+    toast.error('Failed', err instanceof Error ? err.message : String(err));
+  } finally {
+    runningDetector = false;
   }
+}
 </script>
 
 <div class="flex flex-col gap-6">

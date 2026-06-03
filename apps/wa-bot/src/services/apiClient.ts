@@ -300,7 +300,10 @@ export interface PhoneLinkConfirmResult {
   spaceId?: string;
 }
 
-export async function phoneLinkConfirm(code: string, phone: string): Promise<PhoneLinkConfirmResult> {
+export async function phoneLinkConfirm(
+  code: string,
+  phone: string,
+): Promise<PhoneLinkConfirmResult> {
   return await call<PhoneLinkConfirmResult>({
     method: 'POST',
     path: '/auth/phone-link/confirm',
@@ -319,7 +322,10 @@ export interface BudgetCreatePayload {
   periodEnd?: string;
 }
 
-export async function createBudget(phone: string, payload: BudgetCreatePayload): Promise<{ budget: { id: string; name: string } }> {
+export async function createBudget(
+  phone: string,
+  payload: BudgetCreatePayload,
+): Promise<{ budget: { id: string; name: string } }> {
   return await call<{ budget: { id: string; name: string } }>({
     method: 'POST',
     path: '/budgets',

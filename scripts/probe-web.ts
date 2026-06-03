@@ -95,12 +95,23 @@ ws.addEventListener('message', (e) => {
     return;
   }
   if (data.method === 'Runtime.consoleAPICalled' && data.params) {
-    const params = data.params as { type: string; args: Array<{ value?: unknown; description?: string }> };
+    const params = data.params as {
+      type: string;
+      args: Array<{ value?: unknown; description?: string }>;
+    };
     const text = params.args.map((a) => a.value ?? a.description ?? '').join(' ');
     consoleLines.push(`[${params.type}] ${text}`);
   }
   if (data.method === 'Runtime.exceptionThrown' && data.params) {
-    const p = data.params as { exceptionDetails: { text?: string; exception?: { description?: string }; url?: string; lineNumber?: number; columnNumber?: number } };
+    const p = data.params as {
+      exceptionDetails: {
+        text?: string;
+        exception?: { description?: string };
+        url?: string;
+        lineNumber?: number;
+        columnNumber?: number;
+      };
+    };
     const d = p.exceptionDetails;
     exceptions.push(
       `EXCEPTION: ${d.text ?? ''} ${d.exception?.description ?? ''}`.trim() +

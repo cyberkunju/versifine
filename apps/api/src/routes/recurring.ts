@@ -15,11 +15,7 @@ import { z } from 'zod';
 import type { RecurringItem } from '../db/schema/recurring.ts';
 import { requireUser } from '../middleware/auth.ts';
 import { invalidateForecast } from '../services/forecast/index.ts';
-import {
-  listRecurring,
-  runDetector,
-  setRecurringStatus,
-} from '../services/forecast/recurring.ts';
+import { listRecurring, runDetector, setRecurringStatus } from '../services/forecast/recurring.ts';
 import { ok } from '../utils/envelope.ts';
 import { errors } from '../utils/errors.ts';
 

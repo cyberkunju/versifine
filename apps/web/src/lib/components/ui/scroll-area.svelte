@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { ScrollArea as SA } from 'bits-ui';
-  import type { Snippet } from 'svelte';
-  import { cn } from '$lib/utils/cn';
+import { ScrollArea as SA } from 'bits-ui';
+import type { Snippet } from 'svelte';
+import { cn } from '$lib/utils/cn';
 
-  type Props = { class?: string; children?: Snippet };
-  let { class: className, children }: Props = $props();
+type Props = { class?: string; children?: Snippet };
+let { class: className, children }: Props = $props();
 </script>
 
 <SA.Root class={cn('relative overflow-hidden', className)}>

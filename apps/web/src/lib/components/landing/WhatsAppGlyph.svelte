@@ -1,11 +1,11 @@
 <script lang="ts">
-  /**
-   * Authentic WhatsApp brand glyph (canonical mark), color via `currentColor`.
-   *
-   * The real, correctly-proportioned logo — speech bubble with handset — so it
-   * reads as WhatsApp instantly and ages well, rather than a generic chat icon.
-   */
-  let { class: className = '' }: { class?: string } = $props();
+/**
+ * Authentic WhatsApp brand glyph (canonical mark), color via `currentColor`.
+ *
+ * The real, correctly-proportioned logo — speech bubble with handset — so it
+ * reads as WhatsApp instantly and ages well, rather than a generic chat icon.
+ */
+let { class: className = '' }: { class?: string } = $props();
 </script>
 
 <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class={className}>

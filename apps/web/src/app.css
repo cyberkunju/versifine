@@ -1,4 +1,4 @@
-@import 'tailwindcss';
+@import "tailwindcss";
 
 /*
  * Versifine design system — "editorial fintech".
@@ -17,12 +17,12 @@
 @theme {
   /* One typeface, Outfit — the login page's voice, now the whole app's.
      Headings differ by weight, not family, so the look stays cohesive. */
-  --font-sans: 'Outfit', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
-    'Helvetica Neue', Arial, 'Apple Color Emoji', 'Segoe UI Emoji';
-  --font-display: 'Outfit', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
-    'Helvetica Neue', Arial, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco,
-    Consolas, 'Liberation Mono', 'Courier New', monospace;
+  --font-sans: "Outfit", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-display: "Outfit", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
 
   --radius: 0.5rem;
   --radius-sm: calc(var(--radius) - 2px);
@@ -33,36 +33,36 @@
   /* Brand raw values (HSL channels). The login palette, promoted to the
      whole app: indigo primary oklch(0.32 0.18 268), a deep indigo, a soft
      periwinkle accent, white ground, faint cool-gray surface. */
-  --brand-navy: 236 77% 31%;        /* indigo primary  ≈ #121a8c */
-  --brand-navy-deep: 245 100% 21%;  /* deep indigo     ≈ #090069 */
-  --brand-gold: 242 87% 74%;        /* periwinkle accent ≈ #8481f6 */
-  --brand-paper: 0 0% 100%;         /* white ground */
-  --brand-ivory: 217 13% 97%;       /* faint cool gray ≈ #f6f7f8 */
+  --brand-navy: 236 77% 31%; /* indigo primary  ≈ #121a8c */
+  --brand-navy-deep: 245 100% 21%; /* deep indigo     ≈ #090069 */
+  --brand-gold: 242 87% 74%; /* periwinkle accent ≈ #8481f6 */
+  --brand-paper: 0 0% 100%; /* white ground */
+  --brand-ivory: 217 13% 97%; /* faint cool gray ≈ #f6f7f8 */
 }
 
 @layer base {
   :root,
-  [data-theme='light'],
-  [data-theme='dark'] {
+  [data-theme="light"],
+  [data-theme="dark"] {
     /* White ground, near-black cool ink, indigo primary. Mirrors the
        login page palette (oklch promoted to HSL channels). */
-    --background: 0 0% 100%;           /* #ffffff */
-    --foreground: 217 10% 7%;          /* #101214 cool near-black */
-    --muted: 217 11% 96%;              /* #f4f5f6 */
-    --muted-foreground: 217 3% 45%;    /* #6f7276 */
+    --background: 0 0% 100%; /* #ffffff */
+    --foreground: 217 10% 7%; /* #101214 cool near-black */
+    --muted: 217 11% 96%; /* #f4f5f6 */
+    --muted-foreground: 217 3% 45%; /* #6f7276 */
     --popover: 0 0% 100%;
     --popover-foreground: 217 10% 7%;
     --card: 0 0% 100%;
     --card-foreground: 217 10% 7%;
-    --border: 217 8% 90%;              /* #e3e5e7 cool hairline */
+    --border: 217 8% 90%; /* #e3e5e7 cool hairline */
     --input: 217 8% 90%;
-    --primary: 236 77% 31%;            /* indigo #121a8c */
+    --primary: 236 77% 31%; /* indigo #121a8c */
     --primary-foreground: 0 0% 98%;
-    --secondary: 217 13% 97%;          /* #f6f7f8 */
+    --secondary: 217 13% 97%; /* #f6f7f8 */
     --secondary-foreground: 227 59% 24%;
-    --accent: 217 13% 95%;             /* hover wash #f0f2f4 */
+    --accent: 217 13% 95%; /* hover wash #f0f2f4 */
     --accent-foreground: 227 59% 24%;
-    --destructive: 3 62% 48%;          /* #c5372f */
+    --destructive: 3 62% 48%; /* #c5372f */
     --destructive-foreground: 0 0% 98%;
     --ring: 236 77% 31%;
     --sidebar: 0 0% 100%;
@@ -126,7 +126,7 @@
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
     font-family: var(--font-sans);
-    font-feature-settings: 'ss01', 'cv11';
+    font-feature-settings: "ss01", "cv11";
   }
   ::selection {
     background-color: hsl(var(--primary) / 0.16);
@@ -205,10 +205,7 @@
     background: transparent;
   }
   .vf-scroll::-webkit-scrollbar-thumb {
-    background: linear-gradient(
-      hsl(var(--brand-navy) / 0.55),
-      hsl(var(--brand-navy-deep) / 0.55)
-    );
+    background: linear-gradient(hsl(var(--brand-navy) / 0.55), hsl(var(--brand-navy-deep) / 0.55));
     border-radius: 9999px;
     opacity: 0;
     transition: opacity 0.3s ease, background 0.2s ease;
@@ -219,10 +216,7 @@
     opacity: 1;
   }
   .vf-scroll::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(
-      hsl(var(--brand-navy) / 0.85),
-      hsl(var(--brand-navy-deep) / 0.85)
-    );
+    background: linear-gradient(hsl(var(--brand-navy) / 0.85), hsl(var(--brand-navy-deep) / 0.85));
   }
   .vf-scroll::-webkit-scrollbar-corner {
     background: transparent;
@@ -233,7 +227,7 @@
   }
   /* Hairline rule with a tiny accent tick at the start — editorial marker. */
   .rule-gold::before {
-    content: '';
+    content: "";
     display: inline-block;
     width: 1.75rem;
     height: 2px;

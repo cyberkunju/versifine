@@ -1,48 +1,55 @@
 <script lang="ts">
-  /**
-   * Footer — light editorial. Brand mark over a tagline, four link
-   * columns, a hairline rule, and a quiet colophon. Navy ink on paper.
-   */
-  import { Code2, Mail, MessageCircle } from 'lucide-svelte';
-  import Logo from '$lib/components/brand/Logo.svelte';
-  import { WA_DEMO_LINK } from '$lib/whatsapp';
+/**
+ * Footer — light editorial. Brand mark over a tagline, four link
+ * columns, a hairline rule, and a quiet colophon. Navy ink on paper.
+ */
+import { Code2, Mail, MessageCircle } from 'lucide-svelte';
+import Logo from '$lib/components/brand/Logo.svelte';
+import { WA_DEMO_LINK } from '$lib/whatsapp';
 
-  const groups: Array<{ title: string; links: Array<{ label: string; href: string; external?: boolean }> }> = [
-    {
-      title: 'Product',
-      links: [
-        { label: 'Capabilities', href: '#capabilities' },
-        { label: 'WhatsApp', href: '#whatsapp' },
-        { label: 'Copilot', href: '#copilot' },
-        { label: 'Languages', href: '#languages' },
-      ],
-    },
-    {
-      title: 'Account',
-      links: [
-        { label: 'Log in', href: '/login' },
-        { label: 'Create account', href: '/register' },
-        { label: 'Try the demo', href: '/login' },
-      ],
-    },
-    {
-      title: 'Resources',
-      links: [
-        { label: 'Documentation', href: 'https://github.com/cyberkunju/versifine#readme', external: true },
-        { label: 'GitHub', href: 'https://github.com/cyberkunju/versifine', external: true },
-        { label: 'Status', href: '/healthz' },
-      ],
-    },
-    {
-      title: 'Contact',
-      links: [
-        { label: 'WhatsApp the bot', href: WA_DEMO_LINK, external: true },
-        { label: 'hello@versifine.com', href: 'mailto:hello@versifine.com', external: true },
-      ],
-    },
-  ];
+const groups: Array<{
+  title: string;
+  links: Array<{ label: string; href: string; external?: boolean }>;
+}> = [
+  {
+    title: 'Product',
+    links: [
+      { label: 'Capabilities', href: '#capabilities' },
+      { label: 'WhatsApp', href: '#whatsapp' },
+      { label: 'Copilot', href: '#copilot' },
+      { label: 'Languages', href: '#languages' },
+    ],
+  },
+  {
+    title: 'Account',
+    links: [
+      { label: 'Log in', href: '/login' },
+      { label: 'Create account', href: '/register' },
+      { label: 'Try the demo', href: '/login' },
+    ],
+  },
+  {
+    title: 'Resources',
+    links: [
+      {
+        label: 'Documentation',
+        href: 'https://github.com/cyberkunju/versifine#readme',
+        external: true,
+      },
+      { label: 'GitHub', href: 'https://github.com/cyberkunju/versifine', external: true },
+      { label: 'Status', href: '/healthz' },
+    ],
+  },
+  {
+    title: 'Contact',
+    links: [
+      { label: 'WhatsApp the bot', href: WA_DEMO_LINK, external: true },
+      { label: 'hello@versifine.com', href: 'mailto:hello@versifine.com', external: true },
+    ],
+  },
+];
 
-  const year = new Date().getFullYear();
+const year = new Date().getFullYear();
 </script>
 
 <footer class="border-t border-[hsl(var(--border))] bg-[hsl(var(--brand-ivory))]">

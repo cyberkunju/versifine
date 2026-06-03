@@ -1,158 +1,153 @@
 <script lang="ts">
-  /**
-   * Budgets page.
-   *
-   * Lists every budget with progress bars per category, color-coded by
-   * the warn/exceed thresholds. Create/edit form is a slide-in sheet
-   * with a `{category: amount}` builder. Live recompute is wired through
-   * the WS layer in +layout.svelte — every transaction event invalidates
-   * the budgets query so the bars move on their own.
-   */
-  import { fly } from 'svelte/transition';
-  import { Plus, Pencil, Trash2, AlertCircle } from 'lucide-svelte';
-  import {
-    BUDGETABLE_CATEGORIES,
-    CATEGORIES,
-    CATEGORY_META,
-    type Category,
-  } from '@versifine/shared';
-  import { api } from '$lib/api/client';
-  import { useQuery, invalidate } from '$lib/api/queries.svelte';
-  import { toast } from '$lib/stores/toast.svelte';
-  import { settings } from '$lib/stores/settings.svelte';
-  import { getMessages } from '$lib/i18n';
-  import { formatCurrency } from '$lib/utils/format';
-  import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle,
-    Button,
-    Input,
-    Label,
-    Sheet,
-    Skeleton,
-    Badge,
-  } from '$lib/components/ui';
-  import type { BudgetSummary, BudgetProgress } from '$lib/api/types';
+/**
+ * Budgets page.
+ *
+ * Lists every budget with progress bars per category, color-coded by
+ * the warn/exceed thresholds. Create/edit form is a slide-in sheet
+ * with a `{category: amount}` builder. Live recompute is wired through
+ * the WS layer in +layout.svelte — every transaction event invalidates
+ * the budgets query so the bars move on their own.
+ */
+import { fly } from 'svelte/transition';
+import { Plus, Pencil, Trash2, AlertCircle } from 'lucide-svelte';
+import { BUDGETABLE_CATEGORIES, CATEGORIES, CATEGORY_META, type Category } from '@versifine/shared';
+import { api } from '$lib/api/client';
+import { useQuery, invalidate } from '$lib/api/queries.svelte';
+import { toast } from '$lib/stores/toast.svelte';
+import { settings } from '$lib/stores/settings.svelte';
+import { getMessages } from '$lib/i18n';
+import { formatCurrency } from '$lib/utils/format';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Button,
+  Input,
+  Label,
+  Sheet,
+  Skeleton,
+  Badge,
+} from '$lib/components/ui';
+import type { BudgetSummary, BudgetProgress } from '$lib/api/types';
 
-  const m = $derived(getMessages(settings.language));
+const m = $derived(getMessages(settings.language));
 
-  const budgets = useQuery<{ budgets: BudgetSummary[] }>(['budgets'], () => api.budgets.list());
+const budgets = useQuery<{ budgets: BudgetSummary[] }>(['budgets'], () => api.budgets.list());
 
-  // Per-budget progress, keyed by id.
-  let progressMap = $state<Record<string, BudgetProgress>>({});
+// Per-budget progress, keyed by id.
+let progressMap = $state<Record<string, BudgetProgress>>({});
 
-  $effect(() => {
-    const list = budgets.data?.budgets;
-    if (!list) return;
-    void (async () => {
-      const next: Record<string, BudgetProgress> = {};
-      for (const b of list) {
-        try {
-          const { progress } = await api.budgets.progress(b.id);
-          next[b.id] = progress;
-        } catch {
-          // skip
-        }
+$effect(() => {
+  const list = budgets.data?.budgets;
+  if (!list) return;
+  void (async () => {
+    const next: Record<string, BudgetProgress> = {};
+    for (const b of list) {
+      try {
+        const { progress } = await api.budgets.progress(b.id);
+        next[b.id] = progress;
+      } catch {
+        // skip
       }
-      progressMap = next;
-    })();
-  });
-
-  // Derived totals across every budget.
-  const totals = $derived(() => {
-    let allocated = 0;
-    let spent = 0;
-    for (const b of budgets.data?.budgets ?? []) {
-      const p = progressMap[b.id];
-      if (!p) continue;
-      allocated += p.totals.allocated;
-      spent += p.totals.spent;
     }
-    return { allocated, spent, remaining: allocated - spent };
-  });
+    progressMap = next;
+  })();
+});
 
-  // Form state (create + edit share the same sheet)
-  let formOpen = $state(false);
-  let editing = $state<BudgetSummary | null>(null);
-  let formName = $state('');
-  let formAllocations = $state<Array<{ category: Category | ''; amount: number }>>([
-    { category: '', amount: 0 },
-  ]);
-  let saving = $state(false);
-
-  function startCreate() {
-    editing = null;
-    formName = '';
-    formAllocations = [{ category: '', amount: 0 }];
-    formOpen = true;
+// Derived totals across every budget.
+const totals = $derived(() => {
+  let allocated = 0;
+  let spent = 0;
+  for (const b of budgets.data?.budgets ?? []) {
+    const p = progressMap[b.id];
+    if (!p) continue;
+    allocated += p.totals.allocated;
+    spent += p.totals.spent;
   }
+  return { allocated, spent, remaining: allocated - spent };
+});
 
-  function startEdit(b: BudgetSummary) {
-    editing = b;
-    formName = b.name;
-    formAllocations = Object.entries(b.allocations).map(([cat, amt]) => ({
-      category: cat as Category,
-      amount: amt,
-    }));
-    if (formAllocations.length === 0) formAllocations = [{ category: '', amount: 0 }];
-    formOpen = true;
+// Form state (create + edit share the same sheet)
+let formOpen = $state(false);
+let editing = $state<BudgetSummary | null>(null);
+let formName = $state('');
+let formAllocations = $state<Array<{ category: Category | ''; amount: number }>>([
+  { category: '', amount: 0 },
+]);
+let saving = $state(false);
+
+function startCreate() {
+  editing = null;
+  formName = '';
+  formAllocations = [{ category: '', amount: 0 }];
+  formOpen = true;
+}
+
+function startEdit(b: BudgetSummary) {
+  editing = b;
+  formName = b.name;
+  formAllocations = Object.entries(b.allocations).map(([cat, amt]) => ({
+    category: cat as Category,
+    amount: amt,
+  }));
+  if (formAllocations.length === 0) formAllocations = [{ category: '', amount: 0 }];
+  formOpen = true;
+}
+
+function addAllocation() {
+  formAllocations = [...formAllocations, { category: '', amount: 0 }];
+}
+
+function removeAllocation(idx: number) {
+  formAllocations = formAllocations.filter((_, i) => i !== idx);
+  if (formAllocations.length === 0) formAllocations = [{ category: '', amount: 0 }];
+}
+
+async function save() {
+  if (!formName.trim()) {
+    toast.warning('Name required');
+    return;
   }
-
-  function addAllocation() {
-    formAllocations = [...formAllocations, { category: '', amount: 0 }];
+  const allocations: Record<string, number> = {};
+  for (const row of formAllocations) {
+    if (row.category && row.amount > 0) allocations[row.category] = row.amount;
   }
-
-  function removeAllocation(idx: number) {
-    formAllocations = formAllocations.filter((_, i) => i !== idx);
-    if (formAllocations.length === 0) formAllocations = [{ category: '', amount: 0 }];
+  if (Object.keys(allocations).length === 0) {
+    toast.warning('Add at least one allocation');
+    return;
   }
-
-  async function save() {
-    if (!formName.trim()) {
-      toast.warning('Name required');
-      return;
+  saving = true;
+  try {
+    if (editing) {
+      await api.budgets.patch(editing.id, { name: formName.trim(), allocations } as never);
+    } else {
+      await api.budgets.create({
+        name: formName.trim(),
+        recurrence: 'monthly',
+        allocations,
+      } as never);
     }
-    const allocations: Record<string, number> = {};
-    for (const row of formAllocations) {
-      if (row.category && row.amount > 0) allocations[row.category] = row.amount;
-    }
-    if (Object.keys(allocations).length === 0) {
-      toast.warning('Add at least one allocation');
-      return;
-    }
-    saving = true;
-    try {
-      if (editing) {
-        await api.budgets.patch(editing.id, { name: formName.trim(), allocations } as never);
-      } else {
-        await api.budgets.create({
-          name: formName.trim(),
-          recurrence: 'monthly',
-          allocations,
-        } as never);
-      }
-      invalidate(['budgets']);
-      toast.success(editing ? 'Budget updated' : 'Budget created');
-      formOpen = false;
-    } catch (err) {
-      toast.error('Save failed', err instanceof Error ? err.message : String(err));
-    } finally {
-      saving = false;
-    }
+    invalidate(['budgets']);
+    toast.success(editing ? 'Budget updated' : 'Budget created');
+    formOpen = false;
+  } catch (err) {
+    toast.error('Save failed', err instanceof Error ? err.message : String(err));
+  } finally {
+    saving = false;
   }
+}
 
-  async function remove(b: BudgetSummary) {
-    if (!confirm(`Delete budget "${b.name}"?`)) return;
-    try {
-      await api.budgets.delete(b.id);
-      invalidate(['budgets']);
-      toast.success('Deleted');
-    } catch (err) {
-      toast.error('Delete failed', err instanceof Error ? err.message : String(err));
-    }
+async function remove(b: BudgetSummary) {
+  if (!confirm(`Delete budget "${b.name}"?`)) return;
+  try {
+    await api.budgets.delete(b.id);
+    invalidate(['budgets']);
+    toast.success('Deleted');
+  } catch (err) {
+    toast.error('Delete failed', err instanceof Error ? err.message : String(err));
   }
+}
 </script>
 
 <div class="flex flex-col gap-6">

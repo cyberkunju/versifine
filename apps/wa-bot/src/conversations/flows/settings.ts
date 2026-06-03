@@ -83,8 +83,9 @@ async function linkEmail(session: Session, email: string): Promise<SettingsOutco
     setLinked(session.phone, { userId: account.userId, spaceId: account.spaceId });
     updateSession(session.phone, { pending: { ...session.pending, awaitingEmailLink: false } });
     const head = account.linkedExisting
-      ? m.emailLinkedExisting?.(account.email ?? email) ?? `✅ Linked to your existing account (${email}).`
-      : m.emailLinked?.(account.email ?? email) ?? `✅ Linked your email (${email}).`;
+      ? (m.emailLinkedExisting?.(account.email ?? email) ??
+        `✅ Linked to your existing account (${email}).`)
+      : (m.emailLinked?.(account.email ?? email) ?? `✅ Linked your email (${email}).`);
     return { text: head, language: session.language };
   } catch (err) {
     log.warn('EMAIL_LINK_FAIL', {
@@ -142,7 +143,10 @@ export async function detectSettingsIntent(
   }
 
   // (b) A bare email or an explicit "link my email" request.
-  if (email && (EMAIL_INTENT.test(lower) || EMAIL_WORD.test(lower) || raw.split(/\s+/).length <= 2)) {
+  if (
+    email &&
+    (EMAIL_INTENT.test(lower) || EMAIL_WORD.test(lower) || raw.split(/\s+/).length <= 2)
+  ) {
     return await linkEmail(session, email);
   }
   if (!email && EMAIL_INTENT.test(lower)) {
@@ -171,7 +175,10 @@ export async function detectSettingsIntent(
     setLanguage(session.phone, targetLang);
     const m = getMessages(targetLang);
     const label = LANGUAGE_META[targetLang].englishName;
-    return { text: m.languageChanged?.(label) ?? `✅ Language set to ${label}.`, language: targetLang };
+    return {
+      text: m.languageChanged?.(label) ?? `✅ Language set to ${label}.`,
+      language: targetLang,
+    };
   }
 
   // --- Reply mode ------------------------------------------------------
@@ -186,10 +193,10 @@ export async function detectSettingsIntent(
     const m = getMessages(session.language);
     const confirm =
       mode === 'text'
-        ? m.replyModeText ?? '✅ I will reply with text only now.'
+        ? (m.replyModeText ?? '✅ I will reply with text only now.')
         : mode === 'voice'
-          ? m.replyModeVoice ?? '✅ I will reply with voice notes now.'
-          : m.replyModeAuto ?? '✅ I will match your input — voice for voice, text for text.';
+          ? (m.replyModeVoice ?? '✅ I will reply with voice notes now.')
+          : (m.replyModeAuto ?? '✅ I will match your input — voice for voice, text for text.');
     return { text: confirm, language: session.language };
   }
 

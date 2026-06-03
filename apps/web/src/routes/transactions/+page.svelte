@@ -1,193 +1,193 @@
 <script lang="ts">
-  /**
-   * Transactions ledger.
-   *
-   * Filterable list with inline search, type/category/wallet selects, a
-   * date range, and a side drawer for editing. CSV import + export work
-   * straight off the API. Bulk actions cover the most common housekeeping:
-   * change category for the selection, soft-delete the selection.
-   */
-  import { fly, fade } from 'svelte/transition';
-  import {
-    Search,
-    Download,
-    Upload,
-    Trash2,
-    Tag,
-    Sparkles,
-    XCircle,
-    ArrowRight,
-  } from 'lucide-svelte';
-  import { CATEGORIES, CATEGORY_META, type Category } from '@versifine/shared';
-  import { api } from '$lib/api/client';
-  import { useQuery, invalidate } from '$lib/api/queries.svelte';
-  import { toast } from '$lib/stores/toast.svelte';
-  import { settings } from '$lib/stores/settings.svelte';
-  import { getMessages } from '$lib/i18n';
-  import { formatCurrency, relativeDate } from '$lib/utils/format';
-  import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle,
-    Button,
-    Input,
-    Badge,
-    Skeleton,
-  } from '$lib/components/ui';
-  import TransactionDrawer from '$lib/components/transactions/TransactionDrawer.svelte';
-  import type {
-    TransactionListQuery,
-    TransactionSummary,
-    TransactionType,
-    WalletSummary,
-  } from '$lib/api/types';
+/**
+ * Transactions ledger.
+ *
+ * Filterable list with inline search, type/category/wallet selects, a
+ * date range, and a side drawer for editing. CSV import + export work
+ * straight off the API. Bulk actions cover the most common housekeeping:
+ * change category for the selection, soft-delete the selection.
+ */
+import { fly, fade } from 'svelte/transition';
+import {
+  Search,
+  Download,
+  Upload,
+  Trash2,
+  Tag,
+  Sparkles,
+  XCircle,
+  ArrowRight,
+} from 'lucide-svelte';
+import { CATEGORIES, CATEGORY_META, type Category } from '@versifine/shared';
+import { api } from '$lib/api/client';
+import { useQuery, invalidate } from '$lib/api/queries.svelte';
+import { toast } from '$lib/stores/toast.svelte';
+import { settings } from '$lib/stores/settings.svelte';
+import { getMessages } from '$lib/i18n';
+import { formatCurrency, relativeDate } from '$lib/utils/format';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Button,
+  Input,
+  Badge,
+  Skeleton,
+} from '$lib/components/ui';
+import TransactionDrawer from '$lib/components/transactions/TransactionDrawer.svelte';
+import type {
+  TransactionListQuery,
+  TransactionSummary,
+  TransactionType,
+  WalletSummary,
+} from '$lib/api/types';
 
-  const m = $derived(getMessages(settings.language));
+const m = $derived(getMessages(settings.language));
 
-  // Filter state
-  let from = $state<string>('');
-  let to = $state<string>('');
-  let typeFilter = $state<TransactionType | ''>('');
-  let categoryFilter = $state<string>('');
-  let walletFilter = $state<string>('');
-  let search = $state<string>('');
-  let limit = $state(50);
-  let offset = $state(0);
+// Filter state
+let from = $state<string>('');
+let to = $state<string>('');
+let typeFilter = $state<TransactionType | ''>('');
+let categoryFilter = $state<string>('');
+let walletFilter = $state<string>('');
+let search = $state<string>('');
+let limit = $state(50);
+let offset = $state(0);
 
-  const wallets = useQuery<{ wallets: WalletSummary[] }>(['wallets'], () => api.wallets.list());
+const wallets = useQuery<{ wallets: WalletSummary[] }>(['wallets'], () => api.wallets.list());
 
-  const filters = $derived<Partial<TransactionListQuery>>({
-    ...(from ? { from } : {}),
-    ...(to ? { to } : {}),
-    ...(typeFilter ? { type: typeFilter as TransactionType } : {}),
-    ...(categoryFilter ? { category: categoryFilter as Category } : {}),
-    ...(walletFilter ? { walletId: walletFilter } : {}),
-    ...(search ? { search } : {}),
-    limit,
-    offset,
-  });
+const filters = $derived<Partial<TransactionListQuery>>({
+  ...(from ? { from } : {}),
+  ...(to ? { to } : {}),
+  ...(typeFilter ? { type: typeFilter as TransactionType } : {}),
+  ...(categoryFilter ? { category: categoryFilter as Category } : {}),
+  ...(walletFilter ? { walletId: walletFilter } : {}),
+  ...(search ? { search } : {}),
+  limit,
+  offset,
+});
 
-  // Use a reactive query that re-fetches when filter key changes.
-  const transactions = useQuery<{
-    items: TransactionSummary[];
-    total: number;
-    limit: number;
-    offset: number;
-  }>(['transactions', 'list'], () => api.transactions.list(filters));
-  $effect(() => {
-    // Re-run on any filter change.
-    void filters;
-    transactions.refetch();
-  });
+// Use a reactive query that re-fetches when filter key changes.
+const transactions = useQuery<{
+  items: TransactionSummary[];
+  total: number;
+  limit: number;
+  offset: number;
+}>(['transactions', 'list'], () => api.transactions.list(filters));
+$effect(() => {
+  // Re-run on any filter change.
+  void filters;
+  transactions.refetch();
+});
 
-  // Bulk selection
-  let selected = $state<Set<string>>(new Set<string>());
-  function toggle(id: string) {
-    const next = new Set(selected);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    selected = next;
-  }
-  function selectAll() {
-    selected = new Set((transactions.data?.items ?? []).map((t) => t.id));
-  }
-  function clearSelection() {
-    selected = new Set();
-  }
+// Bulk selection
+let selected = $state<Set<string>>(new Set<string>());
+function toggle(id: string) {
+  const next = new Set(selected);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  selected = next;
+}
+function selectAll() {
+  selected = new Set((transactions.data?.items ?? []).map((t) => t.id));
+}
+function clearSelection() {
+  selected = new Set();
+}
 
-  // Detail drawer
-  let drawerOpen = $state(false);
-  let activeTx = $state<TransactionSummary | null>(null);
+// Detail drawer
+let drawerOpen = $state(false);
+let activeTx = $state<TransactionSummary | null>(null);
 
-  function openTransaction(tx: TransactionSummary) {
-    activeTx = tx;
-    drawerOpen = true;
-  }
+function openTransaction(tx: TransactionSummary) {
+  activeTx = tx;
+  drawerOpen = true;
+}
 
-  async function bulkChangeCategory(category: Category) {
-    if (selected.size === 0) return;
-    let ok = 0;
-    let fail = 0;
-    for (const id of selected) {
-      try {
-        await api.transactions.correctCategory(id, category);
-        ok += 1;
-      } catch {
-        fail += 1;
-      }
-    }
-    invalidate(['transactions']);
-    invalidate(['budgets']);
-    invalidate(['reports']);
-    clearSelection();
-    if (fail === 0) toast.success(`Updated ${ok}`, `Now in ${category}.`);
-    else toast.warning(`Updated ${ok}, failed ${fail}`);
-  }
-
-  async function bulkDelete() {
-    if (selected.size === 0) return;
-    if (!confirm(`Delete ${selected.size} transaction${selected.size === 1 ? '' : 's'}?`)) return;
-    let ok = 0;
-    let fail = 0;
-    for (const id of selected) {
-      try {
-        await api.transactions.delete(id);
-        ok += 1;
-      } catch {
-        fail += 1;
-      }
-    }
-    invalidate(['transactions']);
-    invalidate(['budgets']);
-    invalidate(['reports']);
-    clearSelection();
-    if (fail === 0) toast.success(`Deleted ${ok}`);
-    else toast.warning(`Deleted ${ok}, failed ${fail}`);
-  }
-
-  async function exportCsv() {
+async function bulkChangeCategory(category: Category) {
+  if (selected.size === 0) return;
+  let ok = 0;
+  let fail = 0;
+  for (const id of selected) {
     try {
-      await api.transactions.exportCsv(filters);
-    } catch (err) {
-      toast.error('Export failed', err instanceof Error ? err.message : 'Please try again.');
-    }
-  }
-
-  let importInput = $state<HTMLInputElement | null>(null);
-  async function importCsv(event: Event) {
-    const input = event.currentTarget as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
-    const form = new FormData();
-    form.append('file', file);
-    try {
-      const result = await api.transactions.import(form);
-      toast.success('Imported', `${result.imported} added, ${result.skipped} skipped.`);
-      invalidate(['transactions']);
-      invalidate(['budgets']);
+      await api.transactions.correctCategory(id, category);
+      ok += 1;
     } catch {
-      toast.error('Import failed', 'Check the CSV format and try again.');
-    } finally {
-      input.value = '';
+      fail += 1;
     }
   }
+  invalidate(['transactions']);
+  invalidate(['budgets']);
+  invalidate(['reports']);
+  clearSelection();
+  if (fail === 0) toast.success(`Updated ${ok}`, `Now in ${category}.`);
+  else toast.warning(`Updated ${ok}, failed ${fail}`);
+}
 
-  function clearAllFilters() {
-    from = '';
-    to = '';
-    typeFilter = '';
-    categoryFilter = '';
-    walletFilter = '';
-    search = '';
-    offset = 0;
+async function bulkDelete() {
+  if (selected.size === 0) return;
+  if (!confirm(`Delete ${selected.size} transaction${selected.size === 1 ? '' : 's'}?`)) return;
+  let ok = 0;
+  let fail = 0;
+  for (const id of selected) {
+    try {
+      await api.transactions.delete(id);
+      ok += 1;
+    } catch {
+      fail += 1;
+    }
   }
+  invalidate(['transactions']);
+  invalidate(['budgets']);
+  invalidate(['reports']);
+  clearSelection();
+  if (fail === 0) toast.success(`Deleted ${ok}`);
+  else toast.warning(`Deleted ${ok}, failed ${fail}`);
+}
 
-  const total = $derived(transactions.data?.total ?? 0);
-  const pageStart = $derived(offset + 1);
-  const pageEnd = $derived(Math.min(offset + limit, total));
-  const hasPrev = $derived(offset > 0);
-  const hasNext = $derived(offset + limit < total);
+async function exportCsv() {
+  try {
+    await api.transactions.exportCsv(filters);
+  } catch (err) {
+    toast.error('Export failed', err instanceof Error ? err.message : 'Please try again.');
+  }
+}
+
+let importInput = $state<HTMLInputElement | null>(null);
+async function importCsv(event: Event) {
+  const input = event.currentTarget as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  const form = new FormData();
+  form.append('file', file);
+  try {
+    const result = await api.transactions.import(form);
+    toast.success('Imported', `${result.imported} added, ${result.skipped} skipped.`);
+    invalidate(['transactions']);
+    invalidate(['budgets']);
+  } catch {
+    toast.error('Import failed', 'Check the CSV format and try again.');
+  } finally {
+    input.value = '';
+  }
+}
+
+function clearAllFilters() {
+  from = '';
+  to = '';
+  typeFilter = '';
+  categoryFilter = '';
+  walletFilter = '';
+  search = '';
+  offset = 0;
+}
+
+const total = $derived(transactions.data?.total ?? 0);
+const pageStart = $derived(offset + 1);
+const pageEnd = $derived(Math.min(offset + limit, total));
+const hasPrev = $derived(offset > 0);
+const hasNext = $derived(offset + limit < total);
 </script>
 
 <div class="flex flex-col gap-6">

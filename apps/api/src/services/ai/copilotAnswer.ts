@@ -146,14 +146,18 @@ export async function answerFinanceQuestion(
     }
 
     const checked = screenOutput(answer);
-    log.info('COPILOT_BOT_OK', { userId: user.id, leaked: !checked.safe, len: checked.text.length });
+    log.info('COPILOT_BOT_OK', {
+      userId: user.id,
+      leaked: !checked.safe,
+      len: checked.text.length,
+    });
     return { text: checked.text, outcome: 'answered' };
   } catch (err) {
     log.warn('COPILOT_BOT_FAIL', {
       error: err instanceof Error ? err.message.slice(0, 240) : String(err),
     });
     return {
-      text: "I ran into a problem answering that. Try again, or use the web copilot at versifine.com.",
+      text: 'I ran into a problem answering that. Try again, or use the web copilot at versifine.com.',
       outcome: 'error',
     };
   }

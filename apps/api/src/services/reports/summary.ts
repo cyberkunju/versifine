@@ -12,16 +12,7 @@
  * filter by the budget's own period boundaries because the user is asking
  * "how did I do in *this* window?" not "how is this budget cycle looking?".
  */
-import {
-  and,
-  desc,
-  eq,
-  gte,
-  isNotNull,
-  isNull,
-  lte,
-  sql as drizzleSql,
-} from 'drizzle-orm';
+import { and, desc, eq, gte, isNotNull, isNull, lte, sql as drizzleSql } from 'drizzle-orm';
 import { db } from '../../db/client.ts';
 import { budgets, type Budget } from '../../db/schema/budgets.ts';
 import { transactions } from '../../db/schema/transactions.ts';
@@ -61,10 +52,7 @@ export interface ReportSummary {
   transactionCount: number;
 }
 
-export async function computeSummary(
-  spaceId: string,
-  range: ReportRange,
-): Promise<ReportSummary> {
+export async function computeSummary(spaceId: string, range: ReportRange): Promise<ReportSummary> {
   validateRange(range);
 
   const totalsRows = await db
@@ -96,7 +84,11 @@ export async function computeSummary(
     })
     .from(transactions)
     .where(
-      and(rangeFilter(spaceId, range), eq(transactions.type, 'expense'), isNotNull(transactions.category)),
+      and(
+        rangeFilter(spaceId, range),
+        eq(transactions.type, 'expense'),
+        isNotNull(transactions.category),
+      ),
     )
     .groupBy(transactions.category)
     .orderBy(desc(drizzleSql`sum(${transactions.baseAmount})`));
@@ -151,8 +143,7 @@ export async function computeSummary(
 
   const budgetAdherence = await computeBudgetAdherence(spaceId, range);
 
-  const dayCount =
-    Math.max(1, Math.round(diffDays(range.from, range.to))) + 0;
+  const dayCount = Math.max(1, Math.round(diffDays(range.from, range.to))) + 0;
 
   return {
     range,
@@ -177,10 +168,7 @@ async function computeBudgetAdherence(
   spaceId: string,
   range: ReportRange,
 ): Promise<ReportSummary['budgetAdherence']> {
-  const allBudgets = await db
-    .select()
-    .from(budgets)
-    .where(eq(budgets.spaceId, spaceId));
+  const allBudgets = await db.select().from(budgets).where(eq(budgets.spaceId, spaceId));
   if (allBudgets.length === 0) return [];
 
   const categorySpend = await db
@@ -190,7 +178,11 @@ async function computeBudgetAdherence(
     })
     .from(transactions)
     .where(
-      and(rangeFilter(spaceId, range), eq(transactions.type, 'expense'), isNotNull(transactions.category)),
+      and(
+        rangeFilter(spaceId, range),
+        eq(transactions.type, 'expense'),
+        isNotNull(transactions.category),
+      ),
     )
     .groupBy(transactions.category);
 

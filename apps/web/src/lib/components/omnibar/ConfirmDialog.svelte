@@ -1,72 +1,77 @@
 <script lang="ts">
-  /**
-   * Draft confirmation. Surfaces the parsed transaction fields and lets
-   * the user nudge anything before committing — wallet, category, amount,
-   * description, date.
-   */
-  import type { CaptureResponse } from '$lib/api/types';
-  import { CATEGORIES, type Category } from '@versifine/shared';
-  import { api } from '$lib/api/client';
-  import { invalidate } from '$lib/api/queries.svelte';
-  import { toast } from '$lib/stores/toast.svelte';
-  import { formatCurrency } from '$lib/utils/format';
-  import { Button, Dialog, Input, Label } from '$lib/components/ui';
+/**
+ * Draft confirmation. Surfaces the parsed transaction fields and lets
+ * the user nudge anything before committing — wallet, category, amount,
+ * description, date.
+ */
+import type { CaptureResponse } from '$lib/api/types';
+import { CATEGORIES, type Category } from '@versifine/shared';
+import { api } from '$lib/api/client';
+import { invalidate } from '$lib/api/queries.svelte';
+import { toast } from '$lib/stores/toast.svelte';
+import { formatCurrency } from '$lib/utils/format';
+import { Button, Dialog, Input, Label } from '$lib/components/ui';
 
-  type Props = {
-    open: boolean;
-    response: CaptureResponse | null;
-    onClose: () => void;
-  };
-  let { open = $bindable(), response, onClose }: Props = $props();
+type Props = {
+  open: boolean;
+  response: CaptureResponse | null;
+  onClose: () => void;
+};
+let { open = $bindable(), response, onClose }: Props = $props();
 
-  let amount = $state<number | undefined>(undefined);
-  let description = $state('');
-  let category = $state<Category | ''>('');
-  let date = $state('');
-  let walletHint = $state('');
-  let saving = $state(false);
+let amount = $state<number | undefined>(undefined);
+let description = $state('');
+let category = $state<Category | ''>('');
+let date = $state('');
+let walletHint = $state('');
+let saving = $state(false);
 
-  $effect(() => {
-    const draft = response?.draft;
-    if (!draft) return;
-    amount = draft.amount ?? undefined;
-    description = draft.description ?? '';
-    category = (draft.category as Category) ?? '';
-    date = draft.date ?? new Date().toISOString().slice(0, 10);
-    walletHint = draft.walletHint ?? '';
-  });
+$effect(() => {
+  const draft = response?.draft;
+  if (!draft) return;
+  amount = draft.amount ?? undefined;
+  description = draft.description ?? '';
+  category = (draft.category as Category) ?? '';
+  date = draft.date ?? new Date().toISOString().slice(0, 10);
+  walletHint = draft.walletHint ?? '';
+});
 
-  async function commit() {
-    if (!response?.draftId) return;
-    saving = true;
-    try {
-      const edits: Record<string, unknown> = {};
-      if (amount !== undefined) edits.amount = Number(amount);
-      if (description) edits.description = description;
-      if (category) edits.categoryHint = category;
-      if (date) edits.date = date;
-      if (walletHint) edits.walletHint = walletHint;
-      const result = await api.capture.confirm({ draftId: response.draftId, edits });
-      const tx = (result.queryResult?.transaction as { amount: number; currency: string; description: string }) ?? null;
-      if (tx) {
-        toast.success(
-          'Saved',
-          `${formatCurrency(tx.amount, tx.currency as never)} — ${tx.description}`,
-        );
-      } else {
-        toast.success('Saved', response.followupQuestion ?? '');
-      }
-      invalidate(['transactions']);
-      invalidate(['wallets']);
-      invalidate(['budgets']);
-      invalidate(['forecast']);
-      onClose();
-    } catch (err) {
-      toast.error('Could not save', err instanceof Error ? err.message : String(err));
-    } finally {
-      saving = false;
+async function commit() {
+  if (!response?.draftId) return;
+  saving = true;
+  try {
+    const edits: Record<string, unknown> = {};
+    if (amount !== undefined) edits.amount = Number(amount);
+    if (description) edits.description = description;
+    if (category) edits.categoryHint = category;
+    if (date) edits.date = date;
+    if (walletHint) edits.walletHint = walletHint;
+    const result = await api.capture.confirm({ draftId: response.draftId, edits });
+    const tx =
+      (result.queryResult?.transaction as {
+        amount: number;
+        currency: string;
+        description: string;
+      }) ?? null;
+    if (tx) {
+      toast.success(
+        'Saved',
+        `${formatCurrency(tx.amount, tx.currency as never)} — ${tx.description}`,
+      );
+    } else {
+      toast.success('Saved', response.followupQuestion ?? '');
     }
+    invalidate(['transactions']);
+    invalidate(['wallets']);
+    invalidate(['budgets']);
+    invalidate(['forecast']);
+    onClose();
+  } catch (err) {
+    toast.error('Could not save', err instanceof Error ? err.message : String(err));
+  } finally {
+    saving = false;
   }
+}
 </script>
 
 <Dialog

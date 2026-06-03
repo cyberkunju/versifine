@@ -1,74 +1,87 @@
 <script lang="ts">
-  /**
-   * Six-month cashflow trend — the dashboard's hero chart.
-   *
-   * Grouped vertical bars per month: income (accent) beside expense (deep
-   * navy), on a quiet baseline grid with compact ₹ ticks. Unlike a daily
-   * line this never looks "broken" with sparse data — an empty month is
-   * simply a short bar. Hover lifts a precise read-out (income, spend, net).
-   * Pure SVG, theme-driven, responsive via viewBox.
-   */
-  import { formatCurrency } from '$lib/utils/format';
-  import { compactINR } from '$lib/utils/dashboard';
+/**
+ * Six-month cashflow trend — the dashboard's hero chart.
+ *
+ * Grouped vertical bars per month: income (accent) beside expense (deep
+ * navy), on a quiet baseline grid with compact ₹ ticks. Unlike a daily
+ * line this never looks "broken" with sparse data — an empty month is
+ * simply a short bar. Hover lifts a precise read-out (income, spend, net).
+ * Pure SVG, theme-driven, responsive via viewBox.
+ */
+import { formatCurrency } from '$lib/utils/format';
+import { compactINR } from '$lib/utils/dashboard';
 
-  type MonthPoint = { label: string; income: number; expense: number };
-  type Props = { months: MonthPoint[]; height?: number };
-  let { months, height = 248 }: Props = $props();
+type MonthPoint = { label: string; income: number; expense: number };
+type Props = { months: MonthPoint[]; height?: number };
+let { months, height = 248 }: Props = $props();
 
-  const W = 720;
-  const padL = 44;
-  const padR = 12;
-  const padT = 14;
-  const padB = 28;
+const W = 720;
+const padL = 44;
+const padR = 12;
+const padT = 14;
+const padB = 28;
 
-  let hover = $state<number | null>(null);
+let hover = $state<number | null>(null);
 
-  const model = $derived.by(() => {
-    const innerW = W - padL - padR;
-    const innerH = height - padT - padB;
-    const n = Math.max(1, months.length);
-    const groupW = innerW / n;
-    const max = Math.max(1, ...months.flatMap((d) => [d.income, d.expense]));
-    // "nice" rounded ceiling for the axis.
-    const niceMax = niceCeil(max);
+const model = $derived.by(() => {
+  const innerW = W - padL - padR;
+  const innerH = height - padT - padB;
+  const n = Math.max(1, months.length);
+  const groupW = innerW / n;
+  const max = Math.max(1, ...months.flatMap((d) => [d.income, d.expense]));
+  // "nice" rounded ceiling for the axis.
+  const niceMax = niceCeil(max);
 
-    const yFor = (v: number) => padT + innerH - (v / niceMax) * innerH;
-    const barW = Math.min(22, (groupW - 14) / 2);
-    const gap = 4;
+  const yFor = (v: number) => padT + innerH - (v / niceMax) * innerH;
+  const barW = Math.min(22, (groupW - 14) / 2);
+  const gap = 4;
 
-    const groups = months.map((d, i) => {
-      const cx = padL + groupW * i + groupW / 2;
-      return {
-        i, label: d.label, income: d.income, expense: d.expense,
-        net: d.income - d.expense,
-        incomeBar: { x: cx - barW - gap / 2, y: yFor(d.income), h: padT + innerH - yFor(d.income), w: barW },
-        expenseBar: { x: cx + gap / 2, y: yFor(d.expense), h: padT + innerH - yFor(d.expense), w: barW },
-        cx,
-      };
-    });
-
-    const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => ({
-      v: niceMax * f,
-      y: padT + innerH - f * innerH,
-    }));
-
-    return { groups, ticks, innerH, baseY: padT + innerH, groupW, niceMax };
+  const groups = months.map((d, i) => {
+    const cx = padL + groupW * i + groupW / 2;
+    return {
+      i,
+      label: d.label,
+      income: d.income,
+      expense: d.expense,
+      net: d.income - d.expense,
+      incomeBar: {
+        x: cx - barW - gap / 2,
+        y: yFor(d.income),
+        h: padT + innerH - yFor(d.income),
+        w: barW,
+      },
+      expenseBar: {
+        x: cx + gap / 2,
+        y: yFor(d.expense),
+        h: padT + innerH - yFor(d.expense),
+        w: barW,
+      },
+      cx,
+    };
   });
 
-  function niceCeil(v: number): number {
-    if (v <= 0) return 1;
-    const mag = Math.pow(10, Math.floor(Math.log10(v)));
-    const norm = v / mag;
-    const step = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
-    return step * mag;
-  }
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => ({
+    v: niceMax * f,
+    y: padT + innerH - f * innerH,
+  }));
 
-  function onMove(e: PointerEvent, el: SVGSVGElement) {
-    const rect = el.getBoundingClientRect();
-    const rel = ((e.clientX - rect.left) / rect.width) * W - padL;
-    const i = Math.floor(rel / model.groupW);
-    hover = i >= 0 && i < months.length ? i : null;
-  }
+  return { groups, ticks, innerH, baseY: padT + innerH, groupW, niceMax };
+});
+
+function niceCeil(v: number): number {
+  if (v <= 0) return 1;
+  const mag = Math.pow(10, Math.floor(Math.log10(v)));
+  const norm = v / mag;
+  const step = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+  return step * mag;
+}
+
+function onMove(e: PointerEvent, el: SVGSVGElement) {
+  const rect = el.getBoundingClientRect();
+  const rel = ((e.clientX - rect.left) / rect.width) * W - padL;
+  const i = Math.floor(rel / model.groupW);
+  hover = i >= 0 && i < months.length ? i : null;
+}
 </script>
 
 <div class="relative w-full select-none">

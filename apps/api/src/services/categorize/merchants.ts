@@ -143,9 +143,7 @@ function compile(): CompiledMerchant[] {
       // spaces), so a multi-word keyword like "fried rice" is matched as a
       // contiguous token sequence bounded by word boundaries.
       try {
-        const escaped = entry.pattern
-          .toLowerCase()
-          .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const escaped = entry.pattern.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         regex = new RegExp(`(?:^|\\s)${escaped}(?:\\s|$)`, 'i');
       } catch {
         skipped++;

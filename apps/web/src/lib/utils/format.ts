@@ -1,18 +1,20 @@
-import { CURRENCY_SYMBOL, type Currency } from '@versifine/shared';
+import { settings } from '$lib/stores/settings.svelte';
+import { type Currency, resolveCurrencySymbol } from '@versifine/shared';
 
 /**
  * Currency formatting helpers — the omnibar, transaction list, and
  * dashboard all share these so a single change ripples everywhere.
  */
 
-export function formatCurrency(amount: number, currency: Currency = 'INR'): string {
-  const symbol = CURRENCY_SYMBOL[currency] ?? '';
-  // The Indian rupee is grouped as 1,00,000 — for the rest we use
-  // Intl with no rupee-specific assumptions baked in.
-  if (currency === 'INR') {
-    return `${symbol}${formatINRGroups(amount)}`;
+export function formatCurrency(amount: number, currency?: Currency): string {
+  const c = currency ?? settings.baseCurrency;
+  const symbol = resolveCurrencySymbol(c);
+  const separator = symbol === c ? ' ' : '';
+
+  if (c === 'INR') {
+    return `${symbol}${separator}${formatINRGroups(amount)}`;
   }
-  return `${symbol}${amount.toLocaleString(undefined, {
+  return `${symbol}${separator}${amount.toLocaleString(undefined, {
     minimumFractionDigits: amount % 1 === 0 ? 0 : 2,
     maximumFractionDigits: 2,
   })}`;

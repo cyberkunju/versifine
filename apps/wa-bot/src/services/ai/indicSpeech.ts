@@ -44,10 +44,7 @@ function countLetters(text: string, regex: RegExp): number {
 function passesScriptCheck(text: string, target: 'ta' | 'ml'): boolean {
   if (!text.trim()) return false;
   const targetCount = countLetters(text, LANGUAGE_META[target].scriptRegex);
-  const siblingCount = SIBLING_SCRIPTS[target].reduce(
-    (acc, re) => acc + countLetters(text, re),
-    0,
-  );
+  const siblingCount = SIBLING_SCRIPTS[target].reduce((acc, re) => acc + countLetters(text, re), 0);
   const latinCount = (text.match(/[A-Za-z]/g) ?? []).length;
   const total = targetCount + siblingCount + latinCount;
   if (total === 0) return false;
@@ -108,8 +105,7 @@ export async function synthesizeIndicSpeech(
     };
 
     const audioBase64 = message.audio?.data ?? null;
-    const transcript =
-      (message.audio?.transcript ?? '').trim() || (message.content ?? '').trim();
+    const transcript = (message.audio?.transcript ?? '').trim() || (message.content ?? '').trim();
 
     if (!audioBase64 || !transcript) {
       log.warn('INDIC_SPEECH_EMPTY', { target });

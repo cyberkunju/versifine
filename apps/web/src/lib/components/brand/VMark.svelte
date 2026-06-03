@@ -1,34 +1,34 @@
 <script lang="ts">
-  /**
-   * Versifine "V" mark as inline SVG. The viewBox is a square that
-   * reproduces the original icon's padding (the V sits centered with ~8%
-   * side padding), so it's a true drop-in for the old square PNG at any
-   * size. Inlined (not an <img>) so it paints with the page on a cold/hard
-   * refresh — no network round-trip or decode lag.
-   *
-   * `variant`:
-   *  - 'brand' (default): the source's left→right blue gradient (dark/faded
-   *    left stroke → bright glossy right stroke). Pixel-matches the original
-   *    icon's shading; used for the faded background watermarks.
-   *  - 'solid': a flat `currentColor` fill for places that need a single
-   *    tone (themed by the parent).
-   *
-   * Each instance gets a unique gradient id so multiple marks on one page
-   * never collide.
-   */
-  let {
-    class: className = '',
-    style = '',
-    variant = 'brand',
-    tight = false,
-  }: { class?: string; style?: string; variant?: 'brand' | 'solid'; tight?: boolean } = $props();
+/**
+ * Versifine "V" mark as inline SVG. The viewBox is a square that
+ * reproduces the original icon's padding (the V sits centered with ~8%
+ * side padding), so it's a true drop-in for the old square PNG at any
+ * size. Inlined (not an <img>) so it paints with the page on a cold/hard
+ * refresh — no network round-trip or decode lag.
+ *
+ * `variant`:
+ *  - 'brand' (default): the source's left→right blue gradient (dark/faded
+ *    left stroke → bright glossy right stroke). Pixel-matches the original
+ *    icon's shading; used for the faded background watermarks.
+ *  - 'solid': a flat `currentColor` fill for places that need a single
+ *    tone (themed by the parent).
+ *
+ * Each instance gets a unique gradient id so multiple marks on one page
+ * never collide.
+ */
+let {
+  class: className = '',
+  style = '',
+  variant = 'brand',
+  tight = false,
+}: { class?: string; style?: string; variant?: 'brand' | 'solid'; tight?: boolean } = $props();
 
-  // Stable-per-instance id for the gradient def.
-  const gid = `vmark-${Math.random().toString(36).slice(2, 9)}`;
-  const fill = $derived(variant === 'brand' ? `url(#${gid})` : 'currentColor');
-  // 'tight' crops to the glyph bounds (logo lockups); default keeps the
-  // square padding that matches the original icon (watermarks).
-  const box = $derived(tight ? '488.5 12590.7 4692.7 3871.4' : '227.8 11809.6 5214.1 5214.1');
+// Stable-per-instance id for the gradient def.
+const gid = `vmark-${Math.random().toString(36).slice(2, 9)}`;
+const fill = $derived(variant === 'brand' ? `url(#${gid})` : 'currentColor');
+// 'tight' crops to the glyph bounds (logo lockups); default keeps the
+// square padding that matches the original icon (watermarks).
+const box = $derived(tight ? '488.5 12590.7 4692.7 3871.4' : '227.8 11809.6 5214.1 5214.1');
 </script>
 
 <svg

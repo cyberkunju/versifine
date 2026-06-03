@@ -8,10 +8,7 @@
   "engines": {
     "bun": ">=1.1.0"
   },
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
+  "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "dev": "concurrently --names api,web,bot -c blue,green,magenta \"bun run --cwd apps/api dev\" \"bun run --cwd apps/web dev\" \"bun run --cwd apps/wa-bot dev\"",
     "dev:core": "concurrently --names api,web -c blue,green \"bun run --cwd apps/api dev\" \"bun run --cwd apps/web dev\"",

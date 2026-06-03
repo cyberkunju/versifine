@@ -10,9 +10,8 @@ import postgres from 'postgres';
 import { env } from '../env.ts';
 import * as schema from './schema/index.ts';
 
-const url = env.NODE_ENV === 'test' && env.DATABASE_URL_TEST
-  ? env.DATABASE_URL_TEST
-  : env.DATABASE_URL;
+const url =
+  env.NODE_ENV === 'test' && env.DATABASE_URL_TEST ? env.DATABASE_URL_TEST : env.DATABASE_URL;
 
 export const sql = postgres(url, {
   max: 10,

@@ -1,136 +1,188 @@
 <script lang="ts">
-  /**
-   * Dashboard — framed workspace home.
-   *
-   * A clean page header (greeting + dateline), a primary net-worth panel with
-   * the savings radial, then bordered working cards: a 30-day forecast paired
-   * with upcoming commitments, a six-month income-vs-spend trend, a recent
-   * ledger + ranked spend shape, and budgets + insights. Real API data; the
-   * trend is assembled from six cached monthly summaries.
-   */
-  import { fly } from 'svelte/transition';
-  import type { Snippet } from 'svelte';
-  import {
-    Sparkles, AlertTriangle, Lightbulb, ArrowRight, ArrowUpRight, ArrowDownLeft,
-    ReceiptText, PieChart, TrendingUp, CalendarClock, Wallet2,
-  } from 'lucide-svelte';
-  import type {
-    AdviceEnvelope, BudgetSummary, ForecastResult, GoalSummary, RecurringItem,
-    ReportSummary, TransactionSummary, WalletSummary,
-  } from '$lib/api/types';
-  import { api } from '$lib/api/client';
-  import { useQuery } from '$lib/api/queries.svelte';
-  import { settings } from '$lib/stores/settings.svelte';
-  import { auth } from '$lib/stores/auth.svelte';
-  import { panels } from '$lib/stores/panels.svelte';
-  import { getMessages } from '$lib/i18n';
-  import { formatCurrency, formatDate, relativeDate } from '$lib/utils/format';
-  import { monthRange, categoryColor, categoryIcon, deltaPct } from '$lib/utils/dashboard';
-  import { Card } from '$lib/components/ui';
-  import Radial from '$lib/components/dashboard/Radial.svelte';
-  import TrendChart from '$lib/components/dashboard/TrendChart.svelte';
-  import ForecastStrip from '$lib/components/dashboard/ForecastStrip.svelte';
+/**
+ * Dashboard — framed workspace home.
+ *
+ * A clean page header (greeting + dateline), a primary net-worth panel with
+ * the savings radial, then bordered working cards: a 30-day forecast paired
+ * with upcoming commitments, a six-month income-vs-spend trend, a recent
+ * ledger + ranked spend shape, and budgets + insights. Real API data; the
+ * trend is assembled from six cached monthly summaries.
+ */
+import { fly } from 'svelte/transition';
+import type { Snippet } from 'svelte';
+import {
+  Sparkles,
+  AlertTriangle,
+  Lightbulb,
+  ArrowRight,
+  ArrowUpRight,
+  ArrowDownLeft,
+  ReceiptText,
+  PieChart,
+  TrendingUp,
+  CalendarClock,
+  Wallet2,
+} from 'lucide-svelte';
+import type {
+  AdviceEnvelope,
+  BudgetSummary,
+  ForecastResult,
+  GoalSummary,
+  RecurringItem,
+  ReportSummary,
+  TransactionSummary,
+  WalletSummary,
+} from '$lib/api/types';
+import { api } from '$lib/api/client';
+import { useQuery } from '$lib/api/queries.svelte';
+import { settings } from '$lib/stores/settings.svelte';
+import { auth } from '$lib/stores/auth.svelte';
+import { panels } from '$lib/stores/panels.svelte';
+import { getMessages } from '$lib/i18n';
+import { formatCurrency, formatDate, relativeDate } from '$lib/utils/format';
+import { monthRange, categoryColor, categoryIcon, deltaPct } from '$lib/utils/dashboard';
+import { Card } from '$lib/components/ui';
+import Radial from '$lib/components/dashboard/Radial.svelte';
+import TrendChart from '$lib/components/dashboard/TrendChart.svelte';
+import ForecastStrip from '$lib/components/dashboard/ForecastStrip.svelte';
 
-  const m = $derived(getMessages(settings.language));
+const m = $derived(getMessages(settings.language));
 
-  const now = new Date();
-  const cur = monthRange(0);
-  const prev = monthRange(1);
-  const todayDay = now.getDate();
-  const greeting = now.getHours() < 12 ? 'Good morning' : now.getHours() < 18 ? 'Good afternoon' : 'Good evening';
+const now = new Date();
+const cur = monthRange(0);
+const prev = monthRange(1);
+const todayDay = now.getDate();
+const greeting =
+  now.getHours() < 12 ? 'Good morning' : now.getHours() < 18 ? 'Good afternoon' : 'Good evening';
 
-  const summary = useQuery<{ summary: ReportSummary }>(
-    ['reports', 'summary', cur.from, cur.to],
-    () => api.reports.summary({ from: cur.from, to: cur.to }),
-  );
-  const summaryPrev = useQuery<{ summary: ReportSummary }>(
-    ['reports', 'summary', prev.from, prev.to],
-    () => api.reports.summary({ from: prev.from, to: prev.to }),
-  );
+const summary = useQuery<{ summary: ReportSummary }>(['reports', 'summary', cur.from, cur.to], () =>
+  api.reports.summary({ from: cur.from, to: cur.to }),
+);
+const summaryPrev = useQuery<{ summary: ReportSummary }>(
+  ['reports', 'summary', prev.from, prev.to],
+  () => api.reports.summary({ from: prev.from, to: prev.to }),
+);
 
-  /* Six-month trend assembled from cached monthly summaries. */
-  const trendRanges = Array.from({ length: 6 }, (_, i) => monthRange(5 - i));
-  let trend = $state<Array<{ label: string; income: number; expense: number }>>([]);
-  let trendLoading = $state(true);
-  $effect(() => {
-    void (async () => {
+/* Six-month trend assembled from cached monthly summaries. */
+const trendRanges = Array.from({ length: 6 }, (_, i) => monthRange(5 - i));
+let trend = $state<Array<{ label: string; income: number; expense: number }>>([]);
+let trendLoading = $state(true);
+$effect(() => {
+  void (async () => {
+    try {
+      trend = await Promise.all(
+        trendRanges.map(async (r) => {
+          const { summary: s } = await api.reports.summary({ from: r.from, to: r.to });
+          return {
+            label: r.label.split(' ')[0]?.slice(0, 3) ?? '',
+            income: s.totals.income,
+            expense: s.totals.expense,
+          };
+        }),
+      );
+    } catch {
+      trend = [];
+    } finally {
+      trendLoading = false;
+    }
+  })();
+});
+
+const recentTxns = useQuery<{ items: TransactionSummary[] }>(['transactions', 'recent', 6], () =>
+  api.transactions.list({ limit: 6 } as never),
+);
+const wallets = useQuery<{ wallets: WalletSummary[] }>(['wallets'], () => api.wallets.list());
+const forecast = useQuery<{ forecast: ForecastResult }>(['forecast', 30], () =>
+  api.forecast.get(30),
+);
+const budgets = useQuery<{ budgets: BudgetSummary[] }>(['budgets'], () => api.budgets.list());
+const goals = useQuery<{ goals: GoalSummary[] }>(['goals', 'active'], () =>
+  api.goals.list('active'),
+);
+const advice = useQuery<AdviceEnvelope>(['advice'], () => api.advice.get());
+const recurring = useQuery<{ items: RecurringItem[] }>(['recurring'], () =>
+  api.recurring.list('active'),
+);
+
+const totals = $derived(
+  summary.data?.summary.totals ?? { income: 0, expense: 0, savings: 0, savingsRate: 0 },
+);
+const prevTotals = $derived(
+  summaryPrev.data?.summary.totals ?? { income: 0, expense: 0, savings: 0, savingsRate: 0 },
+);
+const liveWallets = $derived((wallets.data?.wallets ?? []).filter((w) => !w.archived));
+const netWorth = $derived(liveWallets.reduce((s, w) => s + w.balance, 0));
+const incomeDelta = $derived(deltaPct(totals.income, prevTotals.income));
+const expenseDelta = $derived(deltaPct(totals.expense, prevTotals.expense));
+
+const catRows = $derived.by(() => {
+  const rows = (summary.data?.summary.byCategory ?? []).filter((r) => r.total > 0);
+  const top = Math.max(1, rows[0]?.total ?? 1);
+  return rows.slice(0, 5).map((r) => ({ ...r, bar: (r.total / top) * 100 }));
+});
+const recent = $derived((recentTxns.data?.items ?? []).slice(0, 6));
+
+const upcoming = $derived.by(() => {
+  const items = (recurring.data?.items ?? []).filter((i) => i.nextExpectedDate);
+  return items
+    .sort((a, b) => (a.nextExpectedDate ?? '').localeCompare(b.nextExpectedDate ?? ''))
+    .slice(0, 4);
+});
+const upcomingTotal = $derived(upcoming.reduce((s, i) => s + i.averageAmount, 0));
+
+type BudgetRow = {
+  id: string;
+  name: string;
+  allocated: number;
+  spent: number;
+  pct: number;
+  status: 'ok' | 'warn' | 'exceeded';
+};
+let budgetRows = $state<BudgetRow[]>([]);
+$effect(() => {
+  const list = budgets.data?.budgets;
+  if (!list) return;
+  void (async () => {
+    const out: BudgetRow[] = [];
+    for (const b of list) {
       try {
-        trend = await Promise.all(
-          trendRanges.map(async (r) => {
-            const { summary: s } = await api.reports.summary({ from: r.from, to: r.to });
-            return { label: r.label.split(' ')[0]?.slice(0, 3) ?? '', income: s.totals.income, expense: s.totals.expense };
-          }),
-        );
-      } catch { trend = []; } finally { trendLoading = false; }
-    })();
-  });
-
-  const recentTxns = useQuery<{ items: TransactionSummary[] }>(
-    ['transactions', 'recent', 6],
-    () => api.transactions.list({ limit: 6 } as never),
-  );
-  const wallets = useQuery<{ wallets: WalletSummary[] }>(['wallets'], () => api.wallets.list());
-  const forecast = useQuery<{ forecast: ForecastResult }>(['forecast', 30], () => api.forecast.get(30));
-  const budgets = useQuery<{ budgets: BudgetSummary[] }>(['budgets'], () => api.budgets.list());
-  const goals = useQuery<{ goals: GoalSummary[] }>(['goals', 'active'], () => api.goals.list('active'));
-  const advice = useQuery<AdviceEnvelope>(['advice'], () => api.advice.get());
-  const recurring = useQuery<{ items: RecurringItem[] }>(['recurring'], () => api.recurring.list('active'));
-
-  const totals = $derived(summary.data?.summary.totals ?? { income: 0, expense: 0, savings: 0, savingsRate: 0 });
-  const prevTotals = $derived(summaryPrev.data?.summary.totals ?? { income: 0, expense: 0, savings: 0, savingsRate: 0 });
-  const liveWallets = $derived((wallets.data?.wallets ?? []).filter((w) => !w.archived));
-  const netWorth = $derived(liveWallets.reduce((s, w) => s + w.balance, 0));
-  const incomeDelta = $derived(deltaPct(totals.income, prevTotals.income));
-  const expenseDelta = $derived(deltaPct(totals.expense, prevTotals.expense));
-
-  const catRows = $derived.by(() => {
-    const rows = (summary.data?.summary.byCategory ?? []).filter((r) => r.total > 0);
-    const top = Math.max(1, rows[0]?.total ?? 1);
-    return rows.slice(0, 5).map((r) => ({ ...r, bar: (r.total / top) * 100 }));
-  });
-  const recent = $derived((recentTxns.data?.items ?? []).slice(0, 6));
-
-  const upcoming = $derived.by(() => {
-    const items = (recurring.data?.items ?? []).filter((i) => i.nextExpectedDate);
-    return items
-      .sort((a, b) => (a.nextExpectedDate ?? '').localeCompare(b.nextExpectedDate ?? ''))
-      .slice(0, 4);
-  });
-  const upcomingTotal = $derived(upcoming.reduce((s, i) => s + i.averageAmount, 0));
-
-  type BudgetRow = { id: string; name: string; allocated: number; spent: number; pct: number; status: 'ok' | 'warn' | 'exceeded' };
-  let budgetRows = $state<BudgetRow[]>([]);
-  $effect(() => {
-    const list = budgets.data?.budgets;
-    if (!list) return;
-    void (async () => {
-      const out: BudgetRow[] = [];
-      for (const b of list) {
-        try {
-          const { progress } = await api.budgets.progress(b.id);
-          const t = progress.totals;
-          const pct = t.allocated > 0 ? (t.spent / t.allocated) * 100 : 0;
-          const status: BudgetRow['status'] = pct >= 100 ? 'exceeded' : pct >= (b.warnThreshold ?? 80) ? 'warn' : 'ok';
-          out.push({ id: b.id, name: b.name, allocated: t.allocated, spent: t.spent, pct, status });
-        } catch { /* skip */ }
+        const { progress } = await api.budgets.progress(b.id);
+        const t = progress.totals;
+        const pct = t.allocated > 0 ? (t.spent / t.allocated) * 100 : 0;
+        const status: BudgetRow['status'] =
+          pct >= 100 ? 'exceeded' : pct >= (b.warnThreshold ?? 80) ? 'warn' : 'ok';
+        out.push({ id: b.id, name: b.name, allocated: t.allocated, spent: t.spent, pct, status });
+      } catch {
+        /* skip */
       }
-      budgetRows = out.sort((a, b) => b.pct - a.pct).slice(0, 4);
-    })();
-  });
+    }
+    budgetRows = out.sort((a, b) => b.pct - a.pct).slice(0, 4);
+  })();
+});
 
-  const promptCards = $derived([m.dashboard.promptWhereDidMyMoneyGo, m.dashboard.promptOverspending, m.dashboard.promptForecast30]);
-  function ask(p: string) { panels.openCopilot(p); }
-  function statusColor(s: 'ok' | 'warn' | 'exceeded'): string {
-    return s === 'exceeded' ? 'hsl(350 52% 55%)' : s === 'warn' ? 'hsl(38 70% 50%)' : 'hsl(var(--primary))';
-  }
-  function freqLabel(days: number): string {
-    if (days <= 1) return 'daily';
-    if (days <= 9) return 'weekly';
-    if (days <= 20) return 'fortnightly';
-    if (days <= 45) return 'monthly';
-    if (days <= 100) return 'quarterly';
-    return 'yearly';
-  }
+const promptCards = $derived([
+  m.dashboard.promptWhereDidMyMoneyGo,
+  m.dashboard.promptOverspending,
+  m.dashboard.promptForecast30,
+]);
+function ask(p: string) {
+  panels.openCopilot(p);
+}
+function statusColor(s: 'ok' | 'warn' | 'exceeded'): string {
+  return s === 'exceeded'
+    ? 'hsl(350 52% 55%)'
+    : s === 'warn'
+      ? 'hsl(38 70% 50%)'
+      : 'hsl(var(--primary))';
+}
+function freqLabel(days: number): string {
+  if (days <= 1) return 'daily';
+  if (days <= 9) return 'weekly';
+  if (days <= 20) return 'fortnightly';
+  if (days <= 45) return 'monthly';
+  if (days <= 100) return 'quarterly';
+  return 'yearly';
+}
 </script>
 
 <div class="mx-auto flex max-w-[1180px] flex-col gap-6">

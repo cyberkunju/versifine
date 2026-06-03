@@ -27,14 +27,17 @@ function escapeForRegex(str: string): string {
 
 const CURRENCY_PATTERN = CURRENCY_KEYS.map(escapeForRegex).join('|');
 
-const SPLIT_RE = /\b(?:split(?:\s+(?:with|among))?|divide(?:d)?\s+(?:by|with|among)|share(?:d)?\s+(?:with|among))\s+(\d{1,2})\b/i;
+const SPLIT_RE =
+  /\b(?:split(?:\s+(?:with|among))?|divide(?:d)?\s+(?:by|with|among)|share(?:d)?\s+(?:with|among))\s+(\d{1,2})\b/i;
 const SPLIT_PEOPLE_RE =
   /\b(?:with|among|between)?\s*(\d{1,2})\s*(?:people|persons?|friends?|of\s+us)\b/i;
 
 /** Words that mark the number AFTER them as the price/amount, not a quantity. */
-const PRICE_MARKER = /\b(?:for|cost|costs|costing|worth|price|priced|paid|pay|payment|of|@|=|total|bill|amount|spent|spend)\s*$/i;
+const PRICE_MARKER =
+  /\b(?:for|cost|costs|costing|worth|price|priced|paid|pay|payment|of|@|=|total|bill|amount|spent|spend)\s*$/i;
 /** Words/units that mark the number BEFORE them as a quantity, not a price. */
-const QUANTITY_UNIT = /^\s*(?:x|nos?|pcs?|pieces?|plates?|cups?|glasses?|kg|kgs?|g|grams?|litres?|liters?|l|ml|people|persons?|friends?|times?|months?|years?|days?|weeks?|hours?|hrs?|%|percent)\b/i;
+const QUANTITY_UNIT =
+  /^\s*(?:x|nos?|pcs?|pieces?|plates?|cups?|glasses?|kg|kgs?|g|grams?|litres?|liters?|l|ml|people|persons?|friends?|times?|months?|years?|days?|weeks?|hours?|hrs?|%|percent)\b/i;
 
 /**
  * Pull an amount out of a sentence. Recognises a leading currency
@@ -58,11 +61,7 @@ const QUANTITY_UNIT = /^\s*(?:x|nos?|pcs?|pieces?|plates?|cups?|glasses?|kg|kgs?
 const DIGIT_TYPO_TOKEN = /\b[0-9][0-9oOlIsSbB]*[oOlIsSbB][0-9oOlIsSbB]*\b/g;
 function normalizeDigitTypos(text: string): string {
   return text.replace(DIGIT_TYPO_TOKEN, (token) =>
-    token
-      .replace(/[oO]/g, '0')
-      .replace(/[lI]/g, '1')
-      .replace(/[sS]/g, '5')
-      .replace(/[bB]/g, '8'),
+    token.replace(/[oO]/g, '0').replace(/[lI]/g, '1').replace(/[sS]/g, '5').replace(/[bB]/g, '8'),
   );
 }
 
@@ -212,55 +211,182 @@ interface WordedToken {
 const WORDED_UNITS: Record<string, number> = {
   // --- English ---------------------------------------------------------
   zero: 0,
-  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8,
-  nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14,
-  fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19,
-  twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70,
-  eighty: 80, ninety: 90,
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
+  thirteen: 13,
+  fourteen: 14,
+  fifteen: 15,
+  sixteen: 16,
+  seventeen: 17,
+  eighteen: 18,
+  nineteen: 19,
+  twenty: 20,
+  thirty: 30,
+  forty: 40,
+  fifty: 50,
+  sixty: 60,
+  seventy: 70,
+  eighty: 80,
+  ninety: 90,
   // --- Hindi (Devanagari) ---------------------------------------------
   शून्य: 0,
-  एक: 1, दो: 2, तीन: 3, चार: 4, पाँच: 5, पांच: 5, छह: 6, छः: 6, सात: 7,
-  आठ: 8, नौ: 9, दस: 10, बीस: 20, तीस: 30, चालीस: 40, पचास: 50, साठ: 60,
-  सत्तर: 70, अस्सी: 80, नब्बे: 90,
+  एक: 1,
+  दो: 2,
+  तीन: 3,
+  चार: 4,
+  पाँच: 5,
+  पांच: 5,
+  छह: 6,
+  छः: 6,
+  सात: 7,
+  आठ: 8,
+  नौ: 9,
+  दस: 10,
+  बीस: 20,
+  तीस: 30,
+  चालीस: 40,
+  पचास: 50,
+  साठ: 60,
+  सत्तर: 70,
+  अस्सी: 80,
+  नब्बे: 90,
   // --- Malayalam -------------------------------------------------------
   പൂജ്യം: 0,
-  ഒന്ന്: 1, രണ്ട്: 2, മൂന്ന്: 3, നാല്: 4, അഞ്ച്: 5, ആറ്: 6, ഏഴ്: 7,
-  എട്ട്: 8, ഒമ്പത്: 9, ഒൻപത്: 9, പത്ത്: 10, ഇരുപത്: 20, മുപ്പത്: 30,
-  നാല്പത്: 40, നാൽപത്: 40, അമ്പത്: 50, അറുപത്: 60, എഴുപത്: 70,
-  എൺപത്: 80, എണ്പത്: 80, തൊണ്ണൂറ്: 90,
+  ഒന്ന്: 1,
+  രണ്ട്: 2,
+  മൂന്ന്: 3,
+  നാല്: 4,
+  അഞ്ച്: 5,
+  ആറ്: 6,
+  ഏഴ്: 7,
+  എട്ട്: 8,
+  ഒമ്പത്: 9,
+  ഒൻപത്: 9,
+  പത്ത്: 10,
+  ഇരുപത്: 20,
+  മുപ്പത്: 30,
+  നാല്പത്: 40,
+  നാൽപത്: 40,
+  അമ്പത്: 50,
+  അറുപത്: 60,
+  എഴുപത്: 70,
+  എൺപത്: 80,
+  എണ്പത്: 80,
+  തൊണ്ണൂറ്: 90,
   // --- Tamil -----------------------------------------------------------
   பூஜ்ஜியம்: 0,
-  ஒன்று: 1, இரண்டு: 2, மூன்று: 3, நான்கு: 4, ஐந்து: 5, ஆறு: 6, ஏழு: 7,
-  எட்டு: 8, ஒன்பது: 9, பத்து: 10, இருபது: 20, முப்பது: 30, நாற்பது: 40,
-  ஐம்பது: 50, அறுபது: 60, எழுபது: 70, எண்பது: 80, தொண்ணூறு: 90,
+  ஒன்று: 1,
+  இரண்டு: 2,
+  மூன்று: 3,
+  நான்கு: 4,
+  ஐந்து: 5,
+  ஆறு: 6,
+  ஏழு: 7,
+  எட்டு: 8,
+  ஒன்பது: 9,
+  பத்து: 10,
+  இருபது: 20,
+  முப்பது: 30,
+  நாற்பது: 40,
+  ஐம்பது: 50,
+  அறுபது: 60,
+  எழுபது: 70,
+  எண்பது: 80,
+  தொண்ணூறு: 90,
   // --- Telugu ----------------------------------------------------------
   సున్నా: 0,
-  ఒకటి: 1, రెండు: 2, మూడు: 3, నాలుగు: 4, ఐదు: 5, ఆరు: 6, ఏడు: 7,
-  ఎనిమిది: 8, తొమ్మిది: 9, పది: 10, ఇరవై: 20, ముప్పై: 30, నలభై: 40,
-  యాభై: 50, అరవై: 60, డెబ్బై: 70, ఎనభై: 80, తొంభై: 90,
+  ఒకటి: 1,
+  రెండు: 2,
+  మూడు: 3,
+  నాలుగు: 4,
+  ఐదు: 5,
+  ఆరు: 6,
+  ఏడు: 7,
+  ఎనిమిది: 8,
+  తొమ్మిది: 9,
+  పది: 10,
+  ఇరవై: 20,
+  ముప్పై: 30,
+  నలభై: 40,
+  యాభై: 50,
+  అరవై: 60,
+  డెబ్బై: 70,
+  ఎనభై: 80,
+  తొంభై: 90,
   // --- Kannada ---------------------------------------------------------
   ಸೊನ್ನೆ: 0,
-  ಒಂದು: 1, ಎರಡು: 2, ಮೂರು: 3, ನಾಲ್ಕು: 4, ಐದು: 5, ಆರು: 6, ಏಳು: 7,
-  ಎಂಟು: 8, ಒಂಬತ್ತು: 9, ಹತ್ತು: 10, ಇಪ್ಪತ್ತು: 20, ಮೂವತ್ತು: 30,
-  ನಲವತ್ತು: 40, ಐವತ್ತು: 50, ಅರವತ್ತು: 60, ಎಪ್ಪತ್ತು: 70, ಎಂಬತ್ತು: 80,
+  ಒಂದು: 1,
+  ಎರಡು: 2,
+  ಮೂರು: 3,
+  ನಾಲ್ಕು: 4,
+  ಐದು: 5,
+  ಆರು: 6,
+  ಏಳು: 7,
+  ಎಂಟು: 8,
+  ಒಂಬತ್ತು: 9,
+  ಹತ್ತು: 10,
+  ಇಪ್ಪತ್ತು: 20,
+  ಮೂವತ್ತು: 30,
+  ನಲವತ್ತು: 40,
+  ಐವತ್ತು: 50,
+  ಅರವತ್ತು: 60,
+  ಎಪ್ಪತ್ತು: 70,
+  ಎಂಬತ್ತು: 80,
   ತೊಂಬತ್ತು: 90,
 };
 
 /** Scale multipliers, keyed by lower-cased word in every language. */
 const WORDED_SCALES: Record<string, number> = {
   // --- English ---------------------------------------------------------
-  hundred: 100, thousand: 1_000, lakh: 100_000, lac: 100_000, lakhs: 100_000,
-  crore: 10_000_000, crores: 10_000_000, million: 1_000_000, billion: 1_000_000_000,
+  hundred: 100,
+  thousand: 1_000,
+  lakh: 100_000,
+  lac: 100_000,
+  lakhs: 100_000,
+  crore: 10_000_000,
+  crores: 10_000_000,
+  million: 1_000_000,
+  billion: 1_000_000_000,
   // --- Hindi -----------------------------------------------------------
-  सौ: 100, हज़ार: 1_000, हजार: 1_000, लाख: 100_000, करोड़: 10_000_000, करोड: 10_000_000,
+  सौ: 100,
+  हज़ार: 1_000,
+  हजार: 1_000,
+  लाख: 100_000,
+  करोड़: 10_000_000,
+  करोड: 10_000_000,
   // --- Malayalam -------------------------------------------------------
-  നൂറ്: 100, നൂറു: 100, ആയിരം: 1_000, ലക്ഷം: 100_000, കോടി: 10_000_000,
+  നൂറ്: 100,
+  നൂറു: 100,
+  ആയിരം: 1_000,
+  ലക്ഷം: 100_000,
+  കോടി: 10_000_000,
   // --- Tamil -----------------------------------------------------------
-  நூறு: 100, ஆயிரம்: 1_000, இலட்சம்: 100_000, லட்சம்: 100_000, கோடி: 10_000_000,
+  நூறு: 100,
+  ஆயிரம்: 1_000,
+  இலட்சம்: 100_000,
+  லட்சம்: 100_000,
+  கோடி: 10_000_000,
   // --- Telugu ----------------------------------------------------------
-  వంద: 100, వెయ్యి: 1_000, వేయి: 1_000, లక్ష: 100_000, కోటి: 10_000_000,
+  వంద: 100,
+  వెయ్యి: 1_000,
+  వేయి: 1_000,
+  లక్ష: 100_000,
+  కోటి: 10_000_000,
   // --- Kannada ---------------------------------------------------------
-  ನೂರು: 100, ಸಾವಿರ: 1_000, ಲಕ್ಷ: 100_000, ಕೋಟಿ: 10_000_000,
+  ನೂರು: 100,
+  ಸಾವಿರ: 1_000,
+  ಲಕ್ಷ: 100_000,
+  ಕೋಟಿ: 10_000_000,
 };
 
 /** Connector words that join number words without breaking a run or adding value. */
@@ -395,9 +521,10 @@ export function extractDate(text: string, now: Date = new Date()): string | null
     return toIsoDate(d);
   }
 
-  const dayWord = /\b(last|this|previous)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i.exec(
-    text,
-  );
+  const dayWord =
+    /\b(last|this|previous)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i.exec(
+      text,
+    );
   if (dayWord) {
     const target = WEEKDAY_INDEX[dayWord[2]!.toLowerCase()];
     if (typeof target === 'number') {

@@ -91,10 +91,7 @@ export const transactions = pgTable(
     index('transactions_transfer_idx').on(t.transferId),
     // Trigram index on description so /search can use `description ILIKE %...%`
     // efficiently. Drizzle emits `USING gin (description gin_trgm_ops)`.
-    index('transactions_description_trgm_idx').using(
-      'gin',
-      sql`description gin_trgm_ops`,
-    ),
+    index('transactions_description_trgm_idx').using('gin', sql`description gin_trgm_ops`),
   ],
 );
 

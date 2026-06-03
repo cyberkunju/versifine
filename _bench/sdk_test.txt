@@ -1,0 +1,8 @@
+=== Official SDK: does reasoning_effort=None disable reasoning? ===
+
+[30b None small-budget] 1331ms finish=length reasoning=927ch comp=256 -> (NULL)
+[30b None big-budget] 2722ms finish=length reasoning=3138ch comp=800 -> (NULL)
+[30b 'low' big-budget] 2777ms finish=length reasoning=3283ch comp=800 -> (NULL)
+[30b default] 2732ms finish=length reasoning=3186ch comp=800 -> (NULL)
+[105b None big-budget] 6330ms finish=length reasoning=3230ch comp=800 -> (NULL)
+EXIT_CODE=0 

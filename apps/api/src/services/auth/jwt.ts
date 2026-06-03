@@ -37,7 +37,10 @@ export async function signAccessToken(claims: AccessClaims): Promise<string> {
     .sign(ACCESS_SECRET);
 }
 
-export async function signRefreshToken(claims: { sub: string }): Promise<{ token: string; nonce: string }> {
+export async function signRefreshToken(claims: { sub: string }): Promise<{
+  token: string;
+  nonce: string;
+}> {
   const nonce = crypto.randomUUID();
   const token = await new SignJWT({ nonce })
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
@@ -52,7 +55,10 @@ export async function signRefreshToken(claims: { sub: string }): Promise<{ token
 
 export async function verifyAccessToken(token: string): Promise<AccessClaims> {
   try {
-    const { payload } = await jwtVerify(token, ACCESS_SECRET, { issuer: ISSUER, audience: AUDIENCE });
+    const { payload } = await jwtVerify(token, ACCESS_SECRET, {
+      issuer: ISSUER,
+      audience: AUDIENCE,
+    });
     if (!payload.sub || typeof payload.asid !== 'string') {
       throw errors.unauthorized('Malformed token');
     }
@@ -66,7 +72,10 @@ export async function verifyAccessToken(token: string): Promise<AccessClaims> {
 
 export async function verifyRefreshToken(token: string): Promise<RefreshClaims> {
   try {
-    const { payload } = await jwtVerify(token, REFRESH_SECRET, { issuer: ISSUER, audience: AUDIENCE });
+    const { payload } = await jwtVerify(token, REFRESH_SECRET, {
+      issuer: ISSUER,
+      audience: AUDIENCE,
+    });
     if (!payload.sub || typeof payload.nonce !== 'string') {
       throw errors.unauthorized('Malformed refresh token');
     }

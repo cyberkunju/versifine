@@ -24,10 +24,7 @@
  */
 import { and, eq, gte, isNull, lte, sql as drizzleSql } from 'drizzle-orm';
 import { db } from '../../db/client.ts';
-import {
-  recurringItems,
-  type RecurringItem,
-} from '../../db/schema/recurring.ts';
+import { recurringItems, type RecurringItem } from '../../db/schema/recurring.ts';
 import { transactions } from '../../db/schema/transactions.ts';
 import { log } from '../../utils/logger.ts';
 import { detectAnomalies, type AnomalyResult } from './anomaly.ts';
@@ -61,10 +58,7 @@ interface CacheEntry {
 
 const cache = new Map<string, CacheEntry>();
 
-export async function computeForecast(
-  spaceId: string,
-  days: number = 30,
-): Promise<ForecastResult> {
+export async function computeForecast(spaceId: string, days: number = 30): Promise<ForecastResult> {
   const cached = cache.get(spaceId);
   if (cached && cached.days === days && cached.expiresAt > Date.now()) {
     return cached.result;
@@ -206,12 +200,7 @@ async function loadActiveRecurring(spaceId: string): Promise<RecurringItem[]> {
   return await db
     .select()
     .from(recurringItems)
-    .where(
-      and(
-        eq(recurringItems.spaceId, spaceId),
-        eq(recurringItems.status, 'active'),
-      ),
-    );
+    .where(and(eq(recurringItems.spaceId, spaceId), eq(recurringItems.status, 'active')));
 }
 
 function recurringContributionByDate(

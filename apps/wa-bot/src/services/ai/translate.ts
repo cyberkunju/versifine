@@ -85,10 +85,7 @@ function countLetters(text: string, regex: RegExp): number {
 function passesValidation(text: string, target: 'ta' | 'te' | 'kn'): boolean {
   if (!text.trim()) return false;
   const targetCount = countLetters(text, LANGUAGE_META[target].scriptRegex);
-  const siblingCount = SIBLING_SCRIPTS[target].reduce(
-    (acc, re) => acc + countLetters(text, re),
-    0,
-  );
+  const siblingCount = SIBLING_SCRIPTS[target].reduce((acc, re) => acc + countLetters(text, re), 0);
   const latinCount = (text.match(/[A-Za-z]/g) ?? []).length;
   const total = targetCount + siblingCount + latinCount;
   if (total === 0) return false;
@@ -135,10 +132,7 @@ async function callTranslate(
  *   - the API key is missing
  *   - the model failed validation twice
  */
-export async function translateForUser(
-  text: string,
-  targetLanguage: Language,
-): Promise<string> {
+export async function translateForUser(text: string, targetLanguage: Language): Promise<string> {
   if (!text.trim()) return text;
   if ((NATIVE_PACK_LANGS as ReadonlyArray<Language>).includes(targetLanguage)) return text;
   if (!isAIConfigured()) return text;

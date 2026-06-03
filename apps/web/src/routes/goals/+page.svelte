@@ -1,144 +1,144 @@
 <script lang="ts">
-  /**
-   * Goals page.
-   *
-   * Cards grid with progress rings, projected completion, atRisk badge.
-   * The "+ contribution" button opens a small dialog → POST /goals/:id/progress.
-   * Create / edit shares one slide-in sheet.
-   */
-  import { fly } from 'svelte/transition';
-  import { Plus, Pencil, Trash2, Target, Sparkles, AlertTriangle } from 'lucide-svelte';
-  import { CATEGORIES, type Category } from '@versifine/shared';
-  import { api } from '$lib/api/client';
-  import { useQuery, invalidate } from '$lib/api/queries.svelte';
-  import { toast } from '$lib/stores/toast.svelte';
-  import { settings } from '$lib/stores/settings.svelte';
-  import { getMessages } from '$lib/i18n';
-  import { formatCurrency, formatDate } from '$lib/utils/format';
-  import {
-    Card,
-    CardContent,
-    Button,
-    Input,
-    Label,
-    Sheet,
-    Dialog,
-    Skeleton,
-    Badge,
-  } from '$lib/components/ui';
-  import type { GoalSummary } from '$lib/api/types';
+/**
+ * Goals page.
+ *
+ * Cards grid with progress rings, projected completion, atRisk badge.
+ * The "+ contribution" button opens a small dialog → POST /goals/:id/progress.
+ * Create / edit shares one slide-in sheet.
+ */
+import { fly } from 'svelte/transition';
+import { Plus, Pencil, Trash2, Target, Sparkles, AlertTriangle } from 'lucide-svelte';
+import { CATEGORIES, type Category } from '@versifine/shared';
+import { api } from '$lib/api/client';
+import { useQuery, invalidate } from '$lib/api/queries.svelte';
+import { toast } from '$lib/stores/toast.svelte';
+import { settings } from '$lib/stores/settings.svelte';
+import { getMessages } from '$lib/i18n';
+import { formatCurrency, formatDate } from '$lib/utils/format';
+import {
+  Card,
+  CardContent,
+  Button,
+  Input,
+  Label,
+  Sheet,
+  Dialog,
+  Skeleton,
+  Badge,
+} from '$lib/components/ui';
+import type { GoalSummary } from '$lib/api/types';
 
-  const m = $derived(getMessages(settings.language));
+const m = $derived(getMessages(settings.language));
 
-  const goals = useQuery<{ goals: GoalSummary[] }>(['goals'], () => api.goals.list());
+const goals = useQuery<{ goals: GoalSummary[] }>(['goals'], () => api.goals.list());
 
-  // Create/edit form
-  let formOpen = $state(false);
-  let editing = $state<GoalSummary | null>(null);
-  let formName = $state('');
-  let formTarget = $state(0);
-  let formCurrent = $state(0);
-  let formDeadline = $state('');
-  let formCategory = $state<string>('');
-  let saving = $state(false);
+// Create/edit form
+let formOpen = $state(false);
+let editing = $state<GoalSummary | null>(null);
+let formName = $state('');
+let formTarget = $state(0);
+let formCurrent = $state(0);
+let formDeadline = $state('');
+let formCategory = $state<string>('');
+let saving = $state(false);
 
-  // Contribute dialog
-  let contributeOpen = $state(false);
-  let contributeFor = $state<GoalSummary | null>(null);
-  let contributeAmount = $state(0);
-  let contributeNote = $state('');
+// Contribute dialog
+let contributeOpen = $state(false);
+let contributeFor = $state<GoalSummary | null>(null);
+let contributeAmount = $state(0);
+let contributeNote = $state('');
 
-  function startCreate() {
-    editing = null;
-    formName = '';
-    formTarget = 0;
-    formCurrent = 0;
-    formDeadline = '';
-    formCategory = '';
-    formOpen = true;
+function startCreate() {
+  editing = null;
+  formName = '';
+  formTarget = 0;
+  formCurrent = 0;
+  formDeadline = '';
+  formCategory = '';
+  formOpen = true;
+}
+
+function startEdit(g: GoalSummary) {
+  editing = g;
+  formName = g.name;
+  formTarget = g.targetAmount;
+  formCurrent = g.currentAmount;
+  formDeadline = g.deadline ?? '';
+  formCategory = g.linkedCategory ?? '';
+  formOpen = true;
+}
+
+async function save() {
+  if (!formName.trim() || formTarget <= 0) {
+    toast.warning('Name and target required');
+    return;
   }
-
-  function startEdit(g: GoalSummary) {
-    editing = g;
-    formName = g.name;
-    formTarget = g.targetAmount;
-    formCurrent = g.currentAmount;
-    formDeadline = g.deadline ?? '';
-    formCategory = g.linkedCategory ?? '';
-    formOpen = true;
-  }
-
-  async function save() {
-    if (!formName.trim() || formTarget <= 0) {
-      toast.warning('Name and target required');
-      return;
+  saving = true;
+  try {
+    if (editing) {
+      await api.goals.patch(editing.id, {
+        name: formName.trim(),
+        targetAmount: formTarget,
+        currentAmount: formCurrent,
+        deadline: formDeadline || null,
+        linkedCategory: (formCategory as Category) || null,
+      } as never);
+    } else {
+      await api.goals.create({
+        name: formName.trim(),
+        targetAmount: formTarget,
+        currentAmount: formCurrent,
+        ...(formDeadline ? { deadline: formDeadline } : {}),
+        ...(formCategory ? { linkedCategory: formCategory as Category } : {}),
+      } as never);
     }
-    saving = true;
-    try {
-      if (editing) {
-        await api.goals.patch(editing.id, {
-          name: formName.trim(),
-          targetAmount: formTarget,
-          currentAmount: formCurrent,
-          deadline: formDeadline || null,
-          linkedCategory: (formCategory as Category) || null,
-        } as never);
-      } else {
-        await api.goals.create({
-          name: formName.trim(),
-          targetAmount: formTarget,
-          currentAmount: formCurrent,
-          ...(formDeadline ? { deadline: formDeadline } : {}),
-          ...(formCategory ? { linkedCategory: formCategory as Category } : {}),
-        } as never);
-      }
-      invalidate(['goals']);
-      toast.success(editing ? 'Goal updated' : 'Goal created');
-      formOpen = false;
-    } catch (err) {
-      toast.error('Save failed', err instanceof Error ? err.message : String(err));
-    } finally {
-      saving = false;
-    }
+    invalidate(['goals']);
+    toast.success(editing ? 'Goal updated' : 'Goal created');
+    formOpen = false;
+  } catch (err) {
+    toast.error('Save failed', err instanceof Error ? err.message : String(err));
+  } finally {
+    saving = false;
   }
+}
 
-  function startContribute(g: GoalSummary) {
-    contributeFor = g;
-    contributeAmount = 0;
-    contributeNote = '';
-    contributeOpen = true;
-  }
+function startContribute(g: GoalSummary) {
+  contributeFor = g;
+  contributeAmount = 0;
+  contributeNote = '';
+  contributeOpen = true;
+}
 
-  async function commitContribution() {
-    if (!contributeFor || contributeAmount <= 0) return;
-    try {
-      await api.goals.progress(contributeFor.id, {
-        amount: contributeAmount,
-        ...(contributeNote ? { note: contributeNote } : {}),
-      });
-      invalidate(['goals']);
-      toast.success(`+${formatCurrency(contributeAmount)} to ${contributeFor.name}`);
-      contributeOpen = false;
-    } catch (err) {
-      toast.error('Failed', err instanceof Error ? err.message : String(err));
-    }
+async function commitContribution() {
+  if (!contributeFor || contributeAmount <= 0) return;
+  try {
+    await api.goals.progress(contributeFor.id, {
+      amount: contributeAmount,
+      ...(contributeNote ? { note: contributeNote } : {}),
+    });
+    invalidate(['goals']);
+    toast.success(`+${formatCurrency(contributeAmount)} to ${contributeFor.name}`);
+    contributeOpen = false;
+  } catch (err) {
+    toast.error('Failed', err instanceof Error ? err.message : String(err));
   }
+}
 
-  async function remove(g: GoalSummary) {
-    if (!confirm(`Delete goal "${g.name}"?`)) return;
-    try {
-      await api.goals.delete(g.id);
-      invalidate(['goals']);
-      toast.success('Deleted');
-    } catch (err) {
-      toast.error('Delete failed', err instanceof Error ? err.message : String(err));
-    }
+async function remove(g: GoalSummary) {
+  if (!confirm(`Delete goal "${g.name}"?`)) return;
+  try {
+    await api.goals.delete(g.id);
+    invalidate(['goals']);
+    toast.success('Deleted');
+  } catch (err) {
+    toast.error('Delete failed', err instanceof Error ? err.message : String(err));
   }
+}
 
-  function ringDashOffset(percent: number, circumference: number): number {
-    const clamped = Math.max(0, Math.min(100, percent));
-    return circumference * (1 - clamped / 100);
-  }
+function ringDashOffset(percent: number, circumference: number): number {
+  const clamped = Math.max(0, Math.min(100, percent));
+  return circumference * (1 - clamped / 100);
+}
 </script>
 
 <div class="flex flex-col gap-6">

@@ -57,7 +57,10 @@ export function detectAnomalies(daySeries: AnomalyInput[]): AnomalyResult[] {
     const window = sorted.slice(i - WINDOW, i);
     const mean = average(window.map((d) => d.amount));
     if (mean <= 0) continue;
-    const stddev = sampleStddev(window.map((d) => d.amount), mean);
+    const stddev = sampleStddev(
+      window.map((d) => d.amount),
+      mean,
+    );
     if (stddev <= 0) continue;
     const zscore = (target.amount - mean) / stddev;
     if (Math.abs(zscore) < Z_THRESHOLD) continue;

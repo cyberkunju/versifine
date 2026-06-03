@@ -1,72 +1,72 @@
 <script lang="ts">
-  /**
-   * First-visit WhatsApp demo invite.
-   *
-   * Re-skinned for the editorial fintech theme. Rather than a generic green
-   * toast, it arrives as a quiet "incoming invite" card in the brand's
-   * navy/paper language: a navy header strip echoing the demo chat, a small
-   * authentic WhatsApp tile, a one-line preview bubble, and a single
-   * green-gradient action that matches the tile so the green reads as a
-   * deliberate accent. Slides up once on the first visit (localStorage),
-   * with a graceful no-op when storage is unavailable.
-   */
-  import { onMount } from 'svelte';
-  import { browser } from '$app/environment';
-  import { X, ArrowUpRight } from 'lucide-svelte';
-  import { WA_DEMO_LINK } from '$lib/whatsapp';
-  import { waInvite } from '$lib/stores/waInvite.svelte';
-  import WhatsAppGlyph from './WhatsAppGlyph.svelte';
+/**
+ * First-visit WhatsApp demo invite.
+ *
+ * Re-skinned for the editorial fintech theme. Rather than a generic green
+ * toast, it arrives as a quiet "incoming invite" card in the brand's
+ * navy/paper language: a navy header strip echoing the demo chat, a small
+ * authentic WhatsApp tile, a one-line preview bubble, and a single
+ * green-gradient action that matches the tile so the green reads as a
+ * deliberate accent. Slides up once on the first visit (localStorage),
+ * with a graceful no-op when storage is unavailable.
+ */
+import { onMount } from 'svelte';
+import { browser } from '$app/environment';
+import { X, ArrowUpRight } from 'lucide-svelte';
+import { WA_DEMO_LINK } from '$lib/whatsapp';
+import { waInvite } from '$lib/stores/waInvite.svelte';
+import WhatsAppGlyph from './WhatsAppGlyph.svelte';
 
-  const STORAGE_KEY = 'vf_wa_invite_seen';
-  const SHOW_DELAY_MS = 2600;
+const STORAGE_KEY = 'vf_wa_invite_seen';
+const SHOW_DELAY_MS = 2600;
 
-  let visible = $state(false);
-  let closing = $state(false);
+let visible = $state(false);
+let closing = $state(false);
 
-  // Keep the shared flag in sync so the FAB hides while we're on screen.
-  $effect(() => {
-    waInvite.open = visible;
-  });
+// Keep the shared flag in sync so the FAB hides while we're on screen.
+$effect(() => {
+  waInvite.open = visible;
+});
 
-  function dismiss() {
-    closing = true;
-    // Let the exit transition play before unmounting.
-    setTimeout(() => {
-      visible = false;
-      closing = false;
-    }, 280);
-    markSeen();
-  }
-
-  function markSeen() {
-    if (!browser) return;
-    try {
-      localStorage.setItem(STORAGE_KEY, '1');
-    } catch {
-      // storage blocked (private mode / cookies off) — fine, just won't persist.
-    }
-  }
-
-  function openWhatsApp() {
-    markSeen();
-    // Let the anchor's native navigation happen; just hide the popup.
+function dismiss() {
+  closing = true;
+  // Let the exit transition play before unmounting.
+  setTimeout(() => {
     visible = false;
-  }
+    closing = false;
+  }, 280);
+  markSeen();
+}
 
-  onMount(() => {
-    if (!browser) return;
-    let seen = false;
-    try {
-      seen = localStorage.getItem(STORAGE_KEY) === '1';
-    } catch {
-      seen = false;
-    }
-    if (seen) return;
-    const t = setTimeout(() => {
-      visible = true;
-    }, SHOW_DELAY_MS);
-    return () => clearTimeout(t);
-  });
+function markSeen() {
+  if (!browser) return;
+  try {
+    localStorage.setItem(STORAGE_KEY, '1');
+  } catch {
+    // storage blocked (private mode / cookies off) — fine, just won't persist.
+  }
+}
+
+function openWhatsApp() {
+  markSeen();
+  // Let the anchor's native navigation happen; just hide the popup.
+  visible = false;
+}
+
+onMount(() => {
+  if (!browser) return;
+  let seen = false;
+  try {
+    seen = localStorage.getItem(STORAGE_KEY) === '1';
+  } catch {
+    seen = false;
+  }
+  if (seen) return;
+  const t = setTimeout(() => {
+    visible = true;
+  }, SHOW_DELAY_MS);
+  return () => clearTimeout(t);
+});
 </script>
 
 {#if visible}
