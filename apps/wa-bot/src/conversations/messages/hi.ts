@@ -110,10 +110,15 @@ export const hi: MessagePack = {
     "• सुधार — 'पिछला Food नहीं Transport था'\n\n" +
     'त्वरित कमांड: MENU · HELP · STATUS · UNDO · LANGUAGE · RESET · STOP',
 
-  captureLogged: (amount, currency, category) =>
-    category
-      ? `✅ ${formatAmount(amount, currency)} ${category} में जोड़ दिया।`
-      : `✅ ${formatAmount(amount, currency)} रिकॉर्ड हो गया।`,
+  captureLogged: (amount, currency, category, baseAmount, baseCurrency) => {
+    const formatted = formatAmount(amount, currency);
+    const converted = baseAmount && baseCurrency && baseCurrency !== currency
+      ? ` (${formatAmount(baseAmount, baseCurrency)})`
+      : '';
+    return category
+      ? `✅ ${formatted}${converted} ${category} में जोड़ दिया।`
+      : `✅ ${formatted}${converted} रिकॉर्ड हो गया।`;
+  },
 
   captureLoggedMany: (items, total, currency) => {
     const lines = items

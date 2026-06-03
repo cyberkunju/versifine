@@ -4,7 +4,7 @@
  * parser — anything not here falls back to base.
  */
 
-export const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD', 'AUD', 'CAD', 'JPY'] as const;
+export const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD', 'AUD', 'CAD', 'JPY', 'MYR'] as const;
 
 export type Currency = (typeof CURRENCIES)[number];
 
@@ -24,6 +24,7 @@ export const CURRENCY_SYMBOL: Record<Currency, string> = {
   AUD: 'A$',
   CAD: 'C$',
   JPY: '¥',
+  MYR: 'RM',
 };
 
 /** Common spelled-out aliases users say in voice notes, mapped to the ISO code. */
@@ -56,6 +57,8 @@ export const CURRENCY_ALIASES: Record<string, Currency> = {
   jpy: 'JPY',
   yen: 'JPY',
   '¥': 'JPY',
+  myr: 'MYR',
+  rm: 'MYR',
 };
 
 export function normalizeCurrency(input: string | null | undefined): Currency {

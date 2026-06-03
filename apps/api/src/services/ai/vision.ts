@@ -93,8 +93,8 @@ Hard rules:
   if only a handle/VPA is shown (e.g. q12@ybl), use it as the description.
 - If the total/paid amount is unreadable, set amount = null and confidence < 0.5.
 - If no date is printed/shown, set date = null. Never invent today's date.
-- Default currency is INR when "₹" / "Rs" / "INR" is visible or it's clearly an
-  Indian app/receipt. Otherwise null.
+- For currency, identify the standard 3-letter ISO 4217 code from standard codes, symbols, or abbreviations (e.g., "₹"/"Rs" -> "INR", "$" -> "USD", "€" -> "EUR", "£" -> "GBP", "RM" -> "MYR", "S$" -> "SGD", "A$" -> "AUD", "C$" -> "CAD", "¥" -> "JPY").
+- Default currency is INR when it's clearly an Indian app/receipt. Otherwise, try to infer the local currency from location clues (e.g., "Selangor", "Kuala Lumpur", "RM" is Malaysia/MYR). If unsure, set currency = null.
 - description is one line, no markdown, no emojis, e.g. "Swiggy — food order",
   "Reliance Fresh — groceries", "Ola — ride".
 - confidence reflects how sure you are about amount + merchant. If you can't

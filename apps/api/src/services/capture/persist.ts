@@ -21,6 +21,9 @@ import {
 import type { ParsedExpense } from '../ai/parser.ts';
 import { log } from '../../utils/logger.ts';
 import { createTransaction } from '../transactions/create.ts';
+import { eq } from 'drizzle-orm';
+import { db } from '../../db/client.ts';
+import { wallets } from '../../db/schema/wallets.ts';
 
 export interface PersistInput {
   userId: string;
@@ -40,6 +43,8 @@ export interface PersistResult {
     type: 'income' | 'expense' | 'transfer';
     amount: number;
     currency: string;
+    baseAmount?: number;
+    baseCurrency?: string;
     description: string;
     date: string;
     category: string | null;
@@ -100,6 +105,13 @@ export async function persistDraft(
   }
 
   try {
+    const [wallet] = await db
+      .select({ currency: wallets.currency })
+      .from(wallets)
+      .where(eq(wallets.id, input.walletId))
+      .limit(1);
+    const walletCurrency = wallet?.currency ?? 'INR';
+
     const row = await createTransaction({
       userId: input.userId,
       spaceId: input.spaceId,
@@ -119,6 +131,8 @@ export async function persistDraft(
           | 'transfer',
         amount: Number(row.amount),
         currency: row.currency,
+        baseAmount: Number(row.baseAmount),
+        baseCurrency: walletCurrency,
         description: row.description,
         date: row.date,
         category: row.category,

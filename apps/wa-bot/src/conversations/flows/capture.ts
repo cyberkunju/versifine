@@ -82,7 +82,7 @@ function renderCaptureResponse(session: Session, response: CaptureResponseShape)
       }
 
       const tx = response.queryResult?.transaction as
-        | { id?: string; amount: number; currency: string; category: string | null }
+        | { id?: string; amount: number; currency: string; category: string | null; baseAmount?: number; baseCurrency?: string }
         | undefined;
       if (tx) {
         // Remember the just-created transaction so the "actually, that was
@@ -91,9 +91,10 @@ function renderCaptureResponse(session: Session, response: CaptureResponseShape)
         if (tx.id) {
           updateSession(session.phone, { lastTransactionId: tx.id });
         }
+        const text = m.captureLogged(tx.amount, tx.currency, tx.category, tx.baseAmount, tx.baseCurrency);
         return {
-          text: m.captureLogged(tx.amount, tx.currency, tx.category),
-          speakable: m.captureLogged(tx.amount, tx.currency, tx.category),
+          text,
+          speakable: text,
         };
       }
     }

@@ -86,7 +86,13 @@ export interface MessagePack {
   helpCard: string;
 
   /** Confirmation after a transaction is logged automatically. */
-  captureLogged: (amount: number, currency: string, category: string | null) => string;
+  captureLogged: (
+    amount: number,
+    currency: string,
+    category: string | null,
+    baseAmount?: number,
+    baseCurrency?: string,
+  ) => string;
 
   /** Confirmation after multiple transactions are logged from one message. */
   captureLoggedMany: (

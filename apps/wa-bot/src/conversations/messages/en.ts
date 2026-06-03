@@ -116,10 +116,15 @@ export const en: MessagePack = {
     "• Corrections — 'last one was Transport not Food'\n\n" +
     'Quick commands: MENU · HELP · STATUS · UNDO · LANGUAGE · RESET · STOP',
 
-  captureLogged: (amount, currency, category) =>
-    category
-      ? `✅ Logged ${formatAmount(amount, currency)} under ${category}.`
-      : `✅ Logged ${formatAmount(amount, currency)}.`,
+  captureLogged: (amount, currency, category, baseAmount, baseCurrency) => {
+    const formatted = formatAmount(amount, currency);
+    const converted = baseAmount && baseCurrency && baseCurrency !== currency
+      ? ` (${formatAmount(baseAmount, baseCurrency)})`
+      : '';
+    return category
+      ? `✅ Logged ${formatted}${converted} under ${category}.`
+      : `✅ Logged ${formatted}${converted}.`;
+  },
 
   captureLoggedMany: (items, total, currency) => {
     const lines = items

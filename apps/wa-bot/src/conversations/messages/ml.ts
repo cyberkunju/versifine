@@ -111,10 +111,15 @@ export const ml: MessagePack = {
     "• തിരുത്തൽ — 'last one Food alla, Transport aanu'\n\n" +
     'കമാൻഡുകൾ: MENU · HELP · STATUS · UNDO · LANGUAGE · RESET · STOP',
 
-  captureLogged: (amount, currency, category) =>
-    category
-      ? `✅ ${formatAmount(amount, currency)} ${category}-ൽ ചേർത്തു.`
-      : `✅ ${formatAmount(amount, currency)} രേഖപ്പെടുത്തി.`,
+  captureLogged: (amount, currency, category, baseAmount, baseCurrency) => {
+    const formatted = formatAmount(amount, currency);
+    const converted = baseAmount && baseCurrency && baseCurrency !== currency
+      ? ` (${formatAmount(baseAmount, baseCurrency)})`
+      : '';
+    return category
+      ? `✅ ${formatted}${converted} ${category}-ൽ ചേർത്തു.`
+      : `✅ ${formatted}${converted} രേഖപ്പെടുത്തി.`;
+  },
 
   captureLoggedMany: (items, total, currency) => {
     const lines = items
