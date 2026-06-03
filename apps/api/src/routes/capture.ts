@@ -1,3 +1,12 @@
+import {
+  CATEGORIES,
+  type Category,
+  type Intent,
+  type Language,
+  isLanguage,
+  isTransactionIntent,
+} from '@versifine/shared';
+import { captureTextInput } from '@versifine/shared';
 /**
  * Capture routes.
  *
@@ -11,33 +20,31 @@
  */
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { isLanguage, isTransactionIntent, type Intent, type Language } from '@versifine/shared';
-import { captureTextInput } from '@versifine/shared';
 import { requireUserOrBot } from '../middleware/authEither.ts';
 import { limits, rateLimit } from '../middleware/rateLimit.ts';
 import { validate } from '../middleware/validate.ts';
 import { classifyIntent } from '../services/ai/intent.ts';
 import {
+  type MissingField,
+  type ParsedExpense,
   parseExpense,
   parseExpenseBatch,
-  type ParsedExpense,
-  type MissingField,
 } from '../services/ai/parser.ts';
 import { extractAmount, extractCurrency } from '../services/ai/parserRegex.ts';
 import { transcribe } from '../services/ai/transcribe.ts';
 import { extractFromReceipt } from '../services/ai/vision.ts';
 import {
-  storeDraft,
-  getDraft,
-  consumeDraft,
   type DraftRecord,
+  consumeDraft,
+  getDraft,
+  storeDraft,
 } from '../services/capture/drafts.ts';
 import { persistDraft } from '../services/capture/persist.ts';
+import { answerQuery } from '../services/capture/queryStubs.ts';
+import { listLiveWallets, pickWallet } from '../services/capture/wallet.ts';
 import { safeCategorize } from '../services/categorize/_safe.ts';
 import { categorizeFromMerchantDB } from '../services/categorize/merchants.ts';
 import { normalizeMerchant } from '../services/transactions/normalize.ts';
-import { answerQuery } from '../services/capture/queryStubs.ts';
-import { listLiveWallets, pickWallet } from '../services/capture/wallet.ts';
 import { ok } from '../utils/envelope.ts';
 import { errors } from '../utils/errors.ts';
 import { log } from '../utils/logger.ts';
@@ -706,13 +713,93 @@ app.post('/image', requireUserOrBot, captureLimit, async (c) => {
 
   // High-confidence, complete extraction → log it straight away (no friction).
   // A clear GPay "Paid ₹450 to Ola" screenshot shouldn't need a confirm tap.
+  const source = c.req.header('x-bot-secret') ? 'whatsapp_image' : 'manual_web';
+
+  if (
+    extracted.items &&
+    extracted.items.length >= 2 &&
+    extracted.confidence >= 0.7 &&
+    walletPick.wallet
+  ) {
+    const transactions: Array<{
+      id: string;
+      amount: number;
+      currency: string;
+      description: string;
+      category: string | null;
+    }> = [];
+
+    let success = true;
+    for (const item of extracted.items) {
+      const itemDraft = {
+        type: 'expense' as const,
+        amount: item.amount,
+        currency: extracted.currency,
+        description: item.description,
+        categoryHint:
+          item.category && (CATEGORIES as readonly string[]).includes(item.category)
+            ? (item.category as Category)
+            : null,
+        walletHint: walletPick.wallet.name,
+        date: extracted.date,
+        splitPeople: null,
+        originalAmount: null,
+        originalCurrency: null,
+        confidence: extracted.confidence,
+        needs: [] as ParsedExpense['needs'],
+      } satisfies ParsedExpense;
+
+      const persistResult = await persistDraft({
+        userId: user.id,
+        spaceId: user.activeSpaceId,
+        source,
+        draft: itemDraft,
+        walletId: walletPick.wallet.id,
+        date: extracted.date ?? TODAY(),
+      });
+
+      if (!persistResult.ok) {
+        success = false;
+        break;
+      }
+
+      transactions.push({
+        id: persistResult.transaction.id,
+        amount: persistResult.transaction.amount,
+        currency: persistResult.transaction.currency,
+        description: persistResult.transaction.description,
+        category: persistResult.transaction.category,
+      });
+    }
+
+    if (success && transactions.length >= 2) {
+      const total = transactions.reduce((sum, tx) => sum + tx.amount, 0);
+      c.get('log').info('CAPTURE_IMAGE_BATCH_OK', {
+        bytes: buffer.byteLength,
+        count: transactions.length,
+      });
+      return c.json(
+        ok({
+          intent: 'expense' as const,
+          needsConfirmation: false,
+          queryResult: {
+            transactions,
+            total,
+            currency: transactions[0]?.currency ?? 'INR',
+          },
+          echo: extracted.description ?? '[payment image]',
+        }),
+      );
+    }
+  }
+
   const complete =
     extracted.amount !== null && Boolean(extracted.description) && Boolean(walletPick.wallet);
   if (complete && extracted.confidence >= 0.7) {
     const persistResult = await persistDraft({
       userId: user.id,
       spaceId: user.activeSpaceId,
-      source: c.req.header('x-bot-secret') ? 'whatsapp_image' : 'manual_web',
+      source,
       draft,
       walletId: walletPick.wallet!.id,
       date: extracted.date ?? TODAY(),

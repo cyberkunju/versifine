@@ -12,6 +12,12 @@ import { env } from '../../env.ts';
 import { log } from '../../utils/logger.ts';
 import { getOpenAI, isAIConfigured, normalizeChatParams, withLatency } from './client.ts';
 
+export interface ReceiptItem {
+  description: string;
+  amount: number;
+  category: string | null;
+}
+
 export interface ReceiptExtraction {
   amount: number | null;
   currency: string | null;
@@ -19,11 +25,12 @@ export interface ReceiptExtraction {
   date: string | null;
   confidence: number;
   source: 'gpt-4o' | 'mock';
+  items?: ReceiptItem[];
 }
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-const visionSchema = z
+export const visionSchema = z
   .object({
     amount: z
       .union([z.number(), z.string(), z.null()])
@@ -65,6 +72,16 @@ const visionSchema = z
         if (!Number.isFinite(n)) return 0.5;
         return Math.min(1, Math.max(0, n));
       }),
+    items: z
+      .array(
+        z.object({
+          description: z.string().transform((v) => v.trim().slice(0, 240)),
+          amount: z.coerce.number().positive(),
+          category: z.string().nullable().optional(),
+        }),
+      )
+      .optional()
+      .default([]),
   })
   .passthrough();
 
@@ -81,7 +98,14 @@ Return JSON with these keys, no commentary:
   "currency": ISO 4217 alpha-3 code (e.g. INR, USD) or null,
   "description": one short line naming the merchant/payee and what it was for, or null,
   "date": "YYYY-MM-DD" if visible, otherwise null,
-  "confidence": 0..1
+  "confidence": 0..1,
+  "items": [
+    {
+      "description": the line item name or description (e.g. "Panadol 500mg"),
+      "amount": positive number (the price/cost of this specific item),
+      "category": string or null (classify the item into one of the valid categories: 'Bills & Utilities', 'Childcare', 'Coffee & Beverages', 'Convenience', 'Education', 'Entertainment', 'Fast Food', 'Food Delivery', 'Gas & Fuel', 'Giving', 'Groceries', 'Healthcare', 'Housing', 'Insurance', 'Other', 'Restaurants', 'Shopping & Retail', 'Subscriptions', 'Transportation', 'Travel')
+    }
+  ]
 }
 
 Hard rules:
@@ -98,10 +122,11 @@ Hard rules:
 - description is one line, no markdown, no emojis, e.g. "Swiggy — food order",
   "Reliance Fresh — groceries", "Ola — ride".
 - confidence reflects how sure you are about amount + merchant. If you can't
-  read the image at all, return null fields and confidence ~ 0.1.`;
+  read the image at all, return null fields and confidence ~ 0.1.
+- For itemized receipts, make sure to extract EVERY purchase item listed in the receipt, and categorize them accurately. For instance, medications should be 'Healthcare', groceries as 'Groceries', dining/meals as 'Restaurants', etc. Do not include summary/tax lines like "GST", "Round", "Total", "Discount" as items; only list the actual individual items purchased.`;
 
 function dataUrlFor(image: Buffer, mimetype: string): string {
-  const safe = mimetype && mimetype.startsWith('image/') ? mimetype : 'image/jpeg';
+  const safe = mimetype?.startsWith('image/') ? mimetype : 'image/jpeg';
   return `data:${safe};base64,${image.toString('base64')}`;
 }
 
@@ -123,6 +148,7 @@ export async function extractFromReceipt(
       date: null,
       confidence: 0,
       source: 'mock',
+      items: [],
     };
   }
 
@@ -135,6 +161,7 @@ export async function extractFromReceipt(
       date: null,
       confidence: 0,
       source: 'mock',
+      items: [],
     };
   }
 
@@ -186,6 +213,7 @@ export async function extractFromReceipt(
         date: null,
         confidence: 0.1,
         source: 'gpt-4o',
+        items: [],
       };
     }
 
@@ -196,6 +224,11 @@ export async function extractFromReceipt(
       date: parsed.data.date ?? null,
       confidence: parsed.data.confidence ?? 0.5,
       source: 'gpt-4o',
+      items: (parsed.data.items ?? []).map((item) => ({
+        description: item.description,
+        amount: item.amount,
+        category: item.category ?? null,
+      })),
     };
   } catch (err) {
     log.error('AI_VISION_FAIL', {
@@ -208,6 +241,7 @@ export async function extractFromReceipt(
       date: null,
       confidence: 0,
       source: 'mock',
+      items: [],
     };
   }
 }
