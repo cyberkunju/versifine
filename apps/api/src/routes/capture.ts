@@ -121,13 +121,26 @@ function followupQuestionFor(needs: ParsedExpense['needs']): string | undefined 
 export function isExpenseLike(text: string): boolean {
   const trimmed = text?.trim() ?? '';
   if (!trimmed) return false;
-  // (a) explicit amount or bare number anywhere in the message.
-  if (extractAmount(trimmed).amount !== null) return true;
-  // (c) curated, offline spend-word catalogue (tier 2 of the categorizer).
-  //     A non-null hit means we recognized a real merchant / food / transport
-  //     word — this is what makes "chai" read as an expense, not chat.
+
+  // Case 1: Contains a recognized category/merchant keyword (e.g. "grocery", "tea", "auto", "chai").
+  // This allows bare spend words like "chai" with amount=null to be recognized as expense-like.
   const hit = categorizeFromMerchantDB(normalizeMerchant(trimmed));
   if (hit && hit.category !== 'Other') return true;
+
+  const parsed = extractAmount(trimmed);
+  if (parsed.amount === null) return false;
+
+  // Case 2: Explicit currency symbol/word (e.g. "₹40", "40 rupees", "40 usd")
+  if (parsed.currency !== null) return true;
+
+  // Case 3: Explicit multiplier suffix (e.g. "10k", "5 thousand", "1.5k")
+  const hasSuffix = /(?:\b|\d)(?:k|thousand|lakh|crore)\b/i.test(trimmed);
+  if (hasSuffix) return true;
+
+  // Case 4: Bare number (e.g. "100", "2.5")
+  const isBareNumber = /^[0-9\s₹$¢£€\-\.,\+]*$/i.test(trimmed);
+  if (isBareNumber) return true;
+
   return false;
 }
 

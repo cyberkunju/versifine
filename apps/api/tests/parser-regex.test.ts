@@ -221,6 +221,10 @@ describe('extractAmount — worded numbers', () => {
     expect(extractAmount('किराया हज़ार')).toEqual({ amount: 1000, currency: null });
   });
 
+  test('Hindi "एक दस हज़ार" (10000) multiplication regression', () => {
+    expect(extractAmount('एक दस हज़ार')).toEqual({ amount: 10000, currency: null });
+  });
+
   test('Hindi लाख (100000)', () => {
     expect(extractAmount('एक लाख')).toEqual({ amount: 100_000, currency: null });
   });

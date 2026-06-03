@@ -55,7 +55,7 @@ const schema = z.object({
     .optional(),
   OPENAI_TRANSCRIPTION_MODEL: z.string().default('gpt-4o-transcribe'),
   OPENAI_VISION_MODEL: z.string().default('gpt-4o'),
-  OPENAI_PARSE_MODEL: z.string().default('gpt-5-mini'),
+  OPENAI_PARSE_MODEL: z.string().default('gpt-4o-mini'),
   OPENAI_NLU_MODEL: z.string().default('gpt-4o-mini'),
   OPENAI_CHAT_MODEL: z.string().default('gpt-4o-mini'),
   OPENAI_TRANSLATE_MODEL: z.string().default('gpt-4o-mini'),

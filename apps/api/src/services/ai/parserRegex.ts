@@ -304,7 +304,11 @@ function composeWordedNumber(parts: WordedToken[]): number {
   let current = 0;
   for (const part of parts) {
     if (!part.scale) {
-      current += part.value;
+      if (current > 0 && current < part.value) {
+        current = current * part.value;
+      } else {
+        current += part.value;
+      }
     } else if (part.value === 100) {
       // "hundred" multiplies the group built so far (defaulting to one).
       current = (current === 0 ? 1 : current) * 100;
