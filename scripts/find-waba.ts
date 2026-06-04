@@ -30,49 +30,34 @@ async function main() {
     process.exit(1);
   }
 
-  // 1. Query /debug_token to get WABA info
-  console.log(`Checking token details...`);
+  // 1. Query /me?fields=whatsapp_business_accounts
+  console.log(`Querying /me?fields=whatsapp_business_accounts ...`);
   try {
-    const response = await fetch(`https://graph.facebook.com/${apiVersion}/debug_token?input_token=${token}`, {
+    const response = await fetch(`https://graph.facebook.com/${apiVersion}/me?fields=whatsapp_business_accounts`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
       },
     });
     const data = await response.json() as any;
-    console.log(`Debug Token response:`, JSON.stringify(data, null, 2));
+    console.log(`Response:`, JSON.stringify(data, null, 2));
   } catch (e) {
-    console.error(`Error debug_token:`, e);
+    console.error(`Error:`, e);
   }
 
-  // 2. Query /me
-  console.log(`\nQuerying /me ...`);
+  // 2. Query /122103244479347616/whatsapp_business_accounts
+  console.log(`\nQuerying /122103244479347616/whatsapp_business_accounts ...`);
   try {
-    const response = await fetch(`https://graph.facebook.com/${apiVersion}/me`, {
+    const response = await fetch(`https://graph.facebook.com/${apiVersion}/122103244479347616/whatsapp_business_accounts`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
       },
     });
     const data = await response.json() as any;
-    console.log(`/me response:`, JSON.stringify(data, null, 2));
+    console.log(`Response:`, JSON.stringify(data, null, 2));
   } catch (e) {
-    console.error(`Error /me:`, e);
-  }
-
-  // 3. Query /me/accounts
-  console.log(`\nQuerying /me/accounts ...`);
-  try {
-    const response = await fetch(`https://graph.facebook.com/${apiVersion}/me/accounts`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-    const data = await response.json() as any;
-    console.log(`/me/accounts response:`, JSON.stringify(data, null, 2));
-  } catch (e) {
-    console.error(`Error /me/accounts:`, e);
+    console.error(`Error:`, e);
   }
 }
 
