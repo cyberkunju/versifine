@@ -101,8 +101,15 @@ const year = new Date().getFullYear();
       {/each}
     </div>
 
-    <div class="mt-14 flex flex-col items-start justify-between gap-2 border-t border-[hsl(var(--border))] pt-6 text-xs text-[hsl(var(--muted-foreground))] sm:flex-row sm:items-center">
-      <p>© {year} Versifine. All rights reserved.</p>
+    <div class="mt-14 flex flex-col items-start justify-between gap-4 border-t border-[hsl(var(--border))] pt-6 text-xs text-[hsl(var(--muted-foreground))] sm:flex-row sm:items-center">
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-6">
+        <p>© {year} Versifine. All rights reserved.</p>
+        <div class="flex gap-4">
+          <a href="/privacy" class="transition-colors hover:text-[hsl(var(--brand-navy))]">Privacy Policy</a>
+          <a href="/terms" class="transition-colors hover:text-[hsl(var(--brand-navy))]">Terms of Service</a>
+          <a href="/data-deletion" class="transition-colors hover:text-[hsl(var(--brand-navy))]">Data Deletion</a>
+        </div>
+      </div>
       <p class="font-mono text-[11px]">Bun · Hono · SvelteKit · Drizzle · Postgres+pgvector · OpenAI</p>
     </div>
   </div>

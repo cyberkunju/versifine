@@ -59,6 +59,7 @@ const isAppRoute = $derived(APP_ROUTES.some((r) => path === r || path.startsWith
 const isPublicRoute = $derived(
   PUBLIC_ROUTES.some((r) => (r === '/' ? path === '/' : path.startsWith(r))),
 );
+const isLegalRoute = $derived(path === '/privacy' || path === '/terms' || path === '/data-deletion');
 
 const m = $derived(getMessages(settings.language));
 
@@ -158,7 +159,7 @@ function openCopilot(initial?: string) {
   <div class="grid min-h-screen place-items-center text-sm text-[hsl(var(--muted-foreground))]">
     {m.common.loading}
   </div>
-{:else if isLandingRoute || isAuthRoute || isStandaloneRoute || !auth.isAuthenticated}
+{:else if isLandingRoute || isAuthRoute || isStandaloneRoute || isLegalRoute || !auth.isAuthenticated}
   {@render children?.()}
 {:else}
   <div class="vf-shell relative flex h-screen w-full overflow-hidden">

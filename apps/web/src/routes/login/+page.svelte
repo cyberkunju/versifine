@@ -420,8 +420,8 @@ function comingSoon(what: string) {
     <div class="rise-3 relative z-10 flex items-center justify-between text-[12px] text-white/45">
       <span>© {new Date().getFullYear()} Versifine, Inc.</span>
       <div class="flex gap-5">
-        <a href="/" class="transition-colors hover:text-white/80">Privacy</a>
-        <a href="/" class="transition-colors hover:text-white/80">Terms</a>
+        <a href="/privacy" class="transition-colors hover:text-white/80">Privacy</a>
+        <a href="/terms" class="transition-colors hover:text-white/80">Terms</a>
       </div>
     </div>
   </aside>
@@ -560,9 +560,9 @@ function comingSoon(what: string) {
 
         <p class="mt-8 text-center text-[12px] text-[var(--muted-foreground)]">
           By continuing, you agree to our
-          <a href="/" class="underline-offset-4 hover:underline" style="color: color-mix(in oklab, var(--foreground) 80%, transparent);">Terms</a>
+          <a href="/terms" class="underline-offset-4 hover:underline" style="color: color-mix(in oklab, var(--foreground) 80%, transparent);">Terms</a>
           and
-          <a href="/" class="underline-offset-4 hover:underline" style="color: color-mix(in oklab, var(--foreground) 80%, transparent);">Privacy Policy</a>.
+          <a href="/privacy" class="underline-offset-4 hover:underline" style="color: color-mix(in oklab, var(--foreground) 80%, transparent);">Privacy Policy</a>.
         </p>
       </div>
     </div>
