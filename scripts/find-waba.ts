@@ -23,6 +23,7 @@ async function main() {
   loadEnv();
   
   const token = process.env.WHATSAPP_TOKEN || process.env.META_ACCESS_TOKEN;
+  const phoneNumberId = '1079257601947704';
   const apiVersion = 'v20.0';
 
   if (!token) {
@@ -30,25 +31,9 @@ async function main() {
     process.exit(1);
   }
 
-  // 1. Query /me?fields=whatsapp_business_accounts
-  console.log(`Querying /me?fields=whatsapp_business_accounts ...`);
+  console.log(`Querying /1079257601947704?metadata=1 ...`);
   try {
-    const response = await fetch(`https://graph.facebook.com/${apiVersion}/me?fields=whatsapp_business_accounts`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-    const data = await response.json() as any;
-    console.log(`Response:`, JSON.stringify(data, null, 2));
-  } catch (e) {
-    console.error(`Error:`, e);
-  }
-
-  // 2. Query /122103244479347616/whatsapp_business_accounts
-  console.log(`\nQuerying /122103244479347616/whatsapp_business_accounts ...`);
-  try {
-    const response = await fetch(`https://graph.facebook.com/${apiVersion}/122103244479347616/whatsapp_business_accounts`, {
+    const response = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}?metadata=1`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
