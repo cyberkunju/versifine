@@ -37,11 +37,40 @@ async function main() {
     process.exit(1);
   }
 
-  const url = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/subscribed_apps`;
-  console.log(`Sending POST request to: ${url}`);
+  // Step 1: Query the phone number to get the WABA ID
+  console.log(`\n[1/2] Fetching WhatsApp Business Account ID (WABA ID)...`);
+  const queryUrl = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}?fields=whatsapp_business_account`;
+  let wabaId = '';
 
   try {
-    const response = await fetch(url, {
+    const response = await fetch(queryUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    const data = await response.json() as any;
+
+    if (response.ok && data.whatsapp_business_account?.id) {
+      wabaId = data.whatsapp_business_account.id;
+      console.log(`\x1b[32m✔ SUCCESS: Found WABA ID: ${wabaId}\x1b[0m`);
+    } else {
+      console.error(`\x1b[31m❌ FAILURE fetching WABA ID:\x1b[0m`);
+      console.error(JSON.stringify(data, null, 2));
+      process.exit(1);
+    }
+  } catch (error) {
+    console.error(`\x1b[31m❌ Error contacting Meta Graph API:\x1b[0m`, error);
+    process.exit(1);
+  }
+
+  // Step 2: Subscribe the app to the WABA ID
+  console.log(`\n[2/2] Subscribing Meta App to WABA ID ${wabaId}...`);
+  const subscribeUrl = `https://graph.facebook.com/${apiVersion}/${wabaId}/subscribed_apps`;
+
+  try {
+    const response = await fetch(subscribeUrl, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -52,16 +81,16 @@ async function main() {
     const data = await response.json() as any;
 
     if (response.ok) {
-      console.log(`\n\x1b[32m✔ SUCCESS: App successfully subscribed to phone number ID ${phoneNumberId}!\x1b[0m`);
+      console.log(`\n\x1b[32m✔ SUCCESS: App successfully subscribed to WABA ID ${wabaId}!\x1b[0m`);
       console.log(JSON.stringify(data, null, 2));
       console.log(`==================================================`);
     } else {
-      console.error(`\n\x1b[31m❌ FAILURE: Meta API returned an error:\x1b[0m`);
+      console.error(`\n\x1b[31m❌ FAILURE subscribing to WABA:\x1b[0m`);
       console.error(JSON.stringify(data, null, 2));
       console.log(`--------------------------------------------------`);
     }
   } catch (error) {
-    console.error(`\n\x1b[31m❌ Error contacting Meta Graph API:\x1b[0m`, error);
+    console.error(`\n\x1b[31m❌ Error subscribing to WABA:\x1b[0m`, error);
   }
 }
 
