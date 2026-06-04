@@ -32,6 +32,8 @@ import { authoriseUpgrade, selectedSubprotocol, wsRoutes } from './routes/ws.ts'
 import { attachSocket, detachSocket, type WsAttachment } from './services/events/ws.ts';
 import { log } from './utils/logger.ts';
 
+import { webhookRoutes } from './routes/webhook.ts';
+
 const app = new Hono();
 
 // Canonical error handler — fires for any throw anywhere in the chain,
@@ -67,6 +69,7 @@ app.route('/reports', reportRoutes);
 app.route('/advice', adviceRoutes);
 app.route('/copilot', copilotRoutes);
 app.route('/ws', wsRoutes);
+app.route('/webhook', webhookRoutes);
 
 app.notFound((c) =>
   c.json(
