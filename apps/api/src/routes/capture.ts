@@ -967,9 +967,9 @@ app.post('/confirm', requireUserOrBot, captureLimit, validate('json', confirmInp
     if (!resolution.isJsonEdits) {
       // Always run the LLM round-trip for free-form replies during confirmation
       // to handle corrections, adjustments, and complex multi-turn updates.
-      // Use the raw text when history is available, or fall back to prefixed source.
+      // Prefix with the original source to anchor semantic fields like description.
       const followup = await parseExpense({
-        text: (body.history && body.history.length > 0) ? text : `${record.source}. ${text}`,
+        text: `${record.source}. ${text}`,
         locale: record.locale ?? undefined,
         spaceId: user.activeSpaceId,
         history: body.history,
