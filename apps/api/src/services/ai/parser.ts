@@ -30,10 +30,16 @@ import { buildDynamicSystemPrompt } from './brain/promptEvolver.ts';
 export type ExpenseType = 'expense' | 'income' | 'transfer';
 export type MissingField = 'amount' | 'description' | 'wallet' | 'currency';
 
+export interface MessageTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export interface ParseInput {
   text: string;
   locale?: string;
   spaceId?: string;
+  history?: MessageTurn[];
 }
 
 export interface ParsedExpense {
@@ -377,6 +383,16 @@ async function callLLM(input: ParseInput, priorHint?: ParsedExpense): Promise<Pa
       userContent = `${hint}\n${userContent}`;
     }
 
+    const messagesList: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+      { role: 'system', content: dynamicPrompt }
+    ];
+    if (input.history && input.history.length > 0) {
+      for (const turn of input.history) {
+        messagesList.push({ role: turn.role, content: turn.content });
+      }
+    }
+    messagesList.push({ role: 'user', content: userContent });
+
     const completion = await withLatency('parser.expense', () =>
       client.chat.completions.create(
         normalizeChatParams({
@@ -384,10 +400,7 @@ async function callLLM(input: ParseInput, priorHint?: ParsedExpense): Promise<Pa
           temperature: 0,
           max_tokens: 400,
           response_format: { type: 'json_object' },
-          messages: [
-            { role: 'system', content: dynamicPrompt },
-            { role: 'user', content: userContent },
-          ],
+          messages: messagesList,
         }),
       ),
     );

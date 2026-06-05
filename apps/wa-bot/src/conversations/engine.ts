@@ -51,7 +51,7 @@ import {
 import { handleLinkCommand, rePrompt } from './flows/link.ts';
 import { detectSettingsIntent } from './flows/settings.ts';
 import { hasNativePack, getMessages } from './messages/index.ts';
-import { getSession, setReplyMode, updateSession } from './state.ts';
+import { getSession, setReplyMode, updateSession, preloadSession, persistSession } from './state.ts';
 
 interface DispatchOutcome {
   /** Localized text from the flow handler (still in the *engine's source language*, en for ta/te/kn). */
@@ -250,7 +250,7 @@ async function speak(text: string, language: Language): Promise<OutgoingVoice | 
 }
 
 export async function runEngine(message: IncomingMessage): Promise<OutgoingReply> {
-  const session = getSession(message.phone);
+  const session = await preloadSession(message.phone);
   if (session.state === 'ERROR' && parseUniversal(message.body)?.command !== 'RESET') {
     // STOP was previously acknowledged — stay silent unless the user says RESET.
     return { text: '', state: session.state };
@@ -264,7 +264,13 @@ export async function runEngine(message: IncomingMessage): Promise<OutgoingReply
   if (message.hasAudio && message.audioBuffer) {
     setReplyMode(message.phone, 'auto');
     const transcribed = await maybeTranscribe(message, session);
-    voiceTranscript = transcribed.text.trim() || null;
+    const rawTranscript = transcribed.text.trim();
+    if (rawTranscript) {
+      const { normalizeTranscription } = await import('../services/ai/transcribe.ts');
+      voiceTranscript = await normalizeTranscription(rawTranscript, transcribed.language);
+    } else {
+      voiceTranscript = null;
+    }
     log.debug('VOICE_TRANSCRIBED', {
       phone: session.phone,
       length: transcribed.text.length,
@@ -288,6 +294,16 @@ export async function runEngine(message: IncomingMessage): Promise<OutgoingReply
       hasAudio: false,
       audioBuffer: null,
     };
+  }
+
+  // Record user message in conversational history
+  if (message.body && message.body.trim()) {
+    let history = (session.pending.history as Array<{ role: 'user' | 'assistant'; content: string }>) || [];
+    history.push({ role: 'user', content: message.body });
+    if (history.length > 10) {
+      history = history.slice(-10);
+    }
+    session.pending.history = history;
   }
 
   // Onboarding gate — phone-first sign-up.
@@ -343,6 +359,16 @@ export async function runEngine(message: IncomingMessage): Promise<OutgoingReply
   const body = welcomePrefix ? `${welcomePrefix}\n\n${outcome.text}` : outcome.text;
   const localized = await localize(body, active.language);
 
+  // Record bot response in conversational history
+  if (localized && localized.trim()) {
+    let history = (active.pending.history as Array<{ role: 'user' | 'assistant'; content: string }>) || [];
+    history.push({ role: 'assistant', content: localized });
+    if (history.length > 10) {
+      history = history.slice(-10);
+    }
+    active.pending.history = history;
+  }
+
   // Voice-in → prefix the reply with what we heard so the user can confirm
   // the transcription, and mirror the modality (voice-in → voice-out).
   const wasVoice = voiceTranscript !== null;
@@ -353,6 +379,8 @@ export async function runEngine(message: IncomingMessage): Promise<OutgoingReply
   const voicePromise: Promise<OutgoingVoice | null> | undefined = speakable
     ? speak(localized, active.language)
     : undefined;
+
+  await persistSession(active.phone);
 
   const final: OutgoingReply = {
     text: withTranscript,

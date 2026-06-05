@@ -20,3 +20,4 @@ export * from './fx.ts';
 export * from './patterns.ts';
 export * from './utteranceMemory.ts';
 export * from './spendingDna.ts';
+export * from './botSessions.ts';

@@ -24,9 +24,11 @@ import { requireUserOrBot } from '../middleware/authEither.ts';
 import { limits, rateLimit } from '../middleware/rateLimit.ts';
 import { validate } from '../middleware/validate.ts';
 import { classifyIntent } from '../services/ai/intent.ts';
+import { isAIConfigured } from '../services/ai/client.ts';
 import {
   type MissingField,
   type ParsedExpense,
+  type MessageTurn,
   parseExpense,
   parseExpenseBatch,
 } from '../services/ai/parser.ts';
@@ -189,6 +191,7 @@ interface RunPipelineInput {
   origin: 'text' | 'voice' | 'image';
   locale: Language | undefined;
   source: 'whatsapp_text' | 'whatsapp_voice' | 'whatsapp_image' | 'manual_web';
+  history?: MessageTurn[];
 }
 
 interface ParsedBatchItem {
@@ -392,6 +395,32 @@ async function runTextPipeline(input: RunPipelineInput) {
       });
       return persistOrDraftExpense({ input, intentLabel: 'expense' });
     }
+
+    // ── LLM-driven fallback parser ──────────────────────────────────────────
+    // If the offline/regex check is uncertain, route to the LLM parser.
+    // If the LLM successfully extracts an amount and description, self-correct!
+    if (isAIConfigured()) {
+      try {
+        const fallbackParsed = await parseExpense({
+          text,
+          locale: locale ? locale : undefined,
+          spaceId: user.activeSpaceId,
+          history: input.history,
+        });
+        if (fallbackParsed.amount !== null && fallbackParsed.description && fallbackParsed.confidence >= 0.5) {
+          traceLog.info('CAPTURE_INTENT_RESCUED_FALLBACK_LLM', {
+            from: intentResult.intent,
+            to: fallbackParsed.type || 'expense',
+            amount: fallbackParsed.amount,
+            description: fallbackParsed.description,
+          });
+          return persistOrDraftExpense({ input, intentLabel: fallbackParsed.type || 'expense' });
+        }
+      } catch (err) {
+        traceLog.warn('FALLBACK_LLM_PARSER_ERROR', { error: String(err) });
+      }
+    }
+
     return c.json(
       ok({
         intent: 'chat',
@@ -420,7 +449,7 @@ async function persistOrDraftExpense(args: {
   const { c, text, origin, locale, source } = input;
   const user = c.get('user');
 
-  const parsed = await parseExpense({ text, locale, spaceId: user.activeSpaceId });
+  const parsed = await parseExpense({ text, locale, spaceId: user.activeSpaceId, history: input.history });
   // Respect the classifier when it disagrees with the parser's default
   // "expense" type. Only meaningful on the transaction-intent path.
   if (intentLabel === 'income' && parsed.type !== 'income') {
@@ -608,6 +637,8 @@ function maybeLanguage(input: string | undefined): Language | undefined {
 
 app.post('/text', requireUserOrBot, captureLimit, validate('json', captureTextInput), async (c) => {
   const { text, locale } = c.req.valid('json');
+  const body = await c.req.json().catch(() => ({}));
+  const history = body.history;
   const sourceTag: 'whatsapp_text' | 'manual_web' = c.req.header('x-bot-secret')
     ? 'whatsapp_text'
     : 'manual_web';
@@ -617,6 +648,7 @@ app.post('/text', requireUserOrBot, captureLimit, validate('json', captureTextIn
     origin: 'text',
     locale: maybeLanguage(locale),
     source: sourceTag,
+    history,
   });
 });
 
@@ -850,6 +882,7 @@ const confirmInput = z
     edits: z.record(z.unknown()).optional(),
     /** Free-form clarifier; routed through the parser when present. */
     text: z.string().min(1).max(800).optional(),
+    history: z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string() })).optional(),
   })
   .refine((v) => v.edits || v.text, {
     message: 'Provide either edits or text',
@@ -940,6 +973,7 @@ app.post('/confirm', requireUserOrBot, captureLimit, validate('json', confirmInp
           text: `${record.source}. ${text}`,
           locale: record.locale ?? undefined,
           spaceId: user.activeSpaceId,
+          history: body.history,
         });
         edits = clarifierEdits(merged, text, followup);
       }

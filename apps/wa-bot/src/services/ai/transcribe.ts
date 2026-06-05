@@ -158,3 +158,41 @@ export async function transcribe(
     return { text: '', language: fallback ?? 'en', source: 'mock' };
   }
 }
+
+export async function normalizeTranscription(text: string, language: string): Promise<string> {
+  const client = getOpenAI();
+  if (!client || !text.trim()) return text;
+
+  try {
+    const systemPrompt = `You are a transcription cleaner for a personal finance assistant.
+Your job is to normalize voice-transcribed Indian English / Romanized Hindi / Malayalam / Tamil / Telugu / Kannada colloquial phrasings into standard clean financial assertions (statements of transaction details) while preserving all original numbers, items, categories, and payment methods.
+Do not answer questions, do not add any conversational text. Only reply with the cleaned-up transaction assertion.
+
+Examples:
+- 'PhonePe se pachas rupaye beje' -> 'Sent 50 rupees via PhonePe'
+- 'chai kudiya aayirunnu anupath roopa' -> 'Spent 50 rupees on tea'
+- 'tea kudiye 50 rupees' -> 'Spent 50 rupees on tea'
+- 'biryani 250 rs paid' -> 'Paid 250 rupees for biryani'
+- 'hdfc card se 2000 rupya rent diya' -> 'Paid 2000 rupees rent from HDFC card'
+- 'today I bought a shirt for thousand rupees' -> 'Bought shirt for 1000 rupees today'`;
+
+    const completion = await client.chat.completions.create({
+      model: env.OPENAI_TRANSLATE_MODEL || 'gpt-4o-mini',
+      temperature: 0,
+      max_tokens: 100,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: text },
+      ],
+    });
+
+    const cleaned = completion.choices[0]?.message?.content?.trim() ?? text;
+    log.info('TRANSCRIBE_NORMALIZATION', { original: text, normalized: cleaned });
+    return cleaned;
+  } catch (err) {
+    log.warn('TRANSCRIBE_NORMALIZATION_FAIL', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return text;
+  }
+}

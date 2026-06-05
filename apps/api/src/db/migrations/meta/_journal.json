@@ -43,6 +43,20 @@
       "when": 1780662390984,
       "tag": "0005_striped_nova",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1780671812458,
+      "tag": "0006_adaptive_intelligence_engine",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1780677453757,
+      "tag": "0007_long_squadron_sinister",
+      "breakpoints": true
     }
   ]
 }

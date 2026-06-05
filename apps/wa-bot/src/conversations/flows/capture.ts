@@ -237,7 +237,8 @@ export async function handleCapture(
       return renderCaptureResponse(session, response);
     }
     if (message.body && message.body.trim()) {
-      const response = await captureText(session.phone, message.body, locale);
+      const history = (session.pending.history as any[]) || [];
+      const response = await captureText(session.phone, message.body, locale, history);
       // Free-form question → answer inline with the guarded copilot instead
       // of nudging the user to the website. The API screens for scope +
       // prompt-injection server-side; we just relay the finished answer.
@@ -286,10 +287,11 @@ export async function handleConfirm(
   // API parser can re-fill missing fields.
   const { captureConfirm } = await import('../../services/apiClient.ts');
   try {
+    const history = (session.pending.history as any[]) || [];
     const payload =
       command === 'EDIT' || (followupBody && followupBody.trim())
-        ? { draftId, text: followupBody ?? '' }
-        : { draftId, edits: {} };
+        ? { draftId, text: followupBody ?? '', history }
+        : { draftId, edits: {}, history };
     const response = await captureConfirm(session.phone, payload);
     if (!response.needsConfirmation) {
       updateSession(session.phone, { lastDraftId: null });

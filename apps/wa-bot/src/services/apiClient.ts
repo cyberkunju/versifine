@@ -158,13 +158,14 @@ export async function captureText(
   phone: string,
   text: string,
   locale?: string,
+  history?: Array<{ role: 'user' | 'assistant'; content: string }>,
 ): Promise<CaptureResponseShape> {
   const loc = normalizeLocale(locale);
   return await call<CaptureResponseShape>({
     method: 'POST',
     path: '/capture/text',
     phone,
-    body: loc ? { text, locale: loc } : { text },
+    body: loc ? { text, locale: loc, history } : { text, history },
   });
 }
 
@@ -210,7 +211,12 @@ export async function captureImage(
 
 export async function captureConfirm(
   phone: string,
-  payload: { draftId: string; edits?: Record<string, unknown>; text?: string },
+  payload: {
+    draftId: string;
+    edits?: Record<string, unknown>;
+    text?: string;
+    history?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  },
 ): Promise<CaptureResponseShape> {
   return await call<CaptureResponseShape>({
     method: 'POST',
@@ -344,6 +350,44 @@ export async function patchTransactionCategory(
     path: `/transactions/${transactionId}/category`,
     phone,
     body: { category },
+  });
+}
+
+export interface DbSession {
+  phone: string;
+  language: string;
+  state: string;
+  linked: boolean;
+  userId: string | null;
+  spaceId: string | null;
+  lastDraftId: string | null;
+  lastTransactionId: string | null;
+  replyMode: string;
+  pending: Record<string, any>;
+  accountResolved: boolean;
+}
+
+export async function apiGetBotSession(phone: string): Promise<DbSession | null> {
+  const res = await call<{ session: DbSession | null }>({
+    method: 'GET',
+    path: `/bot/sessions/${phone}`,
+  });
+  return res.session;
+}
+
+export async function apiSaveBotSession(phone: string, session: Partial<DbSession>): Promise<DbSession> {
+  const res = await call<{ session: DbSession }>({
+    method: 'POST',
+    path: `/bot/sessions/${phone}`,
+    body: session,
+  });
+  return res.session;
+}
+
+export async function apiDeleteBotSession(phone: string): Promise<void> {
+  await call<{ success: boolean }>({
+    method: 'DELETE',
+    path: `/bot/sessions/${phone}`,
   });
 }
 

@@ -12,6 +12,7 @@
  */
 import type { Language } from '@versifine/shared';
 import type { ConversationState, ReplyMode, Session } from '../types.ts';
+import { apiGetBotSession, apiSaveBotSession } from '../services/apiClient.ts';
 
 const SWEEP_INTERVAL_MS = 60 * 60_000; // 1h
 const STALE_AFTER_MS = 12 * 60 * 60_000; // 12h
@@ -134,4 +135,62 @@ export function listSessions(): Array<{
     linked: s.linked,
     lastSeenAt: s.lastSeenAt,
   }));
+}
+
+/**
+ * Preloads the user session from the PostgreSQL database into the in-memory cache.
+ * If the session doesn't exist, a blank session is initialized.
+ */
+export async function preloadSession(phone: string): Promise<Session> {
+  try {
+    const dbSess = await apiGetBotSession(phone);
+    if (dbSess) {
+      const session: Session = {
+        phone: dbSess.phone,
+        language: dbSess.language as Language,
+        state: dbSess.state as ConversationState,
+        linked: dbSess.linked,
+        userId: dbSess.userId,
+        spaceId: dbSess.spaceId,
+        lastDraftId: dbSess.lastDraftId,
+        lastTransactionId: dbSess.lastTransactionId,
+        replyMode: dbSess.replyMode as ReplyMode,
+        pending: dbSess.pending,
+        accountResolved: dbSess.accountResolved,
+        lastSeenAt: Date.now(),
+      };
+      sessions.set(phone, session);
+      return session;
+    }
+  } catch (err) {
+    console.error('Failed to preload session from database:', err);
+  }
+  
+  // Fallback to blank session if not found or on error
+  return getSession(phone);
+}
+
+/**
+ * Persists the user session from the in-memory cache back to the PostgreSQL database.
+ */
+export async function persistSession(phone: string): Promise<void> {
+  const session = sessions.get(phone);
+  if (!session) return;
+  
+  try {
+    await apiSaveBotSession(phone, {
+      language: session.language,
+      state: session.state,
+      linked: session.linked,
+      userId: session.userId,
+      spaceId: session.spaceId,
+      lastDraftId: session.lastDraftId,
+      lastTransactionId: session.lastTransactionId,
+      replyMode: session.replyMode,
+      pending: session.pending,
+      accountResolved: session.accountResolved,
+    });
+  } catch (err) {
+    console.error('Failed to persist session to database:', err);
+  }
 }

@@ -30,6 +30,12 @@ import { ok } from '../utils/envelope.ts';
 import { errors } from '../utils/errors.ts';
 import { normalizePhone } from '../utils/phone.ts';
 
+import {
+  getBotSession,
+  saveBotSession,
+  deleteBotSession,
+} from '../services/botSessions.ts';
+
 const app = new Hono();
 
 /** Gate every /bot route on the shared secret. */
@@ -88,6 +94,29 @@ app.post('/ensure-user', provisionLimit, validate('json', botEnsureUserInput), a
     }),
     account.isNew ? 201 : 200,
   );
+});
+
+app.get('/sessions/:phone', async (c) => {
+  const phone = normalizePhone(c.req.param('phone'));
+  if (!phone) throw errors.validation('Invalid phone number');
+  const session = await getBotSession(phone);
+  if (!session) return c.json(ok({ session: null }));
+  return c.json(ok({ session }));
+});
+
+app.post('/sessions/:phone', async (c) => {
+  const phone = normalizePhone(c.req.param('phone'));
+  if (!phone) throw errors.validation('Invalid phone number');
+  const body = await c.req.json();
+  const session = await saveBotSession(phone, body);
+  return c.json(ok({ session }));
+});
+
+app.delete('/sessions/:phone', async (c) => {
+  const phone = normalizePhone(c.req.param('phone'));
+  if (!phone) throw errors.validation('Invalid phone number');
+  await deleteBotSession(phone);
+  return c.json(ok({ success: true }));
 });
 
 export const botRoutes = app;
