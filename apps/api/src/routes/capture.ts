@@ -557,6 +557,32 @@ function shortClarifierAsDescription(text: string): string | null {
   return clean;
 }
 
+function cleanDescription(followupDesc: string | null, draftDesc: string | null): string | null {
+  if (!followupDesc) return null;
+  
+  // Strip common conversational filler words
+  let cleaned = followupDesc.trim();
+  const leadingFiller = /^[.,;!\-\s]*(?:actually|no|it\s+was|was|is|change\s+to|make\s+it|wait|correct|correction|that\s+was)\s+/i;
+  const trailingFiller = /\s+(?:actually|no|it\s+was|was|is|wait|correct|correction|that\s+was)[.,;!\-\s]*$/i;
+  
+  cleaned = cleaned.replace(leadingFiller, '').replace(trailingFiller, '').trim();
+  
+  if (!draftDesc) return cleaned;
+
+  const cLower = cleaned.toLowerCase();
+  const dLower = draftDesc.toLowerCase().trim();
+
+  if (cLower === dLower || cLower.startsWith(dLower)) {
+    const remaining = cLower.slice(dLower.length).trim();
+    const fillerRegex = /^[.,;!\-\s]*(?:actually|that|was|is|no|it|not|change|to|make|wait|correct|correction)*$/i;
+    if (!remaining || fillerRegex.test(remaining)) {
+      return draftDesc;
+    }
+  }
+  
+  return cleaned;
+}
+
 /**
  * Apply a free-form clarifier ("100", "rs 100", "₹100", "groceries", "auto")
  * to a pending draft and return the fields to merge in.
@@ -590,7 +616,7 @@ function clarifierEdits(
     // If draft value was null, fall back to deterministic regex extraction on the latest message.
     amount: followup?.amount ?? draft.amount ?? regexAmount.amount ?? null,
     currency: followup?.currency ?? draft.currency ?? regexCurrency ?? null,
-    description: followup?.description ?? draft.description ?? noun ?? null,
+    description: cleanDescription(followup?.description ?? null, draft.description) ?? noun ?? null,
     categoryHint: followup?.categoryHint ?? draft.categoryHint ?? noun ?? null,
     walletHint: followup?.walletHint ?? draft.walletHint ?? null,
     date: followup?.date ?? draft.date ?? null,
