@@ -585,17 +585,18 @@ function clarifierEdits(
   const noun = shortClarifierAsDescription(clarifierText);
 
   return {
-    // Regex wins on amount/currency; only fall back to the LLM when the
-    // deterministic pass found nothing.
-    amount: draft.amount ?? regexAmount.amount ?? followup?.amount ?? null,
-    currency: draft.currency ?? regexCurrency ?? followup?.currency ?? null,
-    description: draft.description ?? noun ?? followup?.description ?? null,
-    categoryHint: draft.categoryHint ?? followup?.categoryHint ?? noun ?? null,
-    walletHint: draft.walletHint ?? followup?.walletHint ?? null,
-    date: draft.date ?? followup?.date ?? null,
-    splitPeople: draft.splitPeople ?? followup?.splitPeople ?? null,
-    originalAmount: draft.originalAmount ?? followup?.originalAmount ?? null,
-    originalCurrency: draft.originalCurrency ?? followup?.originalCurrency ?? null,
+    // LLM's full conversational re-parse wins (because it is semantically aware of corrections/context).
+    // If not present, existing draft value is preserved.
+    // If draft value was null, fall back to deterministic regex extraction on the latest message.
+    amount: followup?.amount ?? draft.amount ?? regexAmount.amount ?? null,
+    currency: followup?.currency ?? draft.currency ?? regexCurrency ?? null,
+    description: followup?.description ?? draft.description ?? noun ?? null,
+    categoryHint: followup?.categoryHint ?? draft.categoryHint ?? noun ?? null,
+    walletHint: followup?.walletHint ?? draft.walletHint ?? null,
+    date: followup?.date ?? draft.date ?? null,
+    splitPeople: followup?.splitPeople ?? draft.splitPeople ?? null,
+    originalAmount: followup?.originalAmount ?? draft.originalAmount ?? null,
+    originalCurrency: followup?.originalCurrency ?? draft.originalCurrency ?? null,
     confidence: Math.max(draft.confidence, followup?.confidence ?? 0),
   };
 }
@@ -964,19 +965,16 @@ app.post('/confirm', requireUserOrBot, captureLimit, validate('json', confirmInp
     const resolution = resolveClarifier(merged, text);
     edits = resolution.edits;
     if (!resolution.isJsonEdits) {
-      const afterDeterministic = { ...merged, ...edits } as ParsedExpense;
-      const stillMissing = afterDeterministic.amount === null || !afterDeterministic.description;
-      // Only spend an LLM round-trip when the deterministic pass left a gap
-      // (e.g. a wordy clarifier whose description the regex can't see).
-      if (stillMissing) {
-        const followup = await parseExpense({
-          text: `${record.source}. ${text}`,
-          locale: record.locale ?? undefined,
-          spaceId: user.activeSpaceId,
-          history: body.history,
-        });
-        edits = clarifierEdits(merged, text, followup);
-      }
+      // Always run the LLM round-trip for free-form replies during confirmation
+      // to handle corrections, adjustments, and complex multi-turn updates.
+      // Use the raw text when history is available, or fall back to prefixed source.
+      const followup = await parseExpense({
+        text: (body.history && body.history.length > 0) ? text : `${record.source}. ${text}`,
+        locale: record.locale ?? undefined,
+        spaceId: user.activeSpaceId,
+        history: body.history,
+      });
+      edits = clarifierEdits(merged, text, followup);
     }
   }
   merged = { ...merged, ...edits } as ParsedExpense;
