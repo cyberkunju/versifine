@@ -23,13 +23,13 @@ async function main() {
   loadEnv();
   
   const token = process.env.WHATSAPP_TOKEN || process.env.META_ACCESS_TOKEN;
-  const phoneNumberId = '1079257601947704';
+  const wabaId = '2306127019919794';
   const apiVersion = 'v20.0';
 
   console.log(`==================================================`);
   console.log(` WhatsApp Business Subscribed Apps Tool`);
   console.log(`==================================================`);
-  console.log(`Target Phone Number ID: ${phoneNumberId}`);
+  console.log(`Target WABA ID:         ${wabaId}`);
   console.log(`Graph API Version:      ${apiVersion}`);
 
   if (!token) {
@@ -37,36 +37,8 @@ async function main() {
     process.exit(1);
   }
 
-  // Step 1: Query the phone number to get the WABA ID
-  console.log(`\n[1/2] Fetching WhatsApp Business Account ID (WABA ID)...`);
-  const queryUrl = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}?fields=whatsapp_business_account`;
-  let wabaId = '';
-
-  try {
-    const response = await fetch(queryUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-
-    const data = await response.json() as any;
-
-    if (response.ok && data.whatsapp_business_account?.id) {
-      wabaId = data.whatsapp_business_account.id;
-      console.log(`\x1b[32m✔ SUCCESS: Found WABA ID: ${wabaId}\x1b[0m`);
-    } else {
-      console.error(`\x1b[31m❌ FAILURE fetching WABA ID:\x1b[0m`);
-      console.error(JSON.stringify(data, null, 2));
-      process.exit(1);
-    }
-  } catch (error) {
-    console.error(`\x1b[31m❌ Error contacting Meta Graph API:\x1b[0m`, error);
-    process.exit(1);
-  }
-
-  // Step 2: Subscribe the app to the WABA ID
-  console.log(`\n[2/2] Subscribing Meta App to WABA ID ${wabaId}...`);
+  // Subscribe the app to the WABA ID
+  console.log(`\nSubscribing Meta App to WABA ID ${wabaId}...`);
   const subscribeUrl = `https://graph.facebook.com/${apiVersion}/${wabaId}/subscribed_apps`;
 
   try {
