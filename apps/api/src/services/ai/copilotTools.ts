@@ -15,14 +15,23 @@
  */
 import { and, between, desc, eq, gte, isNull, lte, sql as drizzleSql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
-import { CATEGORIES, type TransactionSource } from '@versifine/shared';
+import { CATEGORIES, type TransactionSource, isCategory, type Category } from '@versifine/shared';
 import { db } from '../../db/client.ts';
 import { recurringItems } from '../../db/schema/recurring.ts';
 import { transactions } from '../../db/schema/transactions.ts';
+import { wallets } from '../../db/schema/wallets.ts';
 import { log } from '../../utils/logger.ts';
 import { createTransaction } from '../transactions/create.ts';
 import { computeForecast } from '../forecast/index.ts';
 import { listLiveWallets, pickWallet } from '../capture/wallet.ts';
+import { emit } from '../events/bus.ts';
+import {
+  listBudgets,
+  computeBudgetProgress,
+  updateBudget,
+  createBudget,
+  recomputeAffectedBudgets,
+} from '../budgets/index.ts';
 
 type Range = { from: string; to: string };
 
@@ -452,6 +461,305 @@ export async function log_transaction(
   }
 }
 
+export interface ListBudgetsResult {
+  tool: 'list_budgets';
+  ok: true;
+  budgets: Array<{
+    id: string;
+    name: string;
+    recurrence: string;
+    warnThreshold: number;
+    exceedThreshold: number;
+    progress: any;
+  }>;
+}
+
+export async function list_budgets(
+  spaceId: string,
+): Promise<ListBudgetsResult | ReturnType<typeof unavailable>> {
+  try {
+    const budgetList = await listBudgets(spaceId);
+    const results = [];
+    for (const b of budgetList) {
+      const progress = await computeBudgetProgress(spaceId, b);
+      results.push({
+        id: b.id,
+        name: b.name,
+        recurrence: b.recurrence,
+        warnThreshold: b.warnThreshold,
+        exceedThreshold: b.exceedThreshold,
+        progress,
+      });
+    }
+    return { tool: 'list_budgets', ok: true, budgets: results };
+  } catch (err) {
+    log.warn('TOOL_LIST_BUDGETS_FAIL', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return unavailable('list_budgets', 'failed to load budgets');
+  }
+}
+
+export interface ListWalletsResult {
+  tool: 'list_wallets';
+  ok: true;
+  wallets: Array<{
+    id: string;
+    name: string;
+    type: string;
+    currency: string;
+    balance: number;
+  }>;
+}
+
+export async function list_wallets(
+  spaceId: string,
+): Promise<ListWalletsResult | ReturnType<typeof unavailable>> {
+  try {
+    const rows = await db
+      .select({
+        id: wallets.id,
+        name: wallets.name,
+        type: wallets.type,
+        currency: wallets.currency,
+        balance: drizzleSql<string>`
+          coalesce(sum(
+            case
+              when ${transactions.deletedAt} is not null then 0
+              when ${transactions.type} = 'income' then ${transactions.amount}
+              when ${transactions.type} = 'opening_balance' then ${transactions.amount}
+              when ${transactions.type} = 'expense' then -${transactions.amount}
+              when ${transactions.type} = 'transfer' then
+                case when (${transactions.metadata} ->> 'side') = 'to' then ${transactions.amount}
+                     else -${transactions.amount}
+                end
+              else 0
+            end
+          ), 0)
+        `,
+      })
+      .from(wallets)
+      .leftJoin(transactions, eq(transactions.walletId, wallets.id))
+      .where(eq(wallets.spaceId, spaceId))
+      .groupBy(wallets.id);
+
+    return {
+      tool: 'list_wallets',
+      ok: true,
+      wallets: rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        type: r.type,
+        currency: r.currency,
+        balance: Number(r.balance),
+      })),
+    };
+  } catch (err) {
+    log.warn('TOOL_LIST_WALLETS_FAIL', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return unavailable('list_wallets', 'failed to load wallets');
+  }
+}
+
+interface ListTransactionsArgs {
+  limit?: number;
+  type?: 'income' | 'expense' | 'transfer';
+  category?: string;
+  walletId?: string;
+}
+
+export interface ListTransactionsResult {
+  tool: 'list_transactions';
+  ok: true;
+  transactions: Array<{
+    id: string;
+    type: string;
+    amount: number;
+    currency: string;
+    description: string;
+    category: string | null;
+    date: string;
+    walletName: string;
+  }>;
+}
+
+export async function list_transactions(
+  spaceId: string,
+  args: ListTransactionsArgs,
+): Promise<ListTransactionsResult | ReturnType<typeof unavailable>> {
+  try {
+    const limitVal = Math.min(50, Math.max(1, args.limit ?? 10));
+    const filters: SQL[] = [eq(transactions.spaceId, spaceId), isNull(transactions.deletedAt)];
+    if (args.type) filters.push(eq(transactions.type, args.type));
+    if (args.category) filters.push(eq(transactions.category, args.category));
+    if (args.walletId) filters.push(eq(transactions.walletId, args.walletId));
+
+    const rows = await db
+      .select({
+        id: transactions.id,
+        type: transactions.type,
+        amount: transactions.amount,
+        currency: transactions.currency,
+        description: transactions.description,
+        category: transactions.category,
+        date: transactions.date,
+        walletName: wallets.name,
+      })
+      .from(transactions)
+      .innerJoin(wallets, eq(transactions.walletId, wallets.id))
+      .where(and(...filters))
+      .orderBy(desc(transactions.date), desc(transactions.createdAt))
+      .limit(limitVal);
+
+    return {
+      tool: 'list_transactions',
+      ok: true,
+      transactions: rows.map((r) => ({
+        id: r.id,
+        type: r.type,
+        amount: Number(r.amount),
+        currency: r.currency,
+        description: r.description,
+        category: r.category,
+        date: r.date,
+        walletName: r.walletName,
+      })),
+    };
+  } catch (err) {
+    log.warn('TOOL_LIST_TRANSACTIONS_FAIL', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return unavailable('list_transactions', 'failed to load transactions');
+  }
+}
+
+export interface DeleteTransactionResult {
+  tool: 'delete_transaction';
+  ok: true;
+  transactionId: string;
+}
+
+export async function delete_transaction(
+  ctx: ToolContext,
+  args: { transactionId?: string },
+): Promise<DeleteTransactionResult | ReturnType<typeof unavailable>> {
+  try {
+    let targetId = args.transactionId;
+    if (!targetId) {
+      // Find the most recent transaction
+      const [lastTx] = await db
+        .select({ id: transactions.id })
+        .from(transactions)
+        .where(and(eq(transactions.spaceId, ctx.spaceId), isNull(transactions.deletedAt)))
+        .orderBy(desc(transactions.date), desc(transactions.createdAt))
+        .limit(1);
+      if (!lastTx) {
+        return unavailable('delete_transaction', 'no transactions found to delete');
+      }
+      targetId = lastTx.id;
+    }
+
+    const [row] = await db
+      .update(transactions)
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .where(
+        and(
+          eq(transactions.id, targetId),
+          eq(transactions.spaceId, ctx.spaceId),
+          isNull(transactions.deletedAt),
+        ),
+      )
+      .returning();
+
+    if (!row) {
+      return unavailable('delete_transaction', 'transaction not found or already deleted');
+    }
+
+    emit(ctx.userId, {
+      type: 'transaction.deleted',
+      entityId: targetId,
+      data: { transactionId: targetId },
+    });
+    void recomputeAffectedBudgets(ctx.userId, ctx.spaceId, row.category);
+
+    return {
+      tool: 'delete_transaction',
+      ok: true,
+      transactionId: targetId,
+    };
+  } catch (err) {
+    log.warn('TOOL_DELETE_TRANSACTION_FAIL', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return unavailable('delete_transaction', 'failed to delete transaction');
+  }
+}
+
+export interface SetBudgetResult {
+  tool: 'set_budget';
+  ok: true;
+  budget: { id: string; name: string };
+}
+
+export async function set_budget(
+  ctx: ToolContext,
+  args: { category: string; amount: number; name?: string; recurrence?: 'monthly' | 'custom' },
+): Promise<SetBudgetResult | ReturnType<typeof unavailable>> {
+  try {
+    if (!isCategory(args.category)) {
+      return unavailable('set_budget', 'invalid category: must be one of the known finance categories');
+    }
+    const name = args.name || `${args.category} budget`;
+    const recurrence = args.recurrence || 'monthly';
+    const amount = Number(args.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return unavailable('set_budget', 'amount must be a positive number');
+    }
+
+    const budgetList = await listBudgets(ctx.spaceId);
+    let matchedBudget = budgetList.find((b) => b.name.toLowerCase() === name.toLowerCase());
+    if (!matchedBudget) {
+      matchedBudget = budgetList.find((b) => {
+        const allocs = b.allocations as Record<string, number>;
+        return allocs && args.category in allocs;
+      });
+    }
+
+    let budgetRow;
+    if (matchedBudget) {
+      const allocs = { ...(matchedBudget.allocations as Record<string, number>), [args.category]: amount };
+      budgetRow = await updateBudget(ctx.spaceId, matchedBudget.id, {
+        allocations: allocs,
+      });
+    } else {
+      budgetRow = await createBudget(ctx.spaceId, {
+        name,
+        recurrence,
+        allocations: { [args.category]: amount },
+        warnThreshold: 80,
+        exceedThreshold: 100,
+      });
+    }
+
+    await recomputeAffectedBudgets(ctx.userId, ctx.spaceId, args.category);
+
+    return {
+      tool: 'set_budget',
+      ok: true,
+      budget: {
+        id: budgetRow.id,
+        name: budgetRow.name,
+      },
+    };
+  } catch (err) {
+    log.warn('TOOL_SET_BUDGET_FAIL', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return unavailable('set_budget', 'failed to set budget');
+  }
+}
+
 /**
  * The OpenAI tool descriptors the model sees. Kept in one place so the
  * route handler can pass them straight to the chat completions API.
@@ -586,6 +894,68 @@ export const COPILOT_TOOL_SPECS = [
       },
     },
   },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'list_budgets',
+      description: 'List all active budgets, allocations, and live progress/spent details.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'list_wallets',
+      description: 'List all active wallets and their current live balances.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'list_transactions',
+      description: 'List recent transactions in the space, optionally filtered by type, category, or walletId.',
+      parameters: {
+        type: 'object',
+        properties: {
+          limit: { type: 'integer', description: 'max transactions to return, default 10, max 50' },
+          type: { type: 'string', enum: ['income', 'expense', 'transfer'] },
+          category: { type: 'string', description: 'filter by category name' },
+          walletId: { type: 'string', description: 'filter by wallet UUID' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'delete_transaction',
+      description: 'Delete or undo a transaction. If transactionId is not provided, it deletes the most recent transaction.',
+      parameters: {
+        type: 'object',
+        properties: {
+          transactionId: { type: 'string', description: 'the UUID of the transaction to delete' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'set_budget',
+      description: 'Set or update a budget allocation for a category.',
+      parameters: {
+        type: 'object',
+        properties: {
+          category: { type: 'string', description: 'the category name, e.g. "Groceries", "Restaurants"' },
+          amount: { type: 'number', description: 'positive budget amount to allocate' },
+          name: { type: 'string', description: 'optional name for the budget' },
+          recurrence: { type: 'string', enum: ['monthly', 'custom'], description: 'default monthly' },
+        },
+        required: ['category', 'amount'],
+      },
+    },
+  },
 ];
 
 /**
@@ -620,6 +990,16 @@ export async function dispatchTool(
       return compare_periods(ctx.spaceId, args as unknown as { a: Range; b: Range });
     case 'log_transaction':
       return log_transaction(ctx, args as unknown as LogTransactionArgs);
+    case 'list_budgets':
+      return list_budgets(ctx.spaceId);
+    case 'list_wallets':
+      return list_wallets(ctx.spaceId);
+    case 'list_transactions':
+      return list_transactions(ctx.spaceId, args as unknown as ListTransactionsArgs);
+    case 'delete_transaction':
+      return delete_transaction(ctx, args as unknown as { transactionId?: string });
+    case 'set_budget':
+      return set_budget(ctx, args as unknown as { category: string; amount: number; name?: string; recurrence?: 'monthly' | 'custom' });
     default:
       return unavailable(name, 'unknown tool');
   }

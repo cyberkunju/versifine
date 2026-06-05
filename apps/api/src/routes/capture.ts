@@ -48,6 +48,7 @@ import { normalizeMerchant } from '../services/transactions/normalize.ts';
 import { ok } from '../utils/envelope.ts';
 import { errors } from '../utils/errors.ts';
 import { log } from '../utils/logger.ts';
+import { onConfirmed, onRejected } from '../services/ai/brain/reinforcement.ts';
 
 const app = new Hono();
 
@@ -207,8 +208,9 @@ function splitPotentialBatch(text: string): string[] {
 async function parseBatchItems(
   text: string,
   locale: Language | undefined,
+  spaceId?: string,
 ): Promise<ParsedBatchItem[] | null> {
-  const modelBatch = await parseExpenseBatch({ text, locale });
+  const modelBatch = await parseExpenseBatch({ text, locale, spaceId });
   if (modelBatch && modelBatch.items.length >= 2) {
     const items = modelBatch.items
       .filter((draft) => draft.amount !== null && Boolean(draft.description))
@@ -222,7 +224,7 @@ async function parseBatchItems(
   const parsed: ParsedBatchItem[] = [];
   for (const part of parts) {
     if (extractAmount(part).amount === null) continue;
-    const draft = await parseExpense({ text: part, locale });
+    const draft = await parseExpense({ text: part, locale, spaceId });
     if (draft.amount === null || !draft.description) continue;
     parsed.push({ sourceText: part, draft });
   }
@@ -235,7 +237,7 @@ async function tryPersistBatchExpenses(input: RunPipelineInput) {
   if (origin === 'image') return null;
 
   const user = c.get('user');
-  const items = await parseBatchItems(text, locale);
+  const items = await parseBatchItems(text, locale, user.activeSpaceId);
   if (!items) return null;
 
   const livewallets = await listLiveWallets(user.activeSpaceId);
@@ -418,7 +420,7 @@ async function persistOrDraftExpense(args: {
   const { c, text, origin, locale, source } = input;
   const user = c.get('user');
 
-  const parsed = await parseExpense({ text, locale });
+  const parsed = await parseExpense({ text, locale, spaceId: user.activeSpaceId });
   // Respect the classifier when it disagrees with the parser's default
   // "expense" type. Only meaningful on the transaction-intent path.
   if (intentLabel === 'income' && parsed.type !== 'income') {
@@ -865,6 +867,49 @@ app.post('/confirm', requireUserOrBot, captureLimit, validate('json', confirmInp
     throw errors.forbidden('Draft does not belong to this user');
   }
 
+  if (text) {
+    const textIntent = await classifyIntent({ text, locale: record.locale ?? undefined });
+    const isQuery =
+      textIntent.intent === 'query_spending' ||
+      textIntent.intent === 'query_summary' ||
+      textIntent.intent === 'query_forecast';
+    const isOtherAction =
+      textIntent.intent === 'set_budget' ||
+      textIntent.intent === 'set_goal' ||
+      textIntent.intent === 'ask_advice' ||
+      textIntent.intent === 'delete_last' ||
+      textIntent.intent === 'correct_last';
+    const isChatAndNotExpense = textIntent.intent === 'chat' && !isExpenseLike(text);
+    const typeMismatch =
+      (record.draft.type === 'expense' && (textIntent.intent === 'income' || textIntent.intent === 'transfer')) ||
+      (record.draft.type === 'income' && (textIntent.intent === 'expense' || textIntent.intent === 'transfer')) ||
+      (record.draft.type === 'transfer' && (textIntent.intent === 'expense' || textIntent.intent === 'income'));
+
+    if (isQuery || isOtherAction || isChatAndNotExpense || typeMismatch) {
+      c.get('log').info('CAPTURE_CONFIRM_REDIRECT', {
+        draftId,
+        priorType: record.draft.type,
+        newIntent: textIntent.intent,
+        text,
+      });
+      consumeDraft(draftId);
+      const sourceTag = c.req.header('x-bot-secret')
+        ? record.origin === 'voice'
+          ? 'whatsapp_voice'
+          : record.origin === 'image'
+            ? 'whatsapp_image'
+            : 'whatsapp_text'
+        : 'manual_web';
+      return runTextPipeline({
+        c,
+        text,
+        origin: record.origin,
+        locale: maybeLanguage(record.locale ?? undefined),
+        source: sourceTag,
+      });
+    }
+  }
+
   // Apply edits as a JSON patch if the user sent one, otherwise treat
   // the whole `text` field as a free-form clarifier and fill missing fields
   // deterministically (regex first, LLM only if a gap remains).
@@ -894,6 +939,7 @@ app.post('/confirm', requireUserOrBot, captureLimit, validate('json', confirmInp
         const followup = await parseExpense({
           text: `${record.source}. ${text}`,
           locale: record.locale ?? undefined,
+          spaceId: user.activeSpaceId,
         });
         edits = clarifierEdits(merged, text, followup);
       }
@@ -901,6 +947,26 @@ app.post('/confirm', requireUserOrBot, captureLimit, validate('json', confirmInp
   }
   merged = { ...merged, ...edits } as ParsedExpense;
   merged.needs = missingFields(merged);
+
+  // ── Reinforcement signal: was the original draft changed? ──────────────
+  // If the user's clarifier text changed any field that the original parse
+  // had set, the original parse was wrong → fire onRejected so the AI brain
+  // can learn from the correction.
+  const originalDraft = record.draft;
+  const wasEdited =
+    (edits.amount !== undefined && edits.amount !== originalDraft.amount) ||
+    (edits.description !== undefined && edits.description !== originalDraft.description) ||
+    (edits.currency !== undefined && edits.currency !== originalDraft.currency) ||
+    (edits.walletHint !== undefined && edits.walletHint !== originalDraft.walletHint);
+
+  if (wasEdited && record.source) {
+    void onRejected(
+      user.activeSpaceId,
+      record.source,
+      originalDraft,
+      merged,
+    ).catch(() => undefined);
+  }
 
   if (merged.amount === null || !merged.description) {
     // Still missing a required field. Re-stash and ask for whatever is
@@ -977,6 +1043,12 @@ app.post('/confirm', requireUserOrBot, captureLimit, validate('json', confirmInp
     throw errors.internal(persistResult.message);
   }
   consumeDraft(draftId);
+
+  // ── Reinforcement signal: confirmed! ──────────────────────────────────
+  // Fire-and-forget — teaches every AI brain layer from this confirmation.
+  if (record.source) {
+    void onConfirmed(user.activeSpaceId, record.source, merged).catch(() => undefined);
+  }
 
   return c.json(
     ok({

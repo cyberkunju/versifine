@@ -17,3 +17,6 @@ export * from './goals.ts';
 export * from './ledger.ts';
 export * from './recurring.ts';
 export * from './fx.ts';
+export * from './patterns.ts';
+export * from './utteranceMemory.ts';
+export * from './spendingDna.ts';

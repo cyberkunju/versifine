@@ -14,6 +14,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { Hono } from 'hono';
 import { env } from '../config.ts';
 import { dispatchSimulator } from '../openwa/handlers.ts';
+import { onRelayedMessage } from '../cloudwa/handlers.ts';
+import type { RelayedWebhookPayload } from '../cloudwa/types.ts';
 import { getQrSnapshot, isClientReady, QR_FILE, unlinkSession } from '../openwa/createClient.ts';
 import { getSharedClient } from '../openwa/sharedClient.ts';
 import { listSessions } from '../conversations/state.ts';
@@ -37,7 +39,7 @@ app.get('/health', (c) =>
   c.json({
     ok: true,
     uptimeMs: Date.now() - startedAt,
-    ready: isClientReady(),
+    ready: true,
     name: env.BOT_NAME,
   }),
 );
@@ -256,10 +258,15 @@ app.post('/send', async (c) => {
     return c.json({ error: 'missing_fields' }, 400);
   }
   const client = getSharedClient();
-  if (!client) return c.json({ error: 'client_not_ready' }, 503);
   const phone = normalizePhone(body.phone);
   try {
-    await client.sendMessage(`${phone}@c.us`, body.text);
+    if (client) {
+      await client.sendMessage(`${phone}@c.us`, body.text);
+    } else {
+      const { sendTextMessage } = await import('../cloudwa/client.ts');
+      const ok = await sendTextMessage(phone, body.text);
+      if (!ok) throw new Error('Meta Graph API delivery failed');
+    }
     return c.json({ sent: true });
   } catch (err) {
     log.warn('SEND_FAIL', {
@@ -288,14 +295,19 @@ app.post('/broadcast/budget-alert', async (c) => {
     return c.json({ error: 'missing_fields' }, 400);
   }
   const client = getSharedClient();
-  if (!client) return c.json({ error: 'client_not_ready' }, 503);
   const phone = normalizePhone(body.phone);
   const text =
     body.percentage >= 100
       ? `🚨 Budget exceeded: ${body.category} (₹${body.spent ?? '—'} of ₹${body.allocated ?? '—'}).`
       : `⚠️ Budget alert: ${body.category} at ${Math.round(body.percentage)}% (₹${body.spent ?? '—'} of ₹${body.allocated ?? '—'}).`;
   try {
-    await client.sendMessage(`${phone}@c.us`, text);
+    if (client) {
+      await client.sendMessage(`${phone}@c.us`, text);
+    } else {
+      const { sendTextMessage } = await import('../cloudwa/client.ts');
+      const ok = await sendTextMessage(phone, text);
+      if (!ok) throw new Error('Meta Graph API delivery failed');
+    }
     return c.json({ sent: true });
   } catch (err) {
     log.warn('BROADCAST_BUDGET_FAIL', {
@@ -322,13 +334,18 @@ app.post('/broadcast/forecast-anomaly', async (c) => {
     return c.json({ error: 'missing_fields' }, 400);
   }
   const client = getSharedClient();
-  if (!client) return c.json({ error: 'client_not_ready' }, 503);
   const phone = normalizePhone(body.phone);
   const text = `📈 Spend anomaly on ${body.date}: ₹${body.amount}${
     typeof body.expected === 'number' ? ` (expected ~₹${body.expected})` : ''
   }.`;
   try {
-    await client.sendMessage(`${phone}@c.us`, text);
+    if (client) {
+      await client.sendMessage(`${phone}@c.us`, text);
+    } else {
+      const { sendTextMessage } = await import('../cloudwa/client.ts');
+      const ok = await sendTextMessage(phone, text);
+      if (!ok) throw new Error('Meta Graph API delivery failed');
+    }
     return c.json({ sent: true });
   } catch (err) {
     log.warn('BROADCAST_ANOMALY_FAIL', {
@@ -336,6 +353,39 @@ app.post('/broadcast/forecast-anomaly', async (c) => {
       error: err instanceof Error ? err.message.slice(0, 200) : String(err),
     });
     return c.json({ error: 'send_failed' }, 502);
+  }
+});
+
+type WebhookMessageBody = Partial<RelayedWebhookPayload>;
+
+app.post('/webhook/message', async (c) => {
+  if (!requireBotSecret(c.req.header('x-bot-secret'))) {
+    return c.json({ error: 'unauthorised' }, 401);
+  }
+  const payload = (await c.req.json().catch(() => ({}))) as WebhookMessageBody;
+  if (!payload.phone) {
+    return c.json({ error: 'missing_fields' }, 400);
+  }
+
+  try {
+    // Process relayed message asynchronously so we can reply 200 OK immediately to the API webhook
+    void onRelayedMessage({
+      phone: payload.phone,
+      body: payload.body ?? '',
+      hasAudio: Boolean(payload.hasAudio),
+      audioBase64: payload.audioBase64 ?? null,
+      audioMimetype: payload.audioMimetype ?? null,
+      hasImage: Boolean(payload.hasImage),
+      imageBase64: payload.imageBase64 ?? null,
+      imageMimetype: payload.imageMimetype ?? null,
+    });
+    return c.json({ success: true });
+  } catch (err) {
+    log.error('WEBHOOK_MESSAGE_FAIL', {
+      phone: maskPhone(payload.phone),
+      error: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    });
+    return c.json({ error: 'failed_to_process' }, 500);
   }
 });
 

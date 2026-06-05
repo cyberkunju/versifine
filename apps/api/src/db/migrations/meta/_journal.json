@@ -36,6 +36,13 @@
       "when": 1779977463062,
       "tag": "0004_google_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1780662390984,
+      "tag": "0005_striped_nova",
+      "breakpoints": true
     }
   ]
 }

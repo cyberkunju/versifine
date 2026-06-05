@@ -20,6 +20,12 @@ import { env } from '../../env.ts';
 import { log } from '../../utils/logger.ts';
 import { getOpenAI, isAIConfigured, normalizeChatParams, withLatency } from './client.ts';
 import { extractAmount, extractCurrency, extractDate, extractSplitCount } from './parserRegex.ts';
+import { tryParseLearnedPattern, learnPatternFromParse } from './patternLearner.ts';
+import {
+  lookupSimilar,
+  recordUtterance,
+} from './brain/utteranceMemory.ts';
+import { buildDynamicSystemPrompt } from './brain/promptEvolver.ts';
 
 export type ExpenseType = 'expense' | 'income' | 'transfer';
 export type MissingField = 'amount' | 'description' | 'wallet' | 'currency';
@@ -27,6 +33,7 @@ export type MissingField = 'amount' | 'description' | 'wallet' | 'currency';
 export interface ParseInput {
   text: string;
   locale?: string;
+  spaceId?: string;
 }
 
 export interface ParsedExpense {
@@ -354,10 +361,22 @@ function computeNeeds(p: Omit<ParsedExpense, 'needs'>): MissingField[] {
   return needs;
 }
 
-async function callLLM(input: ParseInput): Promise<Partial<ParsedExpense> | null> {
+async function callLLM(input: ParseInput, priorHint?: ParsedExpense): Promise<Partial<ParsedExpense> | null> {
   const client = getOpenAI();
   if (!client) return null;
   try {
+    // Build a dynamic, per-space prompt (adds DNA prior + hard examples).
+    const dynamicPrompt = await buildDynamicSystemPrompt(SYSTEM_PROMPT, input.spaceId ?? null);
+
+    // If we have a semantic prior hint from utterance memory, inject it as
+    // a soft guide into the user message — the model weighs it heavily but
+    // is still free to override it for genuinely different inputs.
+    let userContent = input.locale ? `[locale=${input.locale}] ${input.text}` : input.text;
+    if (priorHint) {
+      const hint = `[SIMILAR_PRIOR: amount=${priorHint.amount}, description=${priorHint.description}, type=${priorHint.type}]`;
+      userContent = `${hint}\n${userContent}`;
+    }
+
     const completion = await withLatency('parser.expense', () =>
       client.chat.completions.create(
         normalizeChatParams({
@@ -366,11 +385,8 @@ async function callLLM(input: ParseInput): Promise<Partial<ParsedExpense> | null
           max_tokens: 400,
           response_format: { type: 'json_object' },
           messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
-            {
-              role: 'user',
-              content: input.locale ? `[locale=${input.locale}] ${input.text}` : input.text,
-            },
+            { role: 'system', content: dynamicPrompt },
+            { role: 'user', content: userContent },
           ],
         }),
       ),
@@ -419,12 +435,50 @@ export async function parseExpense(input: ParseInput): Promise<ParsedExpense> {
   const text = input.text?.trim() ?? '';
   if (!text) return emptyParse();
 
+  // ── TIER 0: Semantic Utterance Memory (fastest path, ~5ms) ──────────────
+  // Before anything else, check if we've seen something semantically
+  // identical before. An exact hash match (similarity 1.0) or a vector
+  // hit with similarity ≥ EXACT_HIT_THRESHOLD returns the cached parse
+  // directly with zero LLM cost. The result is cached here so we don't
+  // call the embedding API a second time for the Tier 3 prior hint.
+  let memHit: Awaited<ReturnType<typeof lookupSimilar>> = null;
+  if (input.spaceId) {
+    memHit = await lookupSimilar(input.spaceId, text).catch(() => null);
+
+    if (memHit?.type === 'exact') {
+      log.info('PARSE_TIER0_HIT', { spaceId: input.spaceId, similarity: memHit.similarity });
+      // Return the cached result, but keep the `needs` list fresh in case
+      // wallets have changed since it was stored.
+      const cached = { ...memHit.parsedResult, needs: computeNeeds(memHit.parsedResult) };
+      return cached;
+    }
+
+    if (memHit?.type === 'prior') {
+      log.info('PARSE_TIER0_PRIOR', { spaceId: input.spaceId, similarity: memHit.similarity });
+    }
+
+    // ── TIER 1: Learned Regex Patterns ──────────────────────────────────
+    const matched = await tryParseLearnedPattern(input.spaceId, text);
+    if (matched) {
+      // Store for future memory lookups (fire-and-forget).
+      void recordUtterance(input.spaceId, text, matched as ParsedExpense).catch(() => undefined);
+      return matched as ParsedExpense;
+    }
+  }
+
+  // ── TIER 2: Deterministic Regex ─────────────────────────────────────────
   const regexAmount = extractAmount(text);
   const regexCurrency = regexAmount.currency ?? extractCurrency(text);
   const regexDate = extractDate(text);
   const regexSplit = extractSplitCount(text);
 
-  const llm = isAIConfigured() ? await callLLM(input) : null;
+  // ── TIER 3: LLM with Dynamic Prompt ────────────────────────────────────
+  // Reuse the cached Tier 0 result as a prior hint if it was a soft match.
+  const priorHint: ParsedExpense | undefined =
+    memHit?.type === 'prior' ? memHit.parsedResult : undefined;
+
+  const llm = isAIConfigured() ? await callLLM(input, priorHint) : null;
+
 
   // Merge with regex priority on the deterministic fields.
   const mergedAmount = regexAmount.amount ?? llm?.amount ?? null;
@@ -477,7 +531,20 @@ export async function parseExpense(input: ParseInput): Promise<ParsedExpense> {
     confidence,
   };
 
-  return { ...draft, needs: computeNeeds(draft) };
+  const finalDraft = { ...draft, needs: computeNeeds(draft) };
+
+  // ── Post-parse async work (fire-and-forget, never blocks caller) ────────
+  if (input.spaceId) {
+    // Always store the utterance in memory so future lookups benefit.
+    void recordUtterance(input.spaceId, text, finalDraft).catch(() => undefined);
+
+    if (finalDraft.confidence >= 0.75) {
+      // Compile a regex template from this successful parse.
+      void learnPatternFromParse(input.spaceId, text, finalDraft).catch(() => undefined);
+    }
+  }
+
+  return finalDraft;
 }
 
 function parsedFromLlmData(data: z.infer<typeof llmSchema>): ParsedExpense {

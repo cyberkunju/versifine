@@ -65,6 +65,65 @@ async function sendWhatsAppTextMessage(to: string, text: string) {
 }
 
 /**
+ * Download a media file (voice note or receipt) from Meta's servers
+ */
+async function downloadMetaMedia(mediaId: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
+  const token = process.env.WHATSAPP_TOKEN;
+  if (!token) {
+    log.error('WHATSAPP_MEDIA_DOWNLOAD_FAILED', { error: 'WHATSAPP_TOKEN not configured in environment' });
+    return null;
+  }
+
+  try {
+    // 1. Get the media download URL from Meta Graph API
+    const infoUrl = `https://graph.facebook.com/v23.0/${mediaId}`;
+    const infoRes = await fetch(infoUrl, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!infoRes.ok) {
+      const errData = await infoRes.json().catch(() => ({}));
+      log.error('WHATSAPP_MEDIA_INFO_FAILED', { status: infoRes.status, error: errData });
+      return null;
+    }
+
+    const info = await infoRes.json() as any;
+    const downloadUrl = info.url;
+    const mimeType = info.mime_type || 'application/octet-stream';
+
+    if (!downloadUrl) {
+      log.error('WHATSAPP_MEDIA_URL_MISSING', { info });
+      return null;
+    }
+
+    // 2. Fetch the actual binary file content using the lookaside URL
+    const mediaRes = await fetch(downloadUrl, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!mediaRes.ok) {
+      log.error('WHATSAPP_MEDIA_BINARY_FAILED', { status: mediaRes.status });
+      return null;
+    }
+
+    const arrayBuffer = await mediaRes.arrayBuffer();
+    return {
+      buffer: Buffer.from(arrayBuffer),
+      mimeType,
+    };
+  } catch (err) {
+    log.error('WHATSAPP_MEDIA_DOWNLOAD_EXCEPTION', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
+}
+
+/**
  * POST /webhook/whatsapp
  * Meta calls this whenever there is a webhook event (new message, status change, etc.)
  */
@@ -78,7 +137,6 @@ app.post('/whatsapp', async (c) => {
       entryCount: payload.entry?.length,
     });
     
-    // Detailed logging of entries
     if (payload.entry && Array.isArray(payload.entry)) {
       for (const entry of payload.entry) {
         if (entry.changes && Array.isArray(entry.changes)) {
@@ -87,19 +145,85 @@ app.post('/whatsapp', async (c) => {
             if (value && value.messages && Array.isArray(value.messages)) {
               for (const message of value.messages) {
                 const sender = message.from;
-                const textBody = message.text?.body;
-
+                const messageId = message.id;
+                
                 log.info('WHATSAPP_WEBHOOK_MESSAGE_RECEIVED', {
                   from: sender,
                   type: message.type,
-                  messageId: message.id,
-                  text: textBody,
+                  messageId,
                 });
 
-                if (message.type === 'text' && textBody) {
-                  // Reply back with an echo to test the round-trip
-                  const replyText = `Hi! This is the Versifine Business API bot. I received your message: "${textBody}"`;
-                  await sendWhatsAppTextMessage(sender, replyText);
+                // Prepare bot relay payload
+                const botPayload: Record<string, any> = {
+                  phone: sender,
+                  body: '',
+                  hasAudio: false,
+                  audioBase64: null,
+                  audioMimetype: null,
+                  hasImage: false,
+                  imageBase64: null,
+                  imageMimetype: null,
+                };
+
+                let shouldRelay = false;
+
+                if (message.type === 'text' && message.text?.body) {
+                  botPayload.body = message.text.body;
+                  shouldRelay = true;
+                } else if (message.type === 'audio' && message.audio?.id) {
+                  const media = await downloadMetaMedia(message.audio.id);
+                  if (media) {
+                    botPayload.hasAudio = true;
+                    botPayload.audioBase64 = media.buffer.toString('base64');
+                    botPayload.audioMimetype = media.mimeType;
+                    // Provide a default description fallback
+                    botPayload.body = '[voice note]';
+                    shouldRelay = true;
+                  }
+                } else if (message.type === 'image' && message.image?.id) {
+                  const media = await downloadMetaMedia(message.image.id);
+                  if (media) {
+                    botPayload.hasImage = true;
+                    botPayload.imageBase64 = media.buffer.toString('base64');
+                    botPayload.imageMimetype = media.mimeType;
+                    // Provide a default description fallback
+                    botPayload.body = message.image.caption || '[payment image]';
+                    shouldRelay = true;
+                  }
+                }
+
+                if (shouldRelay) {
+                  // Forward to wa-bot on port 5001
+                  const botUrl = `http://localhost:${process.env.BOT_PORT || '5001'}/webhook/message`;
+                  const botSecret = process.env.BOT_SECRET || 'versifine-secret-2026';
+                  
+                  try {
+                    const relayRes = await fetch(botUrl, {
+                      method: 'POST',
+                      headers: {
+                        'x-bot-secret': botSecret,
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify(botPayload),
+                    });
+                    
+                    if (relayRes.ok) {
+                      const data = await relayRes.json() as any;
+                      log.info('WHATSAPP_RELAY_SUCCESS', { sender, messageId, reply: data });
+                    } else {
+                      log.error('WHATSAPP_RELAY_FAILED', {
+                        sender,
+                        messageId,
+                        status: relayRes.status,
+                      });
+                    }
+                  } catch (relayErr) {
+                    log.error('WHATSAPP_RELAY_NETWORK_ERROR', {
+                      sender,
+                      messageId,
+                      error: relayErr instanceof Error ? relayErr.message : String(relayErr),
+                    });
+                  }
                 }
               }
             }

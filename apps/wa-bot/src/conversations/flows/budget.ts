@@ -53,7 +53,7 @@ const ALIAS_TO_CATEGORY: Record<string, Category> = {
   education: 'Education',
 };
 
-function pickCategory(input: string): Category | null {
+export function pickCategory(input: string): Category | null {
   const trimmed = input.trim().toLowerCase();
   if (!trimmed) return null;
   if (isCategory(input.trim())) return input.trim() as Category;
@@ -65,7 +65,7 @@ function pickCategory(input: string): Category | null {
   return null;
 }
 
-function pickAmount(input: string): number | null {
+export function pickAmount(input: string): number | null {
   const match = input.replace(/[,\s]/g, '').match(/(\d+(?:\.\d+)?)/);
   if (!match) return null;
   const n = Number(match[1]);

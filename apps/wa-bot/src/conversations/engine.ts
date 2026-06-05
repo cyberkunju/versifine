@@ -37,7 +37,7 @@ import { transcribe } from '../services/ai/transcribe.ts';
 import { translateForUser } from '../services/ai/translate.ts';
 import { log } from '../utils/logger.ts';
 import { chunkText, parseLinkCommand, parseUniversal } from '../utils/text.ts';
-import { handleBudget, looksLikeBudgetTrigger } from './flows/budget.ts';
+import { handleBudget, looksLikeBudgetTrigger, pickCategory, pickAmount } from './flows/budget.ts';
 import { handleCapture, handleConfirm } from './flows/capture.ts';
 import { handleCorrection, looksLikeCorrection } from './flows/correct.ts';
 import { handleLanguagePick, handleEmailStep, resolveFirstContact } from './flows/identity.ts';
@@ -156,8 +156,45 @@ async function dispatch(session: Session, message: IncomingMessage): Promise<Dis
     session.state === 'SET_BUDGET_AMOUNT' ||
     looksLikeBudgetTrigger(message.body)
   ) {
-    const out = await handleBudget(session, message.body);
-    return { text: out.text, speakable: true };
+    if (session.state === 'SET_BUDGET_CATEGORY' || session.state === 'SET_BUDGET_AMOUNT') {
+      let isBudgetResponse = false;
+      if (session.state === 'SET_BUDGET_CATEGORY') {
+        isBudgetResponse = pickCategory(message.body) !== null;
+      } else {
+        isBudgetResponse = pickAmount(message.body) !== null;
+      }
+
+      if (!isBudgetResponse) {
+        try {
+          const { captureText } = await import('../services/apiClient.ts');
+          const check = await captureText(session.phone, message.body, session.language);
+          if (
+            check.intent === 'query_spending' ||
+            check.intent === 'query_summary' ||
+            check.intent === 'query_forecast' ||
+            check.intent === 'expense' ||
+            check.intent === 'income' ||
+            check.intent === 'transfer' ||
+            check.intent === 'chat'
+          ) {
+            updateSession(session.phone, { state: 'LINKED_MAIN', pending: {} });
+            session.state = 'LINKED_MAIN';
+            session.pending = {};
+          }
+        } catch {
+          // ignore error and proceed
+        }
+      }
+    }
+
+    if (
+      session.state === 'SET_BUDGET_CATEGORY' ||
+      session.state === 'SET_BUDGET_AMOUNT' ||
+      looksLikeBudgetTrigger(message.body)
+    ) {
+      const out = await handleBudget(session, message.body);
+      return { text: out.text, speakable: true };
+    }
   }
 
   // "Last one was X not Y" — correction shortcut.

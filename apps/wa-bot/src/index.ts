@@ -76,12 +76,18 @@ async function main(): Promise<void> {
     }
   };
 
-  // Fire the client boot in the background; never let it crash the process.
-  void bootClient().catch((err) => {
-    log.error('BOT_BOOT_LOOP_FAIL', {
-      error: err instanceof Error ? err.message.slice(0, 240) : String(err),
+  // Fire the client boot in the background when running in legacy browser automation mode.
+  // When running in WhatsApp Cloud API mode (determined by the presence of WHATSAPP_TOKEN),
+  // we bypass chromium client boot entirely.
+  if (process.env.WHATSAPP_TOKEN) {
+    log.info('BOT_RUNNING_CLOUD_API_MODE', { reason: 'WHATSAPP_TOKEN is present in environment' });
+  } else {
+    void bootClient().catch((err) => {
+      log.error('BOT_BOOT_LOOP_FAIL', {
+        error: err instanceof Error ? err.message.slice(0, 240) : String(err),
+      });
     });
-  });
+  }
 
   const shutdown = async (signal: string) => {
     log.info('BOT_SHUTDOWN', { signal });
