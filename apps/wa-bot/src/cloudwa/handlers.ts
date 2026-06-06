@@ -5,11 +5,9 @@
  * checks allowlist/demo access, and delivers replies using the Graph API.
  */
 import type { ConversationState, IncomingMessage } from '../types.ts';
-import { env } from '../config.ts';
 import { runEngine } from '../conversations/engine.ts';
-import { addToAllowlist, isDemoRequest, isDynamicallyAllowed } from '../services/allowlist.ts';
 import { log, maskPhone } from '../utils/logger.ts';
-import { isAllowed, normalizePhone } from '../utils/phone.ts';
+import { normalizePhone } from '../utils/phone.ts';
 import { chunkText } from '../utils/text.ts';
 import { sendTextMessage, uploadAudio, sendVoiceMessage } from './client.ts';
 import type { RelayedWebhookPayload } from './types.ts';
@@ -71,20 +69,11 @@ export async function onRelayedMessage(payload: RelayedWebhookPayload): Promise<
   const phone = normalizePhone(payload.phone);
   if (!phone) return;
 
-  // Demo-access gate.
+  // No allowlist gate on the official WhatsApp Cloud API path: this is the
+  // public production surface, so anyone who messages the business number is
+  // served. (The whatsapp-web.js / open-wa path keeps its DEMO_MODE allowlist
+  // gate — see openwa/handlers.ts — for controlled testing.)
   const rawBody = payload.body ?? '';
-  const alreadyAllowed =
-    isAllowed(phone, env.ALLOWED_TEST_NUMBERS, env.DEMO_MODE) || isDynamicallyAllowed(phone);
-
-  if (!alreadyAllowed) {
-    if (isDemoRequest(rawBody)) {
-      const added = addToAllowlist(phone);
-      log.info('DEMO_ACCESS_GRANTED', { phone: maskPhone(phone), newlyAdded: added });
-    } else {
-      log.debug('MESSAGE_DROPPED_ALLOWLIST', { phone: maskPhone(phone) });
-      return;
-    }
-  }
 
   const incoming: IncomingMessage = {
     phone,
