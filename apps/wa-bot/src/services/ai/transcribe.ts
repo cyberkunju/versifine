@@ -106,11 +106,15 @@ function resolveLanguage(
 }
 
 /**
- * Sarvam Saarika STT. Returns null on any failure so the caller falls back to
- * the OpenAI path. Note: Sarvam validates the MIME string strictly and rejects
- * `audio/ogg; codecs=opus` (exactly what WhatsApp sends) — we strip the codec
- * parameter so the Opus bytes are accepted as `audio/ogg`. Sync endpoint caps
- * audio at 30s; longer notes 400 and fall back.
+ * Sarvam Saaras speech-to-text-TRANSLATE. Chosen over Saarika for Indic because
+ * it handles CODE-MIXED audio: a Malayalam note with an English clause in the
+ * middle comes back as one clean English transcript (Saarika instead
+ * transliterates the English into Malayalam script — "and then I had a coffee"
+ * → "ആൻഡ് ദെൻ ഐ ഹാഡ് എ കോഫി" — which the parser can't read). The unified
+ * English output extracts perfectly; the reply language is unchanged (driven by
+ * the user's session, not the transcript). Returns null on any failure so the
+ * caller falls back to MAI / OpenAI. Note: Sarvam rejects `audio/ogg;
+ * codecs=opus` (what WhatsApp sends) → strip the codec param. ~30s sync cap.
  */
 async function transcribeSarvam(
   audio: Buffer,
@@ -125,11 +129,14 @@ async function transcribeSarvam(
       const fd = new FormData();
       fd.append('file', new Blob([new Uint8Array(audio)], { type: cleanMime }), filename);
       fd.append('model', env.SARVAM_STT_MODEL);
-      const res = await fetch(`${env.SARVAM_API_URL.replace(/\/+$/, '')}/speech-to-text`, {
-        method: 'POST',
-        headers: { 'api-subscription-key': env.SARVAM_API_KEY as string },
-        body: fd,
-      });
+      const res = await fetch(
+        `${env.SARVAM_API_URL.replace(/\/+$/, '')}/speech-to-text-translate`,
+        {
+          method: 'POST',
+          headers: { 'api-subscription-key': env.SARVAM_API_KEY as string },
+          body: fd,
+        },
+      );
       if (!res.ok) {
         const body = await res.text().catch(() => '');
         throw new Error(`HTTP ${res.status}: ${body.slice(0, 160)}`);
@@ -138,11 +145,9 @@ async function transcribeSarvam(
     });
     const text = (result.transcript ?? '').trim();
     if (!text) return null;
-    return {
-      text,
-      language: resolveLanguage(text, result.language_code?.split('-')[0], fallback),
-      source: 'sarvam',
-    };
+    // Saaras outputs English; keep the user's session language (fallback) for
+    // the reply rather than flipping to 'en' off the translated text.
+    return { text, language: fallback ?? 'en', source: 'sarvam' };
   } catch (err) {
     log.warn('SARVAM_STT_FAIL', {
       error: err instanceof Error ? err.message.slice(0, 200) : String(err),

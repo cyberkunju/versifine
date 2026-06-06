@@ -88,7 +88,7 @@ const schema = z.object({
     .transform((v) => (v && v.length > 0 ? v : undefined))
     .optional(),
   SARVAM_API_URL: z.string().default('https://api.sarvam.ai'),
-  SARVAM_STT_MODEL: z.string().default('saarika:v2.5'),
+  SARVAM_STT_MODEL: z.string().default('saaras:v3'),
   /** Sarvam Bulbul TTS — emits MP3 (output_audio_codec) which WhatsApp accepts. */
   SARVAM_TTS_MODEL: z.string().default('bulbul:v2'),
   SARVAM_TTS_SPEAKER: z.string().default('anushka'),
