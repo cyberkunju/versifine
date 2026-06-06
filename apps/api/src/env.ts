@@ -70,6 +70,36 @@ const schema = z.object({
 
   FX_API_URL: z.string().url().default('https://open.er-api.com/v6/latest'),
   FX_CACHE_SECONDS: z.coerce.number().int().positive().default(21_600),
+
+  /**
+   * WhatsApp Business Cloud API (Meta Graph). All optional: when WHATSAPP_TOKEN
+   * is absent the public webhook still verifies but inbound messages are
+   * ignored, and the legacy whatsapp-web.js bot path stays in charge. Set all
+   * of these in production to run on the official Cloud API.
+   */
+  WHATSAPP_TOKEN: z
+    .string()
+    .transform((v) => (v && v.length > 0 ? v : undefined))
+    .pipe(z.string().min(20).optional())
+    .optional(),
+  WHATSAPP_PHONE_NUMBER_ID: z
+    .string()
+    .transform((v) => (v && v.length > 0 ? v : undefined))
+    .optional(),
+  /** Webhook handshake token — must match what you enter in the Meta dashboard. */
+  WHATSAPP_VERIFY_TOKEN: z
+    .string()
+    .transform((v) => (v && v.length > 0 ? v : undefined))
+    .optional(),
+  /** Meta App Secret — used to HMAC-verify every inbound webhook (X-Hub-Signature-256). */
+  WHATSAPP_APP_SECRET: z
+    .string()
+    .transform((v) => (v && v.length > 0 ? v : undefined))
+    .optional(),
+  WHATSAPP_API_VERSION: z.string().default('v23.0'),
+
+  /** Where the API relays parsed inbound messages to the bot process. */
+  WABOT_INTERNAL_URL: z.string().url().default('http://127.0.0.1:5001'),
 });
 
 const parsed = schema.safeParse(process.env);

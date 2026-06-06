@@ -36,6 +36,8 @@ Versifine is a **personal finance manager with frictionless multimodal capture a
 | [13-issues.md](./13-issues.md) | You want the audit findings and bug list with severity and fixes. |
 | [14-runbook.md](./14-runbook.md) | You want to run the project locally, debug it, or demo it. |
 | [15-roadmap.md](./15-roadmap.md) | You want the remaining work broken down into sweeps with effort estimates. |
+| [16-deployment.md](./16-deployment.md) | You want the deployment setup: AWS, CI/CD, environments. |
+| [17-model-stack.md](./17-model-stack.md) | You want the AI model selection per pipeline stage, the interim bootstrap config, quota requests, and cost map. |
 
 ## Quick commands cheat sheet
 

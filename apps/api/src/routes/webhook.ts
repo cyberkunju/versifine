@@ -1,244 +1,229 @@
+/**
+ * WhatsApp Business Cloud API webhook (Meta Graph).
+ *
+ *   GET  /webhook/whatsapp   Meta handshake (hub.challenge).
+ *   POST /webhook/whatsapp   Inbound events. We verify the HMAC signature,
+ *                            dedupe retries, ACK 200 FAST, then process each
+ *                            message asynchronously: download any media, mark
+ *                            it read, and relay a parsed payload to the bot.
+ *
+ * Design rules baked in:
+ *   - Verify X-Hub-Signature-256 before trusting anything (no spoofed txns).
+ *   - Return 200 within milliseconds so Meta never times out and retries
+ *     (retries + slow media download = duplicate transactions otherwise).
+ *   - Idempotency by message id so an at-least-once redelivery is a no-op.
+ *   - The legacy whatsapp-web.js path is untouched; this only runs when Meta
+ *     calls the public URL.
+ */
 import { Hono } from 'hono';
+import { env } from '../env.ts';
 import { log } from '../utils/logger.ts';
+import { downloadMedia, isCloudApiConfigured, markRead } from '../services/whatsapp/graph.ts';
+import { seenMessage, verifySignature } from '../services/whatsapp/security.ts';
+import type {
+  MetaInboundMessage,
+  MetaWebhookEnvelope,
+  RelayPayload,
+} from '../services/whatsapp/types.ts';
 
 const app = new Hono();
 
-/**
- * GET /webhook/whatsapp
- * Meta calls this to verify the webhook url during setup.
- */
+/** Meta verification handshake. */
 app.get('/whatsapp', (c) => {
   const mode = c.req.query('hub.mode');
   const token = c.req.query('hub.verify_token');
   const challenge = c.req.query('hub.challenge');
 
-  const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN || 'versifine-verify-token-2026';
-
-  if (mode === 'subscribe' && token === verifyToken) {
-    log.info('WHATSAPP_WEBHOOK_VERIFIED', { mode, token });
-    return c.text(challenge || '', 200);
+  if (!env.WHATSAPP_VERIFY_TOKEN) {
+    log.warn('WA_WEBHOOK_VERIFY_NO_TOKEN', {});
+    return c.text('Forbidden', 403);
   }
-
-  log.warn('WHATSAPP_WEBHOOK_VERIFICATION_FAILED', { mode, token });
+  if (mode === 'subscribe' && token === env.WHATSAPP_VERIFY_TOKEN) {
+    log.info('WA_WEBHOOK_VERIFIED', {});
+    return c.text(challenge ?? '', 200);
+  }
+  log.warn('WA_WEBHOOK_VERIFY_FAILED', { mode });
   return c.text('Forbidden', 403);
 });
 
-/**
- * Send WhatsApp text message via Graph API
- */
-async function sendWhatsAppTextMessage(to: string, text: string) {
-  const token = process.env.WHATSAPP_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || '1079257601947704';
+/** Pull the best text representation out of any inbound message type. */
+function extractText(m: MetaInboundMessage): string {
+  switch (m.type) {
+    case 'text':
+      return m.text?.body ?? '';
+    case 'interactive':
+      // Quick-reply button / list selection. Prefer the title (human text)
+      // so the engine's natural-language router handles it like a typed reply.
+      return (
+        m.interactive?.button_reply?.title ??
+        m.interactive?.list_reply?.title ??
+        m.interactive?.button_reply?.id ??
+        m.interactive?.list_reply?.id ??
+        ''
+      );
+    case 'button':
+      return m.button?.text ?? m.button?.payload ?? '';
+    case 'image':
+      return m.image?.caption ?? '';
+    case 'audio':
+      return '';
+    default:
+      return '';
+  }
+}
 
-  if (!token) {
-    log.error('WHATSAPP_SEND_FAILED', { error: 'WHATSAPP_TOKEN not configured in environment' });
+/** Build the relay payload, downloading media for audio/image messages. */
+async function toRelayPayload(m: MetaInboundMessage): Promise<RelayPayload | null> {
+  const phone = m.from;
+  if (!phone) return null;
+
+  const payload: RelayPayload = {
+    phone,
+    body: extractText(m),
+    hasAudio: false,
+    audioBase64: null,
+    audioMimetype: null,
+    hasImage: false,
+    imageBase64: null,
+    imageMimetype: null,
+    messageId: m.id,
+  };
+
+  if (m.type === 'audio' && m.audio?.id) {
+    const media = await downloadMedia(m.audio.id);
+    if (!media) return null;
+    payload.hasAudio = true;
+    payload.audioBase64 = media.buffer.toString('base64');
+    payload.audioMimetype = media.mimeType;
+  } else if (m.type === 'image' && m.image?.id) {
+    const media = await downloadMedia(m.image.id);
+    if (!media) return null;
+    payload.hasImage = true;
+    payload.imageBase64 = media.buffer.toString('base64');
+    payload.imageMimetype = media.mimeType;
+  } else if (m.type !== 'text' && m.type !== 'interactive' && m.type !== 'button') {
+    // document/video/sticker/location/etc. — not supported as capture input.
+    // Relay an empty-bodied note so the engine can nudge the user politely.
+    payload.body = payload.body || '';
+  }
+
+  return payload;
+}
+
+/** Relay one parsed message to the bot's internal server. */
+async function relayToBot(payload: RelayPayload): Promise<void> {
+  const url = `${env.WABOT_INTERNAL_URL.replace(/\/+$/, '')}/webhook/message`;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'x-bot-secret': env.BOT_SECRET, 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      log.error('WA_RELAY_FAILED', { status: res.status, messageId: payload.messageId });
+    }
+  } catch (err) {
+    log.error('WA_RELAY_NETWORK_ERROR', {
+      messageId: payload.messageId,
+      error: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    });
+  }
+}
+
+/** Background processor for one inbound message (runs after the 200 ACK). */
+async function processMessage(m: MetaInboundMessage): Promise<void> {
+  if (seenMessage(m.id)) {
+    log.debug('WA_MESSAGE_DUPLICATE_SKIPPED', { messageId: m.id });
     return;
   }
 
-  const url = `https://graph.facebook.com/v23.0/${phoneNumberId}/messages`;
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        messaging_product: 'whatsapp',
-        to,
-        type: 'text',
-        text: { body: text },
-      }),
-    });
-
-    const data = await response.json() as any;
-    if (response.ok) {
-      log.info('WHATSAPP_SEND_SUCCESS', { to, messageId: data.messages?.[0]?.id });
-    } else {
-      log.error('WHATSAPP_SEND_API_ERROR', { error: data });
+  // Welcome event: a brand-new user opened the chat (enable_welcome_message).
+  // There's no user text to mark read — relay an empty-body message so the
+  // engine's first-contact flow greets them (language menu / onboarding).
+  if (m.type === 'request_welcome') {
+    log.info('WA_REQUEST_WELCOME', { from: m.from });
+    if (m.from) {
+      await relayToBot({
+        phone: m.from,
+        body: '',
+        hasAudio: false,
+        audioBase64: null,
+        audioMimetype: null,
+        hasImage: false,
+        imageBase64: null,
+        imageMimetype: null,
+        messageId: m.id,
+      });
     }
-  } catch (error) {
-    log.error('WHATSAPP_SEND_NETWORK_ERROR', {
-      error: error instanceof Error ? error.message : String(error),
-    });
+    return;
   }
+
+  // Best-effort read receipt (blue ticks) — fire and forget.
+  if (m.id) void markRead(m.id);
+
+  const payload = await toRelayPayload(m);
+  if (!payload) return;
+  await relayToBot(payload);
 }
 
-/**
- * Download a media file (voice note or receipt) from Meta's servers
- */
-async function downloadMetaMedia(mediaId: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
-  const token = process.env.WHATSAPP_TOKEN;
-  if (!token) {
-    log.error('WHATSAPP_MEDIA_DOWNLOAD_FAILED', { error: 'WHATSAPP_TOKEN not configured in environment' });
-    return null;
-  }
-
-  try {
-    // 1. Get the media download URL from Meta Graph API
-    const infoUrl = `https://graph.facebook.com/v23.0/${mediaId}`;
-    const infoRes = await fetch(infoUrl, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-
-    if (!infoRes.ok) {
-      const errData = await infoRes.json().catch(() => ({}));
-      log.error('WHATSAPP_MEDIA_INFO_FAILED', { status: infoRes.status, error: errData });
-      return null;
-    }
-
-    const info = await infoRes.json() as any;
-    const downloadUrl = info.url;
-    const mimeType = info.mime_type || 'application/octet-stream';
-
-    if (!downloadUrl) {
-      log.error('WHATSAPP_MEDIA_URL_MISSING', { info });
-      return null;
-    }
-
-    // 2. Fetch the actual binary file content using the lookaside URL
-    const mediaRes = await fetch(downloadUrl, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-
-    if (!mediaRes.ok) {
-      log.error('WHATSAPP_MEDIA_BINARY_FAILED', { status: mediaRes.status });
-      return null;
-    }
-
-    const arrayBuffer = await mediaRes.arrayBuffer();
-    return {
-      buffer: Buffer.from(arrayBuffer),
-      mimeType,
-    };
-  } catch (err) {
-    log.error('WHATSAPP_MEDIA_DOWNLOAD_EXCEPTION', {
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return null;
-  }
-}
-
-/**
- * POST /webhook/whatsapp
- * Meta calls this whenever there is a webhook event (new message, status change, etc.)
- */
 app.post('/whatsapp', async (c) => {
+  // Read the RAW body first — required for an exact HMAC match.
+  const raw = await c.req.text();
+  const signature = c.req.header('x-hub-signature-256');
+
+  // When the Cloud API is configured we process the event. Signature
+  // verification is ENFORCED when WHATSAPP_APP_SECRET is set (production hard
+  // requirement); if the secret isn't set yet we process but log loudly so the
+  // gap is visible — this avoids silently 403-ing a live webhook during rollout.
+  if (isCloudApiConfigured()) {
+    if (env.WHATSAPP_APP_SECRET) {
+      if (!verifySignature(raw, signature)) {
+        log.warn('WA_WEBHOOK_BAD_SIGNATURE', {});
+        return c.text('Forbidden', 403);
+      }
+    } else {
+      log.warn('WA_WEBHOOK_UNVERIFIED', {
+        note: 'set WHATSAPP_APP_SECRET to enable HMAC signature verification',
+      });
+    }
+  } else {
+    log.debug('WA_WEBHOOK_IGNORED_UNCONFIGURED', {});
+    return c.json({ ok: true });
+  }
+
+  let envelope: MetaWebhookEnvelope;
   try {
-    const payload = await c.req.json() as any;
-    
-    // Log the payload details
-    log.info('WHATSAPP_WEBHOOK_RECEIVED', {
-      object: payload.object,
-      entryCount: payload.entry?.length,
-    });
-    
-    if (payload.entry && Array.isArray(payload.entry)) {
-      for (const entry of payload.entry) {
-        if (entry.changes && Array.isArray(entry.changes)) {
-          for (const change of entry.changes) {
-            const value = change.value;
-            if (value && value.messages && Array.isArray(value.messages)) {
-              for (const message of value.messages) {
-                const sender = message.from;
-                const messageId = message.id;
-                
-                log.info('WHATSAPP_WEBHOOK_MESSAGE_RECEIVED', {
-                  from: sender,
-                  type: message.type,
-                  messageId,
-                });
+    envelope = JSON.parse(raw) as MetaWebhookEnvelope;
+  } catch {
+    return c.json({ ok: true }); // malformed — ACK so Meta doesn't retry
+  }
 
-                // Prepare bot relay payload
-                const botPayload: Record<string, any> = {
-                  phone: sender,
-                  body: '',
-                  hasAudio: false,
-                  audioBase64: null,
-                  audioMimetype: null,
-                  hasImage: false,
-                  imageBase64: null,
-                  imageMimetype: null,
-                };
+  // Collect inbound messages (ignore status callbacks: sent/delivered/read).
+  const messages: MetaInboundMessage[] = [];
+  for (const entry of envelope.entry ?? []) {
+    for (const change of entry.changes ?? []) {
+      for (const m of change.value?.messages ?? []) messages.push(m);
+    }
+  }
 
-                let shouldRelay = false;
-
-                if (message.type === 'text' && message.text?.body) {
-                  botPayload.body = message.text.body;
-                  shouldRelay = true;
-                } else if (message.type === 'audio' && message.audio?.id) {
-                  const media = await downloadMetaMedia(message.audio.id);
-                  if (media) {
-                    botPayload.hasAudio = true;
-                    botPayload.audioBase64 = media.buffer.toString('base64');
-                    botPayload.audioMimetype = media.mimeType;
-                    // Provide a default description fallback
-                    botPayload.body = '[voice note]';
-                    shouldRelay = true;
-                  }
-                } else if (message.type === 'image' && message.image?.id) {
-                  const media = await downloadMetaMedia(message.image.id);
-                  if (media) {
-                    botPayload.hasImage = true;
-                    botPayload.imageBase64 = media.buffer.toString('base64');
-                    botPayload.imageMimetype = media.mimeType;
-                    // Provide a default description fallback
-                    botPayload.body = message.image.caption || '[payment image]';
-                    shouldRelay = true;
-                  }
-                }
-
-                if (shouldRelay) {
-                  // Forward to wa-bot on port 5001
-                  const botUrl = `http://localhost:${process.env.BOT_PORT || '5001'}/webhook/message`;
-                  const botSecret = process.env.BOT_SECRET || 'versifine-secret-2026';
-                  
-                  try {
-                    const relayRes = await fetch(botUrl, {
-                      method: 'POST',
-                      headers: {
-                        'x-bot-secret': botSecret,
-                        'Content-Type': 'application/json',
-                      },
-                      body: JSON.stringify(botPayload),
-                    });
-                    
-                    if (relayRes.ok) {
-                      const data = await relayRes.json() as any;
-                      log.info('WHATSAPP_RELAY_SUCCESS', { sender, messageId, reply: data });
-                    } else {
-                      log.error('WHATSAPP_RELAY_FAILED', {
-                        sender,
-                        messageId,
-                        status: relayRes.status,
-                      });
-                    }
-                  } catch (relayErr) {
-                    log.error('WHATSAPP_RELAY_NETWORK_ERROR', {
-                      sender,
-                      messageId,
-                      error: relayErr instanceof Error ? relayErr.message : String(relayErr),
-                    });
-                  }
-                }
-              }
-            }
-          }
+  // ACK immediately; process in the background so a slow media download can
+  // never push us past Meta's webhook timeout (which would trigger retries).
+  if (messages.length) {
+    void (async () => {
+      for (const m of messages) {
+        try {
+          await processMessage(m);
+        } catch (err) {
+          log.error('WA_PROCESS_FAIL', {
+            messageId: m.id,
+            error: err instanceof Error ? err.message.slice(0, 200) : String(err),
+          });
         }
       }
-    }
-
-    return c.json({ success: true });
-  } catch (error) {
-    log.error('WHATSAPP_WEBHOOK_ERROR', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return c.json({ success: false, error: 'Internal Server Error' }, 500);
+    })();
   }
+
+  return c.json({ ok: true });
 });
 
 export const webhookRoutes = app;

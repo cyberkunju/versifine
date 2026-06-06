@@ -26,9 +26,14 @@ async function main() {
 
   const args = process.argv.slice(2);
   const recipient = args[0];
-  const token = args[1] || process.env.WHATSAPP_TOKEN || 'EAAk2Ec8hbRIBRtmx1CRCqvlhYfAbZBdKJSfkWZBQGqrbPcar3zIFJ1ZBwuomExs8RyZBg4V6liDT7AJAmTKNVL0Tuj890cV9roUft0f6WfG70KqfHx9zumYUoaHtvR3dwb4dgYMXXUlRkcDZBfckK6jfNECAgYZCv5n90Xk3EPTLxCXmwllv8yK9qSh5LF9wZDZD';
-  const phoneNumberId = '1079257601947704';
-  const apiVersion = 'v23.0';
+  const token = args[1] || process.env.WHATSAPP_TOKEN || process.env.META_ACCESS_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || '1079257601947704';
+  const apiVersion = process.env.WHATSAPP_API_VERSION || 'v23.0';
+
+  if (!token) {
+    console.error('Error: provide a token as arg 2 or set WHATSAPP_TOKEN in the environment.');
+    process.exit(1);
+  }
 
   console.log(`==================================================`);
   console.log(` WhatsApp Business Cloud API Message Sender Tool`);

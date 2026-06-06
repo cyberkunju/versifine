@@ -35,6 +35,39 @@ function requireBotSecret(authHeader: string | undefined): boolean {
   return Boolean(authHeader) && authHeader === env.BOT_SECRET;
 }
 
+/**
+ * Single outbound text path used by /send and /broadcast/*.
+ *  - whatsapp-web.js mode: send via the shared client.
+ *  - Cloud API mode: send free-form text; if Meta reports the 24-hour window
+ *    is closed (131047/131026/470), surface that distinctly so callers/logs
+ *    know a proactive message needs an approved template instead.
+ */
+async function sendOutbound(
+  phone: string,
+  text: string,
+): Promise<{ ok: boolean; windowClosed: boolean; error?: string }> {
+  const client = getSharedClient();
+  if (client) {
+    try {
+      await client.sendMessage(`${phone}@c.us`, text);
+      return { ok: true, windowClosed: false };
+    } catch (err) {
+      return { ok: false, windowClosed: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+  const { sendText, isWindowClosed } = await import('../cloudwa/client.ts');
+  const res = await sendText(phone, text);
+  if (res.ok) return { ok: true, windowClosed: false };
+  const windowClosed = isWindowClosed(res.errorCode);
+  if (windowClosed) {
+    log.warn('OUTBOUND_WINDOW_CLOSED', {
+      phone: maskPhone(phone),
+      note: 'free-form blocked outside 24h window — needs an approved template',
+    });
+  }
+  return { ok: false, windowClosed, error: res.errorMessage };
+}
+
 app.get('/health', (c) =>
   c.json({
     ok: true,
@@ -257,24 +290,11 @@ app.post('/send', async (c) => {
   if (!body.phone || !body.text) {
     return c.json({ error: 'missing_fields' }, 400);
   }
-  const client = getSharedClient();
   const phone = normalizePhone(body.phone);
-  try {
-    if (client) {
-      await client.sendMessage(`${phone}@c.us`, body.text);
-    } else {
-      const { sendTextMessage } = await import('../cloudwa/client.ts');
-      const ok = await sendTextMessage(phone, body.text);
-      if (!ok) throw new Error('Meta Graph API delivery failed');
-    }
-    return c.json({ sent: true });
-  } catch (err) {
-    log.warn('SEND_FAIL', {
-      phone: maskPhone(phone),
-      error: err instanceof Error ? err.message.slice(0, 200) : String(err),
-    });
-    return c.json({ error: 'send_failed' }, 502);
-  }
+  const result = await sendOutbound(phone, body.text);
+  if (result.ok) return c.json({ sent: true });
+  log.warn('SEND_FAIL', { phone: maskPhone(phone), windowClosed: result.windowClosed, error: result.error?.slice(0, 200) });
+  return c.json({ error: 'send_failed', windowClosed: result.windowClosed }, 502);
 });
 
 interface BudgetAlertBody {
@@ -294,28 +314,15 @@ app.post('/broadcast/budget-alert', async (c) => {
   if (!body.phone || !body.category || typeof body.percentage !== 'number') {
     return c.json({ error: 'missing_fields' }, 400);
   }
-  const client = getSharedClient();
   const phone = normalizePhone(body.phone);
   const text =
     body.percentage >= 100
       ? `🚨 Budget exceeded: ${body.category} (₹${body.spent ?? '—'} of ₹${body.allocated ?? '—'}).`
       : `⚠️ Budget alert: ${body.category} at ${Math.round(body.percentage)}% (₹${body.spent ?? '—'} of ₹${body.allocated ?? '—'}).`;
-  try {
-    if (client) {
-      await client.sendMessage(`${phone}@c.us`, text);
-    } else {
-      const { sendTextMessage } = await import('../cloudwa/client.ts');
-      const ok = await sendTextMessage(phone, text);
-      if (!ok) throw new Error('Meta Graph API delivery failed');
-    }
-    return c.json({ sent: true });
-  } catch (err) {
-    log.warn('BROADCAST_BUDGET_FAIL', {
-      phone: maskPhone(phone),
-      error: err instanceof Error ? err.message.slice(0, 200) : String(err),
-    });
-    return c.json({ error: 'send_failed' }, 502);
-  }
+  const result = await sendOutbound(phone, text);
+  if (result.ok) return c.json({ sent: true });
+  log.warn('BROADCAST_BUDGET_FAIL', { phone: maskPhone(phone), windowClosed: result.windowClosed, error: result.error?.slice(0, 200) });
+  return c.json({ error: 'send_failed', windowClosed: result.windowClosed }, 502);
 });
 
 interface ForecastAnomalyBody {
@@ -333,27 +340,14 @@ app.post('/broadcast/forecast-anomaly', async (c) => {
   if (!body.phone || !body.date || typeof body.amount !== 'number') {
     return c.json({ error: 'missing_fields' }, 400);
   }
-  const client = getSharedClient();
   const phone = normalizePhone(body.phone);
   const text = `📈 Spend anomaly on ${body.date}: ₹${body.amount}${
     typeof body.expected === 'number' ? ` (expected ~₹${body.expected})` : ''
   }.`;
-  try {
-    if (client) {
-      await client.sendMessage(`${phone}@c.us`, text);
-    } else {
-      const { sendTextMessage } = await import('../cloudwa/client.ts');
-      const ok = await sendTextMessage(phone, text);
-      if (!ok) throw new Error('Meta Graph API delivery failed');
-    }
-    return c.json({ sent: true });
-  } catch (err) {
-    log.warn('BROADCAST_ANOMALY_FAIL', {
-      phone: maskPhone(phone),
-      error: err instanceof Error ? err.message.slice(0, 200) : String(err),
-    });
-    return c.json({ error: 'send_failed' }, 502);
-  }
+  const result = await sendOutbound(phone, text);
+  if (result.ok) return c.json({ sent: true });
+  log.warn('BROADCAST_ANOMALY_FAIL', { phone: maskPhone(phone), windowClosed: result.windowClosed, error: result.error?.slice(0, 200) });
+  return c.json({ error: 'send_failed', windowClosed: result.windowClosed }, 502);
 });
 
 type WebhookMessageBody = Partial<RelayedWebhookPayload>;

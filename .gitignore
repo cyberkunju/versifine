@@ -68,3 +68,6 @@ test-results/
 
 # Local probe artefacts (screenshots, HTML dumps from headless Chrome)
 _probe/
+
+# Local benchmark / model-evaluation scratch (contains API keys, never commit)
+_bench/

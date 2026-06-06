@@ -399,3 +399,114 @@ Based on the spec and what's already done:
 - Tests: ~3h
 
 Total: ~28 hours of focused work. Could be split across two sweeps.
+
+
+## WhatsApp Business Cloud API (production transport)
+
+The bot supports **two transports** behind one transport-agnostic conversation
+engine. The engine, AI services, flows, and message packs are identical for both.
+
+| Transport | When | How it's selected |
+| --- | --- | --- |
+| **whatsapp-web.js** (`openwa/`) | local testing, demos, dev | default — used when `WHATSAPP_TOKEN` is **absent** |
+| **Cloud API** (`cloudwa/` + API webhook) | production | active when `WHATSAPP_TOKEN` is **set** (bot skips Chromium) |
+
+### Inbound flow (Cloud API)
+
+```
+Meta → POST https://versifine.com/webhook/whatsapp   (apps/api/src/routes/webhook.ts)
+  1. verify X-Hub-Signature-256 (HMAC of raw body w/ WHATSAPP_APP_SECRET)
+  2. dedupe by message id (at-least-once redelivery → no double transactions)
+  3. ACK 200 immediately, then process async (no Meta timeout/retry storms)
+  4. parse text | interactive(button/list) | audio | image; download media from Graph
+  5. mark message read (blue ticks)
+  6. relay parsed payload → bot POST /webhook/message  (x-bot-secret)
+     → cloudwa/handlers.onRelayedMessage → runEngine → deliver via Graph API
+```
+
+GET `/webhook/whatsapp` is the Meta handshake (`hub.challenge` against `WHATSAPP_VERIFY_TOKEN`).
+
+### Outbound flow
+
+`cloudwa/client.ts`: `sendText` (free-form), `sendTemplate` (24h-window reopen),
+`uploadAudio`+`sendVoiceMessage` (voice notes), two-pass send in
+`cloudwa/handlers.deliver`. The internal `/send` and `/broadcast/*` route through
+`sendOutbound`, which detects the **24-hour window** (`isWindowClosed`: Meta
+131047/131026/470) and logs `OUTBOUND_WINDOW_CLOSED` so proactive alerts that
+need an approved template are visible.
+
+### Service module (apps/api/src/services/whatsapp/)
+
+- `types.ts` — typed Meta webhook envelope + relay payload (no more `as any`).
+- `security.ts` — `verifySignature` (HMAC) + `seenMessage` (idempotency ring).
+- `graph.ts` — typed Graph client: `downloadMedia`, `sendText`, `sendTemplate`,
+  `uploadAudio`, `sendAudio`, `markRead`, `isCloudApiConfigured`.
+
+### Going live — manual Meta steps (cannot be done in code)
+
+1. In the Meta App dashboard, create/locate the WhatsApp product; note the
+   **phone number id** and **WABA id**.
+2. Generate a **permanent System User access token** with
+   `whatsapp_business_messaging` + `whatsapp_business_management`. Put it in
+   `WHATSAPP_TOKEN` (prod env `/etc/versifine/api.env` and `wabot.env`).
+3. Set `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_APP_SECRET` (App → Settings → Basic),
+   and choose a `WHATSAPP_VERIFY_TOKEN`.
+4. Configure the webhook: callback URL `https://versifine.com/webhook/whatsapp`,
+   verify token = `WHATSAPP_VERIFY_TOKEN`, subscribe to the **messages** field.
+   (nginx must proxy `/webhook/whatsapp` → the API on :5000.)
+5. Subscribe the app to the WABA (`scripts/subscribe-whatsapp.ts`).
+6. For **proactive** messages outside the 24h window (budget alerts), submit and
+   get **message templates approved** in the dashboard, then wire their names
+   into the broadcast path. Within 24h of a user's last message, free-form works.
+
+### Deliberately deferred (next step, not blocking)
+
+Interactive **quick-reply buttons** for CONFIRM/EDIT/CANCEL. The inbound side
+already parses `interactive` button/list replies into text, so the engine handles
+them today as if typed. Sending buttons requires `OutgoingReply` to optionally
+carry button options and a `sendInteractive` in `cloudwa/client.ts` — a clean
+follow-up that doesn't change the engine contract.
+
+
+## Conversational components (ice breakers, commands, welcome)
+
+Configured on the business phone number via the Graph API and applied with
+`bun run scripts/setup-conversational-components.ts` (idempotent; `--get` reads
+the current config). One canonical set lives in that script.
+
+**Ice breakers** (tappable prompts shown to new / empty chats, ≤4, ≤80 chars):
+`Log an expense` · `See this month's spending` · `Set a budget` · `What can Versifine do?`
+
+> **Plain text only.** Meta strips emoji/pictographic characters from ice
+> breakers and stores them as U+FFFD (verified live 2026-06). Put emoji in the
+> bot's *reply* copy instead, where they render fine. Applied via
+> `scripts/setup-conversational-components.ts`.
+
+**Commands** (slash menu when the user types "/"):
+`/help` · `/summary` · `/budget` · `/language`
+
+**Welcome message**: `enable_welcome_message: true`. When a brand-new user opens
+the chat, Meta sends a `messages` webhook with `type: "request_welcome"` (no body).
+The API webhook relays it as an **empty-body** message; the engine's first-contact
+gate (`resolveFirstContact`) greets them with the language menu / onboarding.
+
+**Why no special inbound handling is needed:**
+- Ice-breaker taps arrive as normal **text** → onboarding (new user) or the
+  matching intent (returning user) via the existing pipeline.
+- Slash commands arrive as `/help` etc. → `parseUniversal` strips the leading
+  `/` and matches `HELP`/`LANGUAGE`; `/summary` and `/budget` fall through to the
+  capture pipeline and resolve to `query_summary` / the budget flow.
+- The only first-class addition is `request_welcome` → empty-body relay → greeting.
+
+**Perfect first-touch flow:**
+```
+New user taps "Chat on WhatsApp" / opens chat
+  → Meta fires request_welcome  → bot greets with language menu (onboarding)
+  → user picks language → optional email link → LINKED_MAIN
+  → (or) user taps an ice breaker → same onboarding first, then the action runs
+Returning user with an empty chat
+  → ice breakers + /commands visible → tap → intent runs immediately
+```
+
+**Apply once credentials are live:** `bun run scripts/setup-conversational-components.ts`
+(needs `WHATSAPP_TOKEN` with `whatsapp_business_management` + `WHATSAPP_PHONE_NUMBER_ID`).

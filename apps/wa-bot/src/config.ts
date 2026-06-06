@@ -62,6 +62,22 @@ const schema = z.object({
   OPENAI_AUDIO_VOICE: z.string().default('shimmer'),
   OPENAI_TRANSLATE_MODEL: z.string().default('gpt-4o-mini'),
 
+  /**
+   * WhatsApp Business Cloud API (Meta Graph). When WHATSAPP_TOKEN is set the
+   * bot runs in Cloud API mode (no Chromium); otherwise the whatsapp-web.js
+   * path drives it. Phone number id + version are required to send.
+   */
+  WHATSAPP_TOKEN: z
+    .string()
+    .transform((v) => (v && v.length > 0 ? v : undefined))
+    .pipe(z.string().min(20).optional())
+    .optional(),
+  WHATSAPP_PHONE_NUMBER_ID: z
+    .string()
+    .transform((v) => (v && v.length > 0 ? v : undefined))
+    .optional(),
+  WHATSAPP_API_VERSION: z.string().default('v23.0'),
+
   TTS_ENABLED: z.coerce.boolean().default(true),
   TTS_MAX_CHARS: z.coerce.number().int().positive().default(600),
 });
