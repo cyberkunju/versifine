@@ -24,13 +24,16 @@ import { env } from '../../config.ts';
 import { log } from '../../utils/logger.ts';
 import { getOpenAI, isAIConfigured, withLatency } from './client.ts';
 
-export type TranscribeSource = 'gpt-4o-transcribe' | 'whisper-1' | 'mock';
+export type TranscribeSource = 'gpt-4o-transcribe' | 'whisper-1' | 'sarvam' | 'mock';
 
 export interface TranscribeResult {
   text: string;
   language: string;
   source: TranscribeSource;
 }
+
+/** Session languages routed to Sarvam Saarika (Indic ASR) when a key is set. */
+const SARVAM_LANGS: ReadonlySet<string> = new Set(['hi', 'ml', 'ta', 'te', 'kn']);
 
 const FILENAME_BY_MIME: Record<string, string> = {
   'audio/ogg': 'voice.ogg',
@@ -84,11 +87,70 @@ function resolveLanguage(
   return asr ?? bareLanguageHint(fallback) ?? 'en';
 }
 
+/**
+ * Sarvam Saarika STT. Returns null on any failure so the caller falls back to
+ * the OpenAI path. Note: Sarvam validates the MIME string strictly and rejects
+ * `audio/ogg; codecs=opus` (exactly what WhatsApp sends) — we strip the codec
+ * parameter so the Opus bytes are accepted as `audio/ogg`. Sync endpoint caps
+ * audio at 30s; longer notes 400 and fall back.
+ */
+async function transcribeSarvam(
+  audio: Buffer,
+  mimetype: string,
+  fallback: string | undefined,
+): Promise<TranscribeResult | null> {
+  if (!env.SARVAM_API_KEY) return null;
+  const cleanMime = (mimetype.split(';')[0] || 'audio/ogg').trim();
+  const filename = filenameFor(cleanMime);
+  try {
+    const result = await withLatency('transcribe.sarvam', async () => {
+      const fd = new FormData();
+      fd.append('file', new Blob([new Uint8Array(audio)], { type: cleanMime }), filename);
+      fd.append('model', env.SARVAM_STT_MODEL);
+      const res = await fetch(`${env.SARVAM_API_URL.replace(/\/+$/, '')}/speech-to-text`, {
+        method: 'POST',
+        headers: { 'api-subscription-key': env.SARVAM_API_KEY as string },
+        body: fd,
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        throw new Error(`HTTP ${res.status}: ${body.slice(0, 160)}`);
+      }
+      return (await res.json()) as { transcript?: string; language_code?: string };
+    });
+    const text = (result.transcript ?? '').trim();
+    if (!text) return null;
+    return {
+      text,
+      language: resolveLanguage(text, result.language_code?.split('-')[0], fallback),
+      source: 'sarvam',
+    };
+  } catch (err) {
+    log.warn('SARVAM_STT_FAIL', {
+      error: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    });
+    return null;
+  }
+}
+
 export async function transcribe(
   audio: Buffer,
   mimetype: string,
   language?: string,
 ): Promise<TranscribeResult> {
+  const fallback = bareLanguageHint(language);
+
+  // Indic speech → Sarvam Saarika first (SOTA for Indian languages). It is
+  // robust on real, accented, noisy speech where gpt-4o-transcribe slips
+  // (e.g. Malayalam "പിന്നെ"→"പിള്ളെ"), keeps the source script, and is
+  // faster. Any failure (30s sync limit, network, empty) falls through to the
+  // OpenAI path below, so this never hard-fails a voice note.
+  if (env.SARVAM_API_KEY && fallback && SARVAM_LANGS.has(fallback)) {
+    const sv = await transcribeSarvam(audio, mimetype, fallback);
+    if (sv) return sv;
+    log.warn('SARVAM_STT_FALLBACK_OPENAI', { language: fallback });
+  }
+
   if (!isAIConfigured()) {
     log.warn('AI_TRANSCRIBE_MOCK', { reason: 'no_api_key', mimetype });
     return {
@@ -104,7 +166,6 @@ export async function transcribe(
   }
 
   const filename = filenameFor(mimetype);
-  const fallback = bareLanguageHint(language);
 
   // Primary attempt: gpt-4o-transcribe with AUTO-DETECT (no language lock).
   try {

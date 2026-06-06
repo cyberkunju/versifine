@@ -63,6 +63,19 @@ const schema = z.object({
   OPENAI_TRANSLATE_MODEL: z.string().default('gpt-4o-mini'),
 
   /**
+   * Sarvam AI — SOTA for Indic speech. When SARVAM_API_KEY is set, voice
+   * notes whose session language is Indic (hi/ml/ta/te/kn) are transcribed
+   * with Saarika instead of gpt-4o-transcribe (which mishears Indic words,
+   * e.g. Malayalam "പിന്നെ"→"പിള്ളെ"). Falls back to OpenAI on any failure.
+   */
+  SARVAM_API_KEY: z
+    .string()
+    .transform((v) => (v && v.length > 0 ? v : undefined))
+    .optional(),
+  SARVAM_API_URL: z.string().default('https://api.sarvam.ai'),
+  SARVAM_STT_MODEL: z.string().default('saarika:v2.5'),
+
+  /**
    * WhatsApp Business Cloud API (Meta Graph). When WHATSAPP_TOKEN is set the
    * bot runs in Cloud API mode (no Chromium); otherwise the whatsapp-web.js
    * path drives it. Phone number id + version are required to send.
