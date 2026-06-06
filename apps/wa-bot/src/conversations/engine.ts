@@ -272,10 +272,11 @@ export async function runEngine(message: IncomingMessage): Promise<OutgoingReply
     // (intent + multilingual parser + regex amount extraction) already handles
     // raw, code-mixed Indic speech, so the faithful transcript is what routes.
     voiceTranscript = rawTranscript ? rawTranscript : null;
-    log.debug('VOICE_TRANSCRIBED', {
+    log.info('VOICE_TRANSCRIBED', {
       phone: session.phone,
       length: transcribed.text.length,
       language: transcribed.language,
+      transcript: rawTranscript.slice(0, 200),
     });
     if (!voiceTranscript) {
       // Couldn't make out the audio — tell the user instead of failing
