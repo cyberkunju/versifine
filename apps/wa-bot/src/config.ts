@@ -55,6 +55,21 @@ const schema = z.object({
     .transform((v) => (v && v.length > 0 ? v : undefined))
     .pipe(z.string().min(10).optional())
     .optional(),
+
+  /**
+   * Azure AI Foundry — mirrors the API. When set, the bot's LLM calls
+   * (ta/te/kn translation) target Azure gpt-5-mini instead of OpenAI direct.
+   */
+  AZURE_AI_ENDPOINT: z
+    .string()
+    .transform((v) => (v && v.length > 0 ? v.replace(/\/+$/, '') : undefined))
+    .optional(),
+  AZURE_AI_KEY: z
+    .string()
+    .transform((v) => (v && v.length > 0 ? v : undefined))
+    .optional(),
+  AZURE_AI_API_VERSION: z.string().default('2024-05-01-preview'),
+
   OPENAI_TRANSCRIPTION_MODEL: z.string().default('gpt-4o-transcribe'),
   OPENAI_TTS_MODEL: z.string().default('gpt-4o-mini-tts'),
   OPENAI_TTS_VOICE: z.string().default('nova'),

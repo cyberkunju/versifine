@@ -12,6 +12,17 @@ let cached: OpenAI | null | undefined;
 
 export function getOpenAI(): OpenAI | null {
   if (cached !== undefined) return cached;
+  if (env.AZURE_AI_KEY && env.AZURE_AI_ENDPOINT) {
+    cached = new OpenAI({
+      baseURL: `${env.AZURE_AI_ENDPOINT}/models`,
+      apiKey: env.AZURE_AI_KEY,
+      defaultQuery: { 'api-version': env.AZURE_AI_API_VERSION },
+      defaultHeaders: { 'api-key': env.AZURE_AI_KEY },
+      maxRetries: 2,
+      timeout: 30_000,
+    });
+    return cached;
+  }
   if (!env.OPENAI_API_KEY) {
     cached = null;
     return cached;
@@ -25,7 +36,7 @@ export function getOpenAI(): OpenAI | null {
 }
 
 export function isAIConfigured(): boolean {
-  return Boolean(env.OPENAI_API_KEY);
+  return Boolean((env.AZURE_AI_KEY && env.AZURE_AI_ENDPOINT) || env.OPENAI_API_KEY);
 }
 
 export async function withLatency<T>(label: string, fn: () => Promise<T>): Promise<T> {

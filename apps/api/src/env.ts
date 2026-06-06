@@ -53,6 +53,25 @@ const schema = z.object({
     .transform((v) => (v && v.length > 0 ? v : undefined))
     .pipe(z.string().min(10).optional())
     .optional(),
+
+  /**
+   * Azure AI Foundry (Model Inference API). When AZURE_AI_KEY + AZURE_AI_ENDPOINT
+   * are set, the AI client targets Azure instead of OpenAI direct: baseURL is
+   * `<endpoint>/models`, auth is the `api-key` header, and the `api-version`
+   * query is appended. The `OPENAI_*_MODEL` values then carry the Azure
+   * *deployment names* (e.g. gpt-5-mini, Cohere-embed-v3-multilingual). Both
+   * chat and embeddings route through this one endpoint.
+   */
+  AZURE_AI_ENDPOINT: z
+    .string()
+    .transform((v) => (v && v.length > 0 ? v.replace(/\/+$/, '') : undefined))
+    .optional(),
+  AZURE_AI_KEY: z
+    .string()
+    .transform((v) => (v && v.length > 0 ? v : undefined))
+    .optional(),
+  AZURE_AI_API_VERSION: z.string().default('2024-05-01-preview'),
+
   OPENAI_TRANSCRIPTION_MODEL: z.string().default('gpt-4o-transcribe'),
   OPENAI_VISION_MODEL: z.string().default('gpt-4o'),
   OPENAI_PARSE_MODEL: z.string().default('gpt-4o-mini'),

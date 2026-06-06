@@ -16,8 +16,28 @@ import { log } from '../../utils/logger.ts';
 
 let cached: OpenAI | null | undefined;
 
+/**
+ * The shared AI client. Prefers Azure AI Foundry when AZURE_AI_KEY +
+ * AZURE_AI_ENDPOINT are set (production target): the OpenAI SDK is pointed at
+ * `<endpoint>/models` with the `api-key` header and `api-version` query, which
+ * is the OpenAI-compatible Azure Model Inference surface. Both chat completions
+ * and embeddings route through it; the model field carries the Azure deployment
+ * name. Falls back to OpenAI direct when only OPENAI_API_KEY is set (dev), and
+ * to a deterministic mock when neither is configured.
+ */
 export function getOpenAI(): OpenAI | null {
   if (cached !== undefined) return cached;
+  if (env.AZURE_AI_KEY && env.AZURE_AI_ENDPOINT) {
+    cached = new OpenAI({
+      baseURL: `${env.AZURE_AI_ENDPOINT}/models`,
+      apiKey: env.AZURE_AI_KEY,
+      defaultQuery: { 'api-version': env.AZURE_AI_API_VERSION },
+      defaultHeaders: { 'api-key': env.AZURE_AI_KEY },
+      maxRetries: 2,
+      timeout: 30_000,
+    });
+    return cached;
+  }
   if (!env.OPENAI_API_KEY) {
     cached = null;
     return cached;
@@ -33,7 +53,7 @@ export function getOpenAI(): OpenAI | null {
 }
 
 export function isAIConfigured(): boolean {
-  return Boolean(env.OPENAI_API_KEY);
+  return Boolean((env.AZURE_AI_KEY && env.AZURE_AI_ENDPOINT) || env.OPENAI_API_KEY);
 }
 
 /**
