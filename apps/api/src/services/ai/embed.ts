@@ -34,7 +34,10 @@ export async function embed(text: string): Promise<number[]> {
     const response = await withLatency('embed', () =>
       client.embeddings.create({
         model: env.OPENAI_EMBED_MODEL,
-        input: trimmed,
+        // Must be an array: the Azure AI Inference embeddings schema (Cohere)
+        // rejects a bare string with HTTP 422. OpenAI accepts an array too, so
+        // this is provider-safe.
+        input: [trimmed],
       }),
     );
     const vector = response.data[0]?.embedding;
