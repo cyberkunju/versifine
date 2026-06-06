@@ -24,7 +24,7 @@ import { env } from '../../config.ts';
 import { log } from '../../utils/logger.ts';
 import { getOpenAI, isAIConfigured, withLatency } from './client.ts';
 
-export type TranscribeSource = 'gpt-4o-transcribe' | 'whisper-1' | 'sarvam' | 'mock';
+export type TranscribeSource = 'gpt-4o-transcribe' | 'whisper-1' | 'sarvam' | 'mai' | 'mock';
 
 export interface TranscribeResult {
   text: string;
@@ -34,6 +34,24 @@ export interface TranscribeResult {
 
 /** Session languages routed to Sarvam Saarika (Indic ASR) when a key is set. */
 const SARVAM_LANGS: ReadonlySet<string> = new Set(['hi', 'ml', 'ta', 'te', 'kn']);
+
+/** Map a bare language tag to the Azure Speech locales for MAI fast transcription. */
+function maiLocales(lang: string | undefined): string[] {
+  switch (lang) {
+    case 'hi':
+      return ['hi-IN', 'en-IN'];
+    case 'ml':
+      return ['ml-IN', 'en-IN'];
+    case 'ta':
+      return ['ta-IN', 'en-IN'];
+    case 'te':
+      return ['te-IN', 'en-IN'];
+    case 'kn':
+      return ['kn-IN', 'en-IN'];
+    default:
+      return ['en-IN', 'en-US'];
+  }
+}
 
 const FILENAME_BY_MIME: Record<string, string> = {
   'audio/ogg': 'voice.ogg',
@@ -133,6 +151,47 @@ async function transcribeSarvam(
   }
 }
 
+/**
+ * Azure AI Speech — MAI-Transcribe-1.5 fast transcription. Used for English
+ * (and as an Indic fallback). Accepts WhatsApp OGG/Opus directly (verified),
+ * so no MIME massaging needed. Returns null on any failure to fall through.
+ */
+async function transcribeMai(
+  audio: Buffer,
+  mimetype: string,
+  lang: string | undefined,
+): Promise<TranscribeResult | null> {
+  if (!env.AZURE_SPEECH_KEY || !env.AZURE_SPEECH_ENDPOINT) return null;
+  try {
+    const result = await withLatency('transcribe.mai', async () => {
+      const fd = new FormData();
+      fd.append('audio', new Blob([new Uint8Array(audio)], { type: mimetype }), filenameFor(mimetype));
+      fd.append('definition', JSON.stringify({ locales: maiLocales(lang) }));
+      const url = `${env.AZURE_SPEECH_ENDPOINT}/speechtotext/transcriptions:transcribe?api-version=2024-11-15`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Ocp-Apim-Subscription-Key': env.AZURE_SPEECH_KEY as string },
+        body: fd,
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        throw new Error(`HTTP ${res.status}: ${body.slice(0, 160)}`);
+      }
+      return (await res.json()) as {
+        combinedPhrases?: Array<{ text?: string }>;
+      };
+    });
+    const text = (result.combinedPhrases?.[0]?.text ?? '').trim();
+    if (!text) return null;
+    return { text, language: resolveLanguage(text, undefined, lang), source: 'mai' };
+  } catch (err) {
+    log.warn('MAI_STT_FAIL', {
+      error: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    });
+    return null;
+  }
+}
+
 export async function transcribe(
   audio: Buffer,
   mimetype: string,
@@ -143,12 +202,19 @@ export async function transcribe(
   // Indic speech → Sarvam Saarika first (SOTA for Indian languages). It is
   // robust on real, accented, noisy speech where gpt-4o-transcribe slips
   // (e.g. Malayalam "പിന്നെ"→"പിള്ളെ"), keeps the source script, and is
-  // faster. Any failure (30s sync limit, network, empty) falls through to the
-  // OpenAI path below, so this never hard-fails a voice note.
+  // faster. Any failure (30s sync limit, network, empty) falls through.
   if (env.SARVAM_API_KEY && fallback && SARVAM_LANGS.has(fallback)) {
     const sv = await transcribeSarvam(audio, mimetype, fallback);
     if (sv) return sv;
-    log.warn('SARVAM_STT_FALLBACK_OPENAI', { language: fallback });
+    log.warn('SARVAM_STT_FALLBACK', { language: fallback });
+  }
+
+  // English (and Indic fallback) → Azure MAI-Transcribe-1.5 (#1 FLEURS English,
+  // accepts WhatsApp Opus directly). Falls through to OpenAI on failure.
+  if (env.AZURE_SPEECH_KEY) {
+    const mai = await transcribeMai(audio, mimetype, fallback);
+    if (mai) return mai;
+    log.warn('MAI_STT_FALLBACK', { language: fallback ?? 'en' });
   }
 
   if (!isAIConfigured()) {

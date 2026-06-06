@@ -39,6 +39,24 @@ export function isAIConfigured(): boolean {
   return Boolean((env.AZURE_AI_KEY && env.AZURE_AI_ENDPOINT) || env.OPENAI_API_KEY);
 }
 
+let cachedTts: OpenAI | null | undefined;
+
+/**
+ * Dedicated OpenAI-direct client for TTS fallback ONLY. TTS primary is Sarvam
+ * Bulbul; this stays pinned to OpenAI (never Azure) because Azure's /models
+ * inference endpoint doesn't host audio.speech. Returns null without a key, so
+ * voice degrades to text-only rather than erroring.
+ */
+export function getOpenAITTS(): OpenAI | null {
+  if (cachedTts !== undefined) return cachedTts;
+  if (!env.OPENAI_API_KEY) {
+    cachedTts = null;
+    return cachedTts;
+  }
+  cachedTts = new OpenAI({ apiKey: env.OPENAI_API_KEY, maxRetries: 1, timeout: 30_000 });
+  return cachedTts;
+}
+
 export async function withLatency<T>(label: string, fn: () => Promise<T>): Promise<T> {
   const startedAt = performance.now();
   try {

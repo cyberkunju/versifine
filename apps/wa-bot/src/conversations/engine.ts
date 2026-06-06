@@ -32,6 +32,7 @@ import type {
 } from '../types.ts';
 import { LANGUAGE_META, type Language } from '@versifine/shared';
 import { synthesizeIndicSpeech } from '../services/ai/indicSpeech.ts';
+import { synthesizeBulbul } from '../services/ai/bulbulSpeech.ts';
 import { synthesizeSpeech } from '../services/ai/tts.ts';
 import { transcribe } from '../services/ai/transcribe.ts';
 import { translateForUser } from '../services/ai/translate.ts';
@@ -240,6 +241,12 @@ async function localize(text: string, language: Language): Promise<string> {
 }
 
 async function speak(text: string, language: Language): Promise<OutgoingVoice | null> {
+  // Primary: Sarvam Bulbul (native Indic + Indian-English voices, MP3 output
+  // WhatsApp accepts). Falls back to the OpenAI TTS paths only if Bulbul is
+  // unavailable, then to text-only.
+  const bulbul = await synthesizeBulbul({ text, language });
+  if (bulbul) return bulbul;
+
   if (language === 'ta' || language === 'ml') {
     const result = await synthesizeIndicSpeech({ text, language });
     return result

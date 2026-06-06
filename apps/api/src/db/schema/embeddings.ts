@@ -2,7 +2,8 @@
  * Vector embeddings for the copilot RAG retriever.
  *
  * One row per transaction, keyed by transaction id. The embedding is a
- * 1536-dimensional vector from OpenAI's `text-embedding-3-small`. We use an
+ * 1024-dimensional vector from Azure AI Foundry's `Cohere-embed-v3-multilingual`
+ * (migration 0008; previously OpenAI text-embedding-3-small at 1536). We use an
  * IVF-Flat index because the corpus per user is small (a few thousand rows
  * at most for an MVP) and cosine distance is plenty accurate.
  */
@@ -12,7 +13,7 @@ import { spaces } from './spaces.ts';
 import { transactions } from './transactions.ts';
 
 /** Single source of truth for embedding dimensionality. */
-export const VECTOR_DIM = 1536;
+export const VECTOR_DIM = 1024;
 
 const vector1536 = customType<{ data: number[]; driverData: string }>({
   dataType: () => `vector(${VECTOR_DIM})`,

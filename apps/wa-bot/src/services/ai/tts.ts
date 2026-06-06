@@ -21,7 +21,7 @@ import type { OutgoingVoice } from '../../types.ts';
 import type { Language } from '@versifine/shared';
 import { env } from '../../config.ts';
 import { log } from '../../utils/logger.ts';
-import { getOpenAI, isAIConfigured, withLatency } from './client.ts';
+import { getOpenAITTS, withLatency } from './client.ts';
 
 const SPEAKER_INSTRUCTIONS: Record<'en' | 'hi' | 'kn' | 'te', string> = {
   en: 'Warm, friendly Indian English voice. Steady, conversational pace. Pronounce ₹ as "rupees".',
@@ -47,9 +47,8 @@ export async function synthesizeSpeech(options: TtsOptions): Promise<OutgoingVoi
     return null;
   }
   if (!SUPPORTED.has(language)) return null;
-  if (!isAIConfigured()) return null;
 
-  const client = getOpenAI();
+  const client = getOpenAITTS();
   if (!client) return null;
 
   const lang = language as 'en' | 'hi' | 'kn' | 'te';

@@ -26,7 +26,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { spaces } from './spaces.ts';
 
-export const UTTERANCE_VECTOR_DIM = 1536;
+export const UTTERANCE_VECTOR_DIM = 1024;
 
 const utteranceVector = customType<{ data: number[]; driverData: string }>({
   dataType: () => `vector(${UTTERANCE_VECTOR_DIM})`,

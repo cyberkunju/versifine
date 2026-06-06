@@ -17,7 +17,7 @@ import type { Language } from '@versifine/shared';
 import { LANGUAGE_META, SIBLING_SCRIPTS } from '@versifine/shared';
 import { env } from '../../config.ts';
 import { log } from '../../utils/logger.ts';
-import { getOpenAI, isAIConfigured, withLatency } from './client.ts';
+import { getOpenAITTS, withLatency } from './client.ts';
 
 const SUPPORTED: ReadonlySet<Language> = new Set(['ta', 'ml']);
 
@@ -75,10 +75,8 @@ export async function synthesizeIndicSpeech(
     return null;
   }
   if (!SUPPORTED.has(language)) return null;
-  if (!isAIConfigured()) return null;
-  const client = getOpenAI();
+  const client = getOpenAITTS();
   if (!client) return null;
-
   const target = language as 'ta' | 'ml';
 
   try {

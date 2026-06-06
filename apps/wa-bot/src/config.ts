@@ -89,6 +89,23 @@ const schema = z.object({
     .optional(),
   SARVAM_API_URL: z.string().default('https://api.sarvam.ai'),
   SARVAM_STT_MODEL: z.string().default('saarika:v2.5'),
+  /** Sarvam Bulbul TTS — emits MP3 (output_audio_codec) which WhatsApp accepts. */
+  SARVAM_TTS_MODEL: z.string().default('bulbul:v2'),
+  SARVAM_TTS_SPEAKER: z.string().default('anushka'),
+
+  /**
+   * Azure AI Speech — MAI-Transcribe-1.5 fast transcription for English STT.
+   * When AZURE_SPEECH_KEY is set, non-Indic (English) voice notes transcribe
+   * here instead of gpt-4o-transcribe. Accepts WhatsApp OGG/Opus directly.
+   */
+  AZURE_SPEECH_ENDPOINT: z
+    .string()
+    .transform((v) => (v && v.length > 0 ? v.replace(/\/+$/, '') : undefined))
+    .optional(),
+  AZURE_SPEECH_KEY: z
+    .string()
+    .transform((v) => (v && v.length > 0 ? v : undefined))
+    .optional(),
 
   /**
    * WhatsApp Business Cloud API (Meta Graph). When WHATSAPP_TOKEN is set the

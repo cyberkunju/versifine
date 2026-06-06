@@ -100,7 +100,11 @@ export async function answerFinanceQuestion(
           normalizeChatParams({
             model: env.OPENAI_CHAT_MODEL,
             temperature: 0.4,
-            max_tokens: 400,
+            // Headroom for Indic replies: Malayalam/Tamil tokenize ~2-3x
+            // heavier than English, and gpt-5-mini truncated a Malayalam answer
+            // to null at a tighter cap. reasoning_effort=minimal keeps the whole
+            // budget for visible output.
+            max_tokens: 1200,
             messages: conversation,
             tools,
             tool_choice: round === 0 ? 'auto' : 'none',
