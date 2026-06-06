@@ -69,6 +69,15 @@ export function normalizeChatParams<
   if ('top_p' in next && next.top_p !== 1) {
     delete next.top_p;
   }
+  // GPT-5 family are reasoning models: left at the default (medium) effort they
+  // spend seconds on hidden chain-of-thought even for trivial structured
+  // extraction (intent, expense parse, categorise), which is the dominant
+  // source of end-to-end latency. `minimal` keeps the GPT-5 quality we
+  // benchmarked while bringing latency back in line with gpt-4o-mini. Callers
+  // that genuinely need deeper reasoning can pass their own `reasoning_effort`.
+  if (/^gpt-5/.test(model) && !('reasoning_effort' in next)) {
+    next.reasoning_effort = 'minimal';
+  }
   return next as unknown as T;
 }
 
