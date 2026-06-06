@@ -180,15 +180,44 @@ STT ≈ ₹0.13/note, TTS ≈ ₹0.60/reply. (List prices; Azure deployment type
 
 ## Open integration tasks (when keys land)
 
-1. Switch `apps/api/src/services/ai/client.ts` to the Azure OpenAI client.
-2. Remap env vars (target/interim table above).
-3. Add nano→gpt-5.4-mini escalation on low-confidence parse/vision.
-4. STT language router (MAI-Transcribe-1.5 vs Saaras) in `transcribe.ts`;
-   configure MAI keyword-biasing list (merchants, ₹/"rupees", UPI, finance terms).
-5. Wire Sarvam Bulbul TTS; retire `gpt-4o-audio-preview` / `indicSpeech.ts` combined path.
-6. Add Content Safety (Prompt Shields) at capture + copilot entry; PII redaction in logging.
-7. Document Intelligence receipt/invoice path with gpt-5.4-nano vision fallback.
-8. Embeddings backfill job for the dimension change.
+**STATUS: the interim Azure/Sarvam stack is LIVE in production (cutover 2026-06-06).**
+Direct OpenAI is no longer used except as a TTS fallback. Remaining work is the
+*target* upgrade (nano/mini/3-large) once quota is approved — a pure env swap.
+
+Done at cutover:
+1. ✅ `client.ts` (api + wa-bot) targets Azure AI Foundry when `AZURE_AI_KEY` +
+   `AZURE_AI_ENDPOINT` are set (baseURL `<endpoint>/models`, `api-key` header,
+   `api-version` query); chat + embeddings both route through it.
+2. ✅ Env remapped on the server: NLU/parse/translate/vision/chat → `gpt-5-mini`,
+   embeddings → `Cohere-embed-v3-multilingual`.
+3. ⏳ nano→gpt-5.4-mini escalation — pending target stack.
+4. ✅ STT router in `transcribe.ts`: `en` → MAI-Transcribe-1.5 (Azure Speech),
+   Indic → Sarvam Saarika `saarika:v2.5`.
+5. ✅ Sarvam Bulbul TTS wired (`bulbulSpeech.ts`) for all languages; OpenAI TTS
+   kept as a decoupled fallback (`getOpenAITTS`, never Azure).
+6. ❌ Content Safety / PII — cut (see above), regex-only.
+7. ⏳ Document Intelligence — not needed; gpt-5-mini vision covers receipts.
+8. ✅ Embeddings backfill: migration `0008` moved both vector columns to
+   `vector(1024)` and truncated the (rebuildable) caches.
+
+### Integration gotchas (verified live, save the next person the debugging)
+
+- **Cohere embeddings need an ARRAY input.** `{"input":"text"}` → HTTP 422;
+  `{"input":["text"]}` → 200. The OpenAI SDK passes a bare string by default,
+  so `embed()` wraps it in an array.
+- **Sarvam STT rejects `audio/ogg; codecs=opus`** (the exact MIME WhatsApp
+  sends) → 400, but accepts the same Opus bytes as `audio/ogg`. Strip the codec
+  param. 30s sync cap — longer notes need the batch API (we fall back to MAI).
+- **Sarvam Bulbul can emit MP3** via `output_audio_codec: "mp3"` (default is
+  WAV, which WhatsApp rejects) — so no ffmpeg/transcode step is needed.
+  `bulbul:v2` speaker `anushka`; `bulbul:v3` needs different speakers.
+- **gpt-5-mini honours `reasoning_effort: "minimal"` on Azure** (0 reasoning
+  tokens) — essential, or hidden reasoning eats the `max_completion_tokens`
+  budget and the answer comes back empty.
+- **Drizzle migration journal**: a prior corrupted `created_at`
+  (`1780671812458355524`, beyond JS safe-integer range) made new migrations
+  look "older" and silently skip; the SERIAL `id` sequence was also desynced.
+  Fixed both directly in `drizzle.__drizzle_migrations`.
 
 ## Benchmark: new (Azure interim) vs old (OpenAI-only) — 2026-06-06
 
