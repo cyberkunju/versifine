@@ -265,12 +265,13 @@ export async function runEngine(message: IncomingMessage): Promise<OutgoingReply
     setReplyMode(message.phone, 'auto');
     const transcribed = await maybeTranscribe(message, session);
     const rawTranscript = transcribed.text.trim();
-    if (rawTranscript) {
-      const { normalizeTranscription } = await import('../services/ai/transcribe.ts');
-      voiceTranscript = await normalizeTranscription(rawTranscript, transcribed.language);
-    } else {
-      voiceTranscript = null;
-    }
+    // Use the transcript AS-IS. We deliberately do NOT run an LLM "cleaner"
+    // over it: that step refused non-transaction voice commands (e.g. spoken
+    // "change language to Malayalam") and hallucinated amounts (Malayalam
+    // "അയ്യായിരം"=5000 came back "8000"). The downstream capture pipeline
+    // (intent + multilingual parser + regex amount extraction) already handles
+    // raw, code-mixed Indic speech, so the faithful transcript is what routes.
+    voiceTranscript = rawTranscript ? rawTranscript : null;
     log.debug('VOICE_TRANSCRIBED', {
       phone: session.phone,
       length: transcribed.text.length,
