@@ -23,7 +23,8 @@ export interface BudgetResult {
   done: boolean;
 }
 
-const TRIGGER_RE = /^\s*(set\s+budget|budget\s+for)\b/i;
+const TRIGGER_RE =
+  /\b(set|create|make|add|start|update|change|put|allocate|cap|limit)\b[^.\n]{0,30}\bbudget\b|\bbudget\b\s*(?:for|of|to|is|:|=|\d)/i;
 
 const ALIAS_TO_CATEGORY: Record<string, Category> = {
   groceries: 'Groceries',
@@ -61,6 +62,22 @@ export function pickCategory(input: string): Category | null {
   // Try a fuzzy contains match against canonical names.
   for (const cat of BUDGETABLE_CATEGORIES) {
     if (cat.toLowerCase().includes(trimmed) || trimmed.includes(cat.toLowerCase())) return cat;
+  }
+  return null;
+}
+
+/**
+ * Find a budgetable category mentioned ANYWHERE in a free-form message
+ * ("set a monthly grocery budget of 8000" → Groceries). Whole-word matches
+ * only, so "transport" in "transportation" doesn't double-fire oddly.
+ */
+function findCategoryInText(text: string): Category | null {
+  const lower = ` ${text.toLowerCase()} `;
+  for (const alias of Object.keys(ALIAS_TO_CATEGORY)) {
+    if (new RegExp(`\\b${alias}\\b`).test(lower)) return ALIAS_TO_CATEGORY[alias]!;
+  }
+  for (const cat of BUDGETABLE_CATEGORIES) {
+    if (new RegExp(`\\b${cat.toLowerCase().replace(/[&]/g, '\\&')}\\b`).test(lower)) return cat;
   }
   return null;
 }
@@ -105,26 +122,22 @@ export async function handleBudget(session: Session, body: string): Promise<Budg
   const m = getMessages(session.language);
   const text = body.trim();
 
-  // First-touch shortcut: "set budget groceries 8000" — parse both fields.
+  // First-touch: a set-budget message in any phrasing ("set a budget for food
+  // 5000", "budget 3000 for transport", "set a monthly grocery budget of
+  // 8000"). Pull category + amount from anywhere in the text rather than
+  // assuming they follow a fixed "set budget <cat> <amt>" order.
   if (TRIGGER_RE.test(text)) {
-    const stripped = text.replace(TRIGGER_RE, '').trim();
-    // Split on whitespace; first word(s) until a number begin = category, rest = amount.
-    const numMatch = stripped.match(/(\d+(?:\.\d+)?)/);
-    if (numMatch) {
-      const amount = Number(numMatch[1]);
-      const catText = stripped.slice(0, numMatch.index ?? stripped.length).trim();
-      const category = catText ? pickCategory(catText) : null;
-      if (category && Number.isFinite(amount) && amount > 0) {
-        return submitBudget(session, category, amount);
-      }
-      if (category) {
-        // Got the category but the amount wasn't usable.
-        setState(session.phone, 'SET_BUDGET_AMOUNT');
-        updateSession(session.phone, { pending: { budgetCategory: category } });
-        return { text: m.budgetAskAmount(category), done: false };
-      }
+    const category = findCategoryInText(text);
+    const amount = pickAmount(text);
+    if (category && amount) {
+      return submitBudget(session, category, amount);
     }
-    // Not enough info — start the multi-step ask.
+    if (category && !amount) {
+      setState(session.phone, 'SET_BUDGET_AMOUNT');
+      updateSession(session.phone, { pending: { budgetCategory: category } });
+      return { text: m.budgetAskAmount(category), done: false };
+    }
+    // No category yet — start the multi-step ask.
     setState(session.phone, 'SET_BUDGET_CATEGORY');
     return { text: m.budgetAskCategory, done: false };
   }

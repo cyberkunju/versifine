@@ -37,7 +37,7 @@ import {
 export interface AnswerResult {
   text: string;
   /** Why we answered the way we did — for structured logs only. */
-  outcome: 'answered' | 'refused_injection' | 'refused_offtopic' | 'unavailable' | 'error';
+  outcome: 'answered' | 'refused_injection' | 'refused_offtopic' | 'refused_crisis' | 'unavailable' | 'error';
 }
 
 const BOT_STYLE_NOTE =
@@ -55,10 +55,13 @@ export async function answerFinanceQuestion(
   const screen = screenInput(question);
   if (screen.verdict !== 'allow') {
     log.info('COPILOT_BOT_SCREENED', { verdict: screen.verdict, reason: screen.reason });
-    return {
-      text: refusalFor(screen.verdict),
-      outcome: screen.verdict === 'injection' ? 'refused_injection' : 'refused_offtopic',
-    };
+    const outcome =
+      screen.verdict === 'injection'
+        ? 'refused_injection'
+        : screen.verdict === 'crisis'
+          ? 'refused_crisis'
+          : 'refused_offtopic';
+    return { text: refusalFor(screen.verdict), outcome };
   }
 
   if (!isAIConfigured()) {

@@ -114,7 +114,7 @@ export const FINANCE_SYSTEM_PROMPT = [
  * 2. Input screening (pre-model heuristic gate).
  * ------------------------------------------------------------------ */
 
-export type ScreenVerdict = 'allow' | 'injection' | 'offtopic';
+export type ScreenVerdict = 'allow' | 'injection' | 'offtopic' | 'crisis';
 
 export interface ScreenResult {
   verdict: ScreenVerdict;
@@ -129,6 +129,18 @@ export interface ScreenResult {
  * false positive there only costs one polite refusal, while a miss could
  * compromise the assistant.
  */
+/**
+ * Self-harm / crisis signals. Checked FIRST in screenInput so a person in
+ * distress always gets a compassionate, emergency-resource response — never a
+ * cold finance refusal and never the model/content-filter path.
+ */
+const CRISIS_PATTERNS: RegExp[] = [
+  /\b(kill|hurt|harm|cut|injure|end)\s+(myself|me)\b/i,
+  /\b(want|wanna|going|plan|planning|thinking about|tempted|need)\b[^.\n]{0,24}\b(to\s+)?(die|suicide|end\s+(it|my\s+life)|kill\s+myself|hurt\s+myself)\b/i,
+  /\b(suicidal|suicide|end my life|take my life|kill myself|don'?t want to live|no reason to live|better off dead|can'?t go on|want to die)\b/i,
+  /\bself[\s-]?harm\b/i,
+];
+
 const INJECTION_PATTERNS: RegExp[] = [
   // "ignore / disregard / forget ... (previous|above|all) ... instructions/rules/prompt"
   /\b(ignore|disregard|forget|override|bypass|skip|drop)\b[^.\n]{0,40}\b(all|any|the|your|previous|prior|earlier|above|preceding|initial|former)\b[^.\n]{0,40}\b(instruction|instructions|prompt|prompts|rule|rules|direction|directions|guideline|guidelines|context|message|messages|constraint|constraints)\b/i,
@@ -226,6 +238,13 @@ function hasEncodedBlob(text: string): boolean {
 export function screenInput(raw: string): ScreenResult {
   const text = stripInvisible(String(raw ?? '')).trim();
   if (!text) return { verdict: 'allow', reason: 'empty' };
+
+  // Crisis check FIRST — a self-harm message must never be treated as an
+  // injection/off-topic refusal or pushed to the model (where the content
+  // filter would 400 it into a cold deflection).
+  for (const re of CRISIS_PATTERNS) {
+    if (re.test(text)) return { verdict: 'crisis', reason: 'self_harm' };
+  }
 
   // Collapse spacing tricks like "i g n o r e" → "ignore" for matching,
   // but keep the original for normal pattern checks too.
@@ -359,8 +378,17 @@ export const REFUSAL_OFFTOPIC =
 export const REFUSAL_GENERIC =
   'I can only help with your personal finances. Ask me about your spending, budgets, goals, or money-management ideas.';
 
+/**
+ * Crisis / self-harm response. Brief, warm, and points to real help. We are a
+ * finance bot, not a counsellor — the priority is connecting the person to
+ * emergency support, not staying "on scope".
+ */
+export const REFUSAL_CRISIS =
+  "I'm really sorry you're feeling like this, and I'm glad you said something. I'm just a finance assistant and can't help with this the way you deserve — but please reach out to someone who can right now. In India you can call 112 (emergency) or the iCall helpline on 9152987821; anywhere else, your local emergency number or a crisis line. You matter, and you don't have to get through this alone.";
+
 /** Map a non-allow verdict to the user-facing refusal text. */
 export function refusalFor(verdict: ScreenVerdict): string {
+  if (verdict === 'crisis') return REFUSAL_CRISIS;
   if (verdict === 'injection') return REFUSAL_INJECTION;
   if (verdict === 'offtopic') return REFUSAL_OFFTOPIC;
   return REFUSAL_GENERIC;
