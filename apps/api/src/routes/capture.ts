@@ -442,7 +442,18 @@ async function runTextPipeline(input: RunPipelineInput) {
           spaceId: user.activeSpaceId,
           history: input.history,
         });
-        if (fallbackParsed.amount !== null && fallbackParsed.description && fallbackParsed.confidence >= 0.5) {
+        // Only trust the LLM rescue when a DETERMINISTIC extractor independently
+        // found the amount. Otherwise the model can mine a bogus figure out of
+        // an encoded blob ("...execute it: 69676e6f72..." → ₹6,967) and pollute
+        // the ledger. A real spend always carries a regex- or worded-extractable
+        // amount; if none exists, this isn't a loggable transaction.
+        const deterministicAmount = extractAmount(text).amount !== null;
+        if (
+          deterministicAmount &&
+          fallbackParsed.amount !== null &&
+          fallbackParsed.description &&
+          fallbackParsed.confidence >= 0.5
+        ) {
           traceLog.info('CAPTURE_INTENT_RESCUED_FALLBACK_LLM', {
             from: intentResult.intent,
             to: fallbackParsed.type || 'expense',

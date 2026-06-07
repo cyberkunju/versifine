@@ -391,6 +391,24 @@ function computeNeeds(p: Omit<ParsedExpense, 'needs'>): MissingField[] {
   return needs;
 }
 
+/**
+ * True when the text carries a long encoded/alphanumeric token — a hex stream,
+ * base64 payload, or opaque id (≥16 chars). Used to reject an LLM-mined amount
+ * when no deterministic amount exists, so a smuggled payload can't be turned
+ * into a bogus transaction.
+ */
+function hasEncodedBlobToken(text: string): boolean {
+  for (const token of text.split(/\s+/)) {
+    if (token.length < 16) continue;
+    if (/^[A-Za-z0-9+/=_-]+$/.test(token) && /[A-Za-z]/.test(token) && /[0-9]/.test(token)) {
+      return true;
+    }
+    // A long pure-hex run is also a payload (it may be all-digit in places).
+    if (token.length >= 24 && /^[0-9a-fA-F]+$/.test(token)) return true;
+  }
+  return false;
+}
+
 async function callLLM(input: ParseInput, priorHint?: ParsedExpense): Promise<Partial<ParsedExpense> | null> {
   const client = getOpenAI();
   if (!client) return null;
@@ -533,6 +551,16 @@ export async function parseExpense(input: ParseInput): Promise<ParsedExpense> {
 
   // Merge with regex priority on the deterministic fields.
   const mergedAmount = regexAmount.amount ?? llm?.amount ?? null;
+  // Defense against blob-mining: when NO deterministic extractor (regex or
+  // worded) found an amount and the only candidate is an LLM-extracted number
+  // from a message that carries a long encoded/alphanumeric token (hex,
+  // base64, ids), discard it. The model mined a figure out of a payload
+  // ("...execute it: 69676e6f72..." → 6967), not a real spend. A genuine
+  // expense always carries a deterministically extractable amount.
+  const safeAmount =
+    regexAmount.amount === null && llm?.amount != null && hasEncodedBlobToken(text)
+      ? null
+      : mergedAmount;
   const mergedCurrency = (regexCurrency as Currency | null) ?? llm?.currency ?? null;
   const mergedDate = regexDate ?? llm?.date ?? null;
   const mergedSplit = regexSplit ?? llm?.splitPeople ?? null;
@@ -558,7 +586,7 @@ export async function parseExpense(input: ParseInput): Promise<ParsedExpense> {
   let originalAmount = llm?.originalAmount ?? null;
   let originalCurrency = llm?.originalCurrency ?? null;
   if (!originalAmount && !originalCurrency && mergedCurrency && mergedCurrency !== 'INR') {
-    originalAmount = mergedAmount;
+    originalAmount = safeAmount;
     originalCurrency = mergedCurrency;
   }
 
@@ -571,7 +599,7 @@ export async function parseExpense(input: ParseInput): Promise<ParsedExpense> {
 
   const draft: Omit<ParsedExpense, 'needs'> = {
     type: mergedType,
-    amount: mergedAmount,
+    amount: safeAmount,
     currency: mergedCurrency,
     description: mergedDescription,
     notes: mergedNotes,
