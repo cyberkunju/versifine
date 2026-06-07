@@ -179,6 +179,63 @@ async function openAiTranslate(
 }
 
 /**
+ * Translate a user's native-language message INTO English for the
+ * understanding pipeline (intent + parse + copilot). Used for languages where
+ * the LLM is weaker, so GPT always reasons over English while the reply is
+ * localized back into the user's language afterwards. Numbers are preserved
+ * (international numerals) so amount extraction still works.
+ *
+ * Returns null when Sarvam is unavailable or the call fails, so the caller
+ * falls back to sending the original text.
+ */
+export async function translateToEnglish(text: string, source: Language): Promise<string | null> {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  if (source === 'en') return null;
+  if (!env.SARVAM_API_KEY) return null;
+  if (trimmed.length > SARVAM_MAX_INPUT) return null;
+
+  const key = cacheKey('en' as Language, `${source}>${trimmed}`);
+  const cached = readCache(key);
+  if (cached) return cached;
+
+  try {
+    const res = await withLatency(`sarvam.translate.en`, () =>
+      fetch(`${env.SARVAM_API_URL}/translate`, {
+        method: 'POST',
+        headers: {
+          'api-subscription-key': env.SARVAM_API_KEY as string,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          input: trimmed,
+          // Auto-detect handles code-mixed input (native + English words).
+          source_language_code: 'auto',
+          target_language_code: 'en-IN',
+          mode: 'formal',
+          numerals_format: 'international',
+        }),
+      }),
+    );
+    if (!res.ok) {
+      log.warn('SARVAM_TO_EN_HTTP', { source, status: res.status });
+      return null;
+    }
+    const json = (await res.json().catch(() => null)) as { translated_text?: string } | null;
+    const out = json?.translated_text?.trim();
+    if (!out) return null;
+    writeCache(key, out);
+    return out;
+  } catch (err) {
+    log.warn('SARVAM_TO_EN_FAIL', {
+      source,
+      error: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    });
+    return null;
+  }
+}
+
+/**
  * Translate `text` into the user's target language for outgoing display.
  * Returns the source unchanged when the target has a native pack, when the
  * text is already in the target script, or when every provider fails.

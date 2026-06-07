@@ -36,6 +36,7 @@ import { synthesizeBulbul } from '../services/ai/bulbulSpeech.ts';
 import { synthesizeSpeech } from '../services/ai/tts.ts';
 import { transcribe } from '../services/ai/transcribe.ts';
 import { translateForUser } from '../services/ai/translate.ts';
+import { translateToEnglish } from '../services/ai/translate.ts';
 import { log } from '../utils/logger.ts';
 import { chunkText, parseLinkCommand, parseUniversal } from '../utils/text.ts';
 import { handleBudget, looksLikeBudgetTrigger, pickCategory, pickAmount } from './flows/budget.ts';
@@ -63,7 +64,31 @@ interface DispatchOutcome {
   speakable?: boolean;
 }
 
+/**
+ * Languages routed through English for the understanding pipeline. The LLM is
+ * markedly stronger on English than on lower-resource Indian languages, so for
+ * these we translate the user's message to English (Sarvam Mayura) before
+ * intent/parse/chat, then localize the reply back into their language. The
+ * proven languages (en/hi/ml/ta/te/kn) are understood natively.
+ */
+const ENGLISH_BRIDGE_LANGS = new Set<Language>(['bn', 'mr', 'gu', 'pa', 'od']);
+
 async function dispatch(session: Session, message: IncomingMessage): Promise<DispatchOutcome> {
+  // English bridge — for lower-resource languages, reason over an English
+  // translation of the user's message (the reply is localized back later).
+  if (
+    message.body &&
+    message.body.trim() &&
+    ENGLISH_BRIDGE_LANGS.has(session.language) &&
+    !parseUniversal(message.body) &&
+    !parseLinkCommand(message.body)
+  ) {
+    const bridged = await translateToEnglish(message.body, session.language);
+    if (bridged && bridged.trim()) {
+      message = { ...message, body: bridged };
+    }
+  }
+
   // Universal commands first — they always win.
   const universal = parseUniversal(message.body);
   if (universal) {
