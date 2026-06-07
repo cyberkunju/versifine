@@ -27,6 +27,16 @@ function escapeForRegex(str: string): string {
 
 const CURRENCY_PATTERN = CURRENCY_KEYS.map(escapeForRegex).join('|');
 
+/**
+ * Scale-multiplier words that may trail a digit amount ("18k", "1.5 lakh",
+ * "22 hazaar"). Includes English and romanised Indic words. Ordered with the
+ * longer variants first so the alternation doesn't stop on a prefix, and every
+ * use is paired with a `(?![a-z])` lookahead so a bare "k" never devours the
+ * first letter of the NEXT word ("180 kharch" must stay 180, not 180000).
+ */
+const SCALE_SUFFIX =
+  'k|thousands|thousand|lakhs|lakh|lac|crores|crore|hazaar|hazar';
+
 const SPLIT_RE =
   /\b(?:split(?:\s+(?:with|among))?|divide(?:d)?\s+(?:by|with|among)|share(?:d)?\s+(?:with|among))\s+(\d{1,2})\b/i;
 const SPLIT_PEOPLE_RE =
@@ -71,7 +81,7 @@ export function extractAmount(text: string): AmountExtraction {
 
   // 1) Currency followed by amount: "₹450", "Rs 450", "USD 50", "$50".
   const leading = new RegExp(
-    `(?:^|[^A-Za-z])(${CURRENCY_PATTERN})\\s*(\\d[\\d,]*(?:\\.\\d+)?)\\s*(k|thousand|lakh|crore)?\\b`,
+    `(?:^|[^A-Za-z])(${CURRENCY_PATTERN})\\s*(\\d[\\d,]*(?:\\.\\d+)?)\\s*(${SCALE_SUFFIX})?(?![a-z])`,
     'i',
   );
   const lead = leading.exec(cleaned);
@@ -84,7 +94,7 @@ export function extractAmount(text: string): AmountExtraction {
 
   // 2) Amount followed by currency: "450 rs", "50 dollars", "140 രൂപ".
   const trailing = new RegExp(
-    `(\\d[\\d,]*(?:\\.\\d+)?)\\s*(k|thousand|lakh|crore)?\\s*(${CURRENCY_PATTERN})\\b`,
+    `(\\d[\\d,]*(?:\\.\\d+)?)\\s*(${SCALE_SUFFIX})?(?![a-z])\\s*(${CURRENCY_PATTERN})\\b`,
     'i',
   );
   const trail = trailing.exec(cleaned);
@@ -126,7 +136,7 @@ interface BareCandidate {
  * Ties break toward the later number (price tends to come after the item).
  */
 function pickBareAmount(text: string): number | null {
-  const re = /(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|lakh|crore)?/gi;
+  const re = new RegExp(`(\\d[\\d,]*(?:\\.\\d+)?)\\s*(${SCALE_SUFFIX})?(?![a-z])`, 'gi');
   const candidates: BareCandidate[] = [];
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
@@ -134,6 +144,13 @@ function pickBareAmount(text: string): number | null {
     if (value === null) continue;
     const before = text.slice(0, m.index);
     const after = text.slice(m.index + m[0].length);
+    // Skip a digit run that is glued to ASCII letters with no separator — it
+    // is embedded in a word or an encoded blob, not a spoken amount. This
+    // stops "base64" → ₹64 and hex/base64 payloads like
+    // "69676e6f72..." from being mined for a bogus transaction amount.
+    // Real amounts are written with a separator ("spent 500", "₹500", "500rs"
+    // — the currency-attached forms are handled earlier in extractAmount).
+    if (/[A-Za-z]$/.test(before) || /^[A-Za-z]/.test(after)) continue;
     candidates.push({
       value,
       index: m.index,
@@ -169,9 +186,10 @@ function parseAmount(numberToken: string, suffix: string | null): number | null 
   let multiplier = 1;
   if (suffix) {
     const s = suffix.toLowerCase();
-    if (s === 'k' || s === 'thousand') multiplier = 1_000;
-    else if (s === 'lakh') multiplier = 100_000;
-    else if (s === 'crore') multiplier = 10_000_000;
+    if (s === 'k' || s === 'thousand' || s === 'thousands' || s === 'hazaar' || s === 'hazar')
+      multiplier = 1_000;
+    else if (s === 'lakh' || s === 'lakhs' || s === 'lac') multiplier = 100_000;
+    else if (s === 'crore' || s === 'crores') multiplier = 10_000_000;
   }
   return Math.round(base * multiplier * 100) / 100;
 }

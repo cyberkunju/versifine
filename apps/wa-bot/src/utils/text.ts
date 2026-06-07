@@ -127,25 +127,52 @@ export function parseEmail(text: string): string | null {
 }
 
 /**
- * Whether the user is declining the optional email step. Recognises "skip",
- * "no", "later", "don't need", typos ("skipp"), and full sentences like
- * "bro i dont need to link that" across the six supported languages — the
- * email step is OPTIONAL, so we err strongly toward "they want to move on".
- * Only a message that actually contains an email address is NOT a skip.
+ * Whether the user is declining the optional email step.
+ *
+ * The email step is OPTIONAL and must NEVER eat a real message. Historically
+ * this matched skip tokens as *substrings* of the whole message, which was a
+ * disaster: "recovering **no**w", "forgetting to **cancel** it", "**no**
+ * matter how hard I try", "**don't** see a way out" (a crisis signal!), and
+ * Hindi "₹50 **नहीं** ₹150" all looked like a "skip" and silently destroyed
+ * the user's expense / question / cry for help.
+ *
+ * The fix: only treat SHORT, money-free messages as a decline, and match skip
+ * words as WHOLE words (not substrings). A message with any digit is a real
+ * action (an amount), and anything longer than a few words is a sentence the
+ * user wants handled — both fall through to normal dispatch, which is safe
+ * because the account is provisioned either way.
  */
-const SKIP_TOKENS = [
-  'skip',
-  'skipp',
-  'no',
-  'nope',
-  'naw',
-  'nah',
-  'later',
+const SKIP_WORDS = new Set(
+  [
+    'skip',
+    'skipp',
+    'no',
+    'nope',
+    'naw',
+    'nah',
+    'later',
+    'dont',
+    "don't",
+    'pass',
+    'nahi',
+    'नहीं',
+    'छोड़ें',
+    'വേണ്ട',
+    'ഇല്ല',
+    'പിന്നീട്',
+    'பின்னர்',
+    'வேண்டாம்',
+    'తర్వాత',
+    'వద్దు',
+    'ಬೇಡ',
+    'ನಂತರ',
+  ].map((s) => s.toLowerCase()),
+);
+
+const SKIP_PHRASES = [
   'no thanks',
   'no thank',
   'not now',
-  'dont',
-  "don't",
   'do not',
   'no need',
   'not needed',
@@ -155,26 +182,9 @@ const SKIP_TOKENS = [
   "don't want",
   'leave it',
   'forget it',
-  'pass',
-  'ignore',
-  'cancel',
-  'next',
-  'continue',
-  'proceed',
   'move on',
-  'nahi',
-  'नहीं',
+  'maybe later',
   'बाद में',
-  'छोड़ें',
-  'വേണ്ട',
-  'ഇല്ല',
-  'പിന്നീട്',
-  'பின்னர்',
-  'வேண்டாம்',
-  'తర్వాత',
-  'వద్దు',
-  'ಬೇಡ',
-  'ನಂತರ',
 ].map((s) => s.toLowerCase());
 
 export function looksLikeSkip(text: string): boolean {
@@ -183,9 +193,15 @@ export function looksLikeSkip(text: string): boolean {
   if (!normalized) return false;
   // A message carrying an actual email is never a skip.
   if (EMAIL_RE.test(normalized)) return false;
-  // Any skip token appearing as a word/substring counts — covers typos and
-  // full sentences ("bro i dont need to link that shit").
-  return SKIP_TOKENS.some((tok) => normalized.includes(tok));
+  // A message with a number almost always carries an amount → real action.
+  if (/\d/.test(normalized)) return false;
+  // Tokenize to whole words (unicode-aware) and only treat a SHORT message as
+  // a decline — a longer sentence that merely contains "no"/"cancel"/"later"
+  // is venting / a question / a crisis, not an email skip.
+  const words = normalized.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  if (words.length === 0 || words.length > 4) return false;
+  if (SKIP_PHRASES.some((p) => normalized.includes(p))) return true;
+  return words.some((w) => SKIP_WORDS.has(w));
 }
 
 /** Chunk text into WhatsApp-friendly pieces; long bot replies get split. */

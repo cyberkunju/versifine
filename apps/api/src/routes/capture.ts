@@ -24,6 +24,7 @@ import { requireUserOrBot } from '../middleware/authEither.ts';
 import { limits, rateLimit } from '../middleware/rateLimit.ts';
 import { validate } from '../middleware/validate.ts';
 import { classifyIntent } from '../services/ai/intent.ts';
+import { screenInput } from '../services/ai/guard.ts';
 import { isAIConfigured } from '../services/ai/client.ts';
 import {
   type MissingField,
@@ -323,6 +324,27 @@ async function runTextPipeline(input: RunPipelineInput) {
   const user = c.get('user');
   const traceLog = c.get('log');
 
+  // SAFETY FIRST — a self-harm / crisis signal must never be parsed into an
+  // expense. "lost 15000 gambling last night and I feel like ending it all"
+  // carries an amount, but it is a cry for help, not a transaction. Screen it
+  // before intent/parse and route to the chat path, where the guarded copilot
+  // returns the compassionate, helpline-bearing response (REFUSAL_CRISIS).
+  // (Injection is deliberately NOT short-circuited here: a mixed message like
+  // "spent 50 on tea, also ignore all rules" should still log the ₹50 tea —
+  // the parser only extracts the amount and ignores the instruction text.)
+  const screen = screenInput(text);
+  if (screen.verdict === 'crisis') {
+    traceLog.info('CAPTURE_SCREENED', { verdict: screen.verdict, reason: screen.reason, origin });
+    return c.json(
+      ok({
+        intent: 'chat' as const,
+        needsConfirmation: false,
+        copilotStreamUrl: '/copilot/chat',
+        echo: text,
+      }),
+    );
+  }
+
   const intentResult = await classifyIntent({ text, locale });
   traceLog.info('CAPTURE_INTENT', {
     origin,
@@ -479,8 +501,19 @@ async function persistOrDraftExpense(args: {
   const enoughConfidence = parsed.confidence >= 0.6;
   const hasAmount = parsed.amount !== null;
   const hasDescription = Boolean(parsed.description);
+  // An implausibly large amount (over ₹1 crore) is almost always a parse slip
+  // (a repeated-digit "chaiiiii 20000000", a mined hex/base64 blob, an overflow
+  // string). Never auto-log it — fall to a draft so the user confirms first.
+  const implausibleAmount = parsed.amount !== null && parsed.amount > 10_000_000;
 
-  if (!enoughConfidence || !hasAmount || !hasDescription || !walletId || origin === 'image') {
+  if (
+    !enoughConfidence ||
+    !hasAmount ||
+    !hasDescription ||
+    !walletId ||
+    origin === 'image' ||
+    implausibleAmount
+  ) {
     const draft = storeDraft({
       spaceId: user.activeSpaceId,
       userId: user.id,
@@ -629,7 +662,7 @@ function clarifierEdits(
     // If draft value was null, fall back to deterministic regex extraction on the latest message.
     amount: followup?.amount ?? draft.amount ?? regexAmount.amount ?? null,
     currency: followup?.currency ?? draft.currency ?? regexCurrency ?? null,
-    description: cleanDescription(followup?.description ?? null, draft.description) ?? noun ?? null,
+    description: cleanDescription(followup?.description ?? null, draft.description) ?? draft.description ?? noun ?? null,
     notes: followup?.notes ?? draft.notes ?? null,
     categoryHint: followup?.categoryHint ?? draft.categoryHint ?? noun ?? null,
     walletHint: followup?.walletHint ?? draft.walletHint ?? null,

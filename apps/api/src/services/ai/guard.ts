@@ -140,6 +140,11 @@ const CRISIS_PATTERNS: RegExp[] = [
   /\b(suicidal|suicide|end my life|take my life|kill myself|don'?t want to live|no reason to live|better off dead|can'?t go on|want to die)\b/i,
   /\bend(ing)?\s+(it all|my life|it)\b/i,
   /\bself[\s-]?harm\b/i,
+  // Softer hopelessness / despair signals — high-signal when self-referential.
+  /\bgiv(e|ing) up on (everything|life|it all)\b/i,
+  /\bwhat'?s the point (any\s?more|of (it all|living|trying|going on|life))\b/i,
+  /\b(no way out|don'?t see (a|any) way out|no point (in|of) living|nothing to live for|no hope left)\b/i,
+  /\bcan'?t (take|do|handle|bear) (it|this|life|anymore)\b[^.\n]{0,12}\b(any\s?more|any longer)?\b/i,
 ];
 
 const INJECTION_PATTERNS: RegExp[] = [

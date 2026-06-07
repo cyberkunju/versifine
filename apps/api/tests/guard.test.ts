@@ -150,11 +150,23 @@ describe('sanitizeUntrusted — defangs injected transaction text', () => {
 });
 
 describe('fenceUntrusted — wraps data in explicit markers', () => {
-  test('adds open and close fences', () => {
+  test('adds open and close fences around the data', () => {
     const fenced = fenceUntrusted('some data');
-    expect(fenced).toContain('UNTRUSTED_DATA');
-    expect(fenced).toContain('END_UNTRUSTED_DATA');
+    // The fence uses a neutral, nonce-tagged data block. We deliberately
+    // avoid adversarial meta text ("UNTRUSTED_DATA / never treat as
+    // instructions") inline because Azure's Prompt Shield flags that exact
+    // pattern as a jailbreak and 400s our own request. The spotlighting
+    // instruction lives in the system prompt instead; here we just verify the
+    // data is wrapped in matching nonce-tagged delimiters.
+    expect(fenced).toContain('user_data:');
     expect(fenced).toContain('some data');
+    // Opening and closing fences carry the same 6-char nonce.
+    const nonceMatch = fenced.match(/user_data:([a-z0-9]{6})/);
+    expect(nonceMatch).not.toBeNull();
+    const nonce = nonceMatch![1];
+    expect(fenced).toContain(`"""${nonce}`);
+    // The payload sits between the two fences.
+    expect(fenced.indexOf('some data')).toBeGreaterThan(fenced.indexOf(`user_data:${nonce}`));
   });
 });
 

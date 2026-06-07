@@ -383,7 +383,11 @@ function computeNeeds(p: Omit<ParsedExpense, 'needs'>): MissingField[] {
   if (p.amount === null) needs.push('amount');
   if (!p.description) needs.push('description');
   if (!p.walletHint) needs.push('wallet');
-  if (!p.currency && !p.originalCurrency) needs.push('currency');
+  // Currency is intentionally NOT a blocking need. This is an India-first app:
+  // when the user didn't name a currency we default to INR at persist time
+  // rather than derailing into a confusing "Which currency was that?" prompt
+  // (which used to fire on transfers and "phonepe to ola 287/-"-style logs).
+  // An explicitly stated foreign currency is captured by the parser regardless.
   return needs;
 }
 
