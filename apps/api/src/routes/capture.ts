@@ -217,15 +217,14 @@ async function parseBatchItems(
   locale: Language | undefined,
   spaceId?: string,
 ): Promise<ParsedBatchItem[] | null> {
-  // Cheap pre-check before spending an LLM batch call. A single expense has
-  // one segment and one number; only when the text plausibly carries multiple
-  // line items (a connector/delimiter split, or 2+ numeric tokens) do we pay
-  // for the batch model. This removes a full parse call from the common
-  // single-expense path — previously the batch model ran unconditionally and
-  // then the single parser ran again, two sequential calls for one expense.
+  // Cheap pre-check before spending an LLM batch call. Only treat the message
+  // as multi-item when it actually carries 2+ amounts — a single amount with
+  // commas/connectors in a STORY ("800 for dinner, treated my team after we
+  // shipped the release") is one expense and must go to the single parser,
+  // which splits the short description from the notes.
   const parts = splitPotentialBatch(text);
   const numericTokens = text.match(/\d[\d.,]*/g) ?? [];
-  const looksLikeBatch = parts.length >= 2 || numericTokens.length >= 2;
+  const looksLikeBatch = numericTokens.length >= 2 && parts.length >= 2;
   if (!looksLikeBatch) return null;
 
   const modelBatch = await parseExpenseBatch({ text, locale, spaceId });

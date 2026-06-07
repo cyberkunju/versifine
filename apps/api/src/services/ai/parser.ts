@@ -158,6 +158,8 @@ Rules:
 - "2 porotta beef motham oru 453 ayi pinne oru kaappi oru 54roopa" => TWO items: porotta beef 453, kaappi 54.
 - "പൊറോട്ട വാങ്ങിയത് 40 രൂപ, കേക്ക് വാങ്ങിയത് 30 രൂപ, ചായ വാങ്ങിയത് 45 രൂപ" => THREE items: amounts 40, 30, 45.
 - Never invent missing amount, currency, wallet, or date. Use null.
+- Keep each "description" a SHORT noun phrase; put any extra story/context for
+  that item (who/why/occasion/place) in its "notes", or null if none.
 - A leading quantity ("2 porotta") is not the amount when a later price exists.`;
 
 const llmSchema = z
