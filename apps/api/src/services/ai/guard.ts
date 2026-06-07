@@ -138,6 +138,7 @@ const CRISIS_PATTERNS: RegExp[] = [
   /\b(kill|hurt|harm|cut|injure|end)\s+(myself|me)\b/i,
   /\b(want|wanna|going|plan|planning|thinking about|tempted|need)\b[^.\n]{0,24}\b(to\s+)?(die|suicide|end\s+(it|my\s+life)|kill\s+myself|hurt\s+myself)\b/i,
   /\b(suicidal|suicide|end my life|take my life|kill myself|don'?t want to live|no reason to live|better off dead|can'?t go on|want to die)\b/i,
+  /\bend(ing)?\s+(it all|my life|it)\b/i,
   /\bself[\s-]?harm\b/i,
 ];
 

@@ -12,7 +12,7 @@ import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { budgetCreateInput, budgetUpdateInput } from '@versifine/shared';
 import type { Budget } from '../db/schema/budgets.ts';
-import { requireUser } from '../middleware/auth.ts';
+import { requireUserOrBot } from '../middleware/authEither.ts';
 import {
   computeBudgetProgress,
   createBudget,
@@ -26,7 +26,7 @@ import { ok } from '../utils/envelope.ts';
 import { errors } from '../utils/errors.ts';
 
 const app = new Hono();
-app.use('*', requireUser);
+app.use('*', requireUserOrBot);
 
 function serializeBudget(b: Budget) {
   return {
