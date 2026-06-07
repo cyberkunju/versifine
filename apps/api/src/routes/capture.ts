@@ -201,6 +201,10 @@ interface ParsedBatchItem {
 
 function splitPotentialBatch(text: string): string[] {
   return text
+    // Strip thousand-separator commas inside numbers first ("1,250" / Indian
+    // "1,00,000") so they don't get treated as item delimiters below and split
+    // a single amount into ₹1 + ₹250.
+    .replace(/(\d)[,，](?=\d)/g, '$1')
     .replace(/\b(?:pinne|pinney|pine|then|and then|next)\b/gi, ',')
     .replace(/\s+പിന്നെ\s+/gu, ',')
     .split(/[,;\n]+/)

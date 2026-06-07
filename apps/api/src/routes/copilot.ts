@@ -41,6 +41,8 @@ import { COPILOT_TOOL_SPECS, dispatchTool } from '../services/ai/copilotTools.ts
 import {
   FINANCE_SYSTEM_PROMPT,
   fenceUntrusted,
+  isContentFilterError,
+  REFUSAL_INJECTION,
   refusalFor,
   screenInput,
 } from '../services/ai/guard.ts';
@@ -242,8 +244,16 @@ app.post('/chat', requireUser, copilotLimit, async (c) => {
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           if (!closed && !/closed|aborted/i.test(msg)) {
-            log.warn('COPILOT_STREAM_FAIL', { error: msg.slice(0, 240) });
-            send({ type: 'error', message: 'Copilot ran into a problem; try again.' });
+            if (isContentFilterError(err)) {
+              // Azure content filter / Prompt Shield rejection — stream a
+              // graceful refusal as the answer rather than a hard error.
+              log.info('COPILOT_STREAM_FILTERED', {});
+              send({ type: 'chunk', delta: REFUSAL_INJECTION });
+              send({ type: 'done', messageId });
+            } else {
+              log.warn('COPILOT_STREAM_FAIL', { error: msg.slice(0, 240) });
+              send({ type: 'error', message: 'Copilot ran into a problem; try again.' });
+            }
           }
           finish();
         }

@@ -28,6 +28,7 @@ import { COPILOT_TOOL_SPECS, dispatchTool } from './copilotTools.ts';
 import {
   FINANCE_SYSTEM_PROMPT,
   fenceUntrusted,
+  isContentFilterError,
   refusalFor,
   screenInput,
   screenOutput,
@@ -157,6 +158,13 @@ export async function answerFinanceQuestion(
     });
     return { text: checked.text, outcome: 'answered' };
   } catch (err) {
+    // Azure content filter / Prompt Shield rejects the request with HTTP 400
+    // (e.g. a genuine jailbreak attempt). Surface a polite finance refusal
+    // rather than a generic "I broke" message.
+    if (isContentFilterError(err)) {
+      log.info('COPILOT_BOT_FILTERED', {});
+      return { text: refusalFor('injection'), outcome: 'refused_injection' };
+    }
     log.warn('COPILOT_BOT_FAIL', {
       error: err instanceof Error ? err.message.slice(0, 240) : String(err),
     });
