@@ -28,7 +28,7 @@ import { db } from '../db/client.ts';
 import { categoryCorrections } from '../db/schema/overrides.ts';
 import { transactions } from '../db/schema/transactions.ts';
 import { wallets } from '../db/schema/wallets.ts';
-import { requireUser } from '../middleware/auth.ts';
+import { requireUserOrBot } from '../middleware/authEither.ts';
 import { recomputeAffectedBudgets } from '../services/budgets/index.ts';
 import { safeNormalizeMerchant, safeUpsertOverride } from '../services/categorize/_safe.ts';
 import { emit } from '../services/events/bus.ts';
@@ -42,7 +42,7 @@ import { ok } from '../utils/envelope.ts';
 import { errors } from '../utils/errors.ts';
 
 const app = new Hono();
-app.use('*', requireUser);
+app.use('*', requireUserOrBot);
 
 app.get('/', async (c) => {
   const u = c.get('user');

@@ -137,6 +137,9 @@ export interface MessagePack {
 
   /** Correction applied. */
   correctApplied: (newCategory: string) => string;
+
+  /** Amount/description correction applied — summary is the new value (₹500 / "dinner"). */
+  correctUpdated: (summary: string) => string;
   /** Correction failed (no recent transaction or API error). */
   correctNotPossible: string;
 

@@ -172,6 +172,7 @@ export const hi: MessagePack = {
 
   correctApplied: (newCategory) =>
     `✅ बदल दिया। पिछला transaction अब ${newCategory} है। आगे similar entries भी इसी कैटेगरी में जाएँगी।`,
+  correctUpdated: (summary) => `✅ अपडेट कर दिया — पिछला transaction अब ${summary} है।`,
   correctNotPossible:
     'सुधारने के लिए कोई हाल का transaction नहीं मिला। पिछला खर्च सही कैटेगरी के साथ फिर से भेजें।',
 

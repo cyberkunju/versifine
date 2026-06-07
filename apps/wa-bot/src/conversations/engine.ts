@@ -198,8 +198,10 @@ async function dispatch(session: Session, message: IncomingMessage): Promise<Dis
     }
   }
 
-  // "Last one was X not Y" — correction shortcut.
-  if (looksLikeCorrection(message.body)) {
+  // "Last one was X not Y" — correction shortcut. Only when there's a recent
+  // transaction to amend, so a fresh "paid 500 instead of cash" stays a new
+  // capture rather than being mistaken for a correction.
+  if (session.lastTransactionId && looksLikeCorrection(message.body)) {
     const out = await handleCorrection(session, message.body);
     return { text: out.text, speakable: true };
   }

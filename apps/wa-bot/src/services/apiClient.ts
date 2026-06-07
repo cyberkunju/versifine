@@ -261,7 +261,7 @@ export async function botWhoami(phone: string): Promise<BotWhoami> {
     path: '/bot/whoami',
     unauthenticated: true,
     body: { phone },
-    headers: { 'x-bot-secret': env.BOT_SECRET },
+    headers: { 'x-bot-secret': env.BOT_SECRET, 'x-phone': phone },
   });
 }
 
@@ -281,7 +281,9 @@ export async function botEnsureUser(
     path: '/bot/ensure-user',
     unauthenticated: true,
     body: email ? { phone, language, email } : { phone, language },
-    headers: { 'x-bot-secret': env.BOT_SECRET },
+    // x-phone makes the provisioning rate-limit per-number instead of a single
+    // shared 'anon' bucket — so concurrent NEW signups don't throttle each other.
+    headers: { 'x-bot-secret': env.BOT_SECRET, 'x-phone': phone },
   });
 }
 
@@ -350,6 +352,26 @@ export async function patchTransactionCategory(
     path: `/transactions/${transactionId}/category`,
     phone,
     body: { category },
+  });
+}
+
+/**
+ * General partial update of a transaction (amount / description / category).
+ * Used by the correction flow for "it was 500 not 50" (amount) and
+ * "change last to dinner" (description), not just category swaps.
+ */
+export async function patchTransaction(
+  phone: string,
+  transactionId: string,
+  fields: { amount?: number; description?: string; category?: string },
+): Promise<{ transaction: { id: string; amount: number; description: string; category: string | null } }> {
+  return await call<{
+    transaction: { id: string; amount: number; description: string; category: string | null };
+  }>({
+    method: 'PATCH',
+    path: `/transactions/${transactionId}`,
+    phone,
+    body: fields,
   });
 }
 

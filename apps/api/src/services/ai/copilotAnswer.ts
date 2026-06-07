@@ -41,7 +41,7 @@ export interface AnswerResult {
 }
 
 const BOT_STYLE_NOTE =
-  'You are replying inside WhatsApp. Keep it to 2-4 short sentences, no markdown headings or tables. Lead with the number or the answer.';
+  'You are replying inside WhatsApp. Reply in 2-3 short, plain-text sentences. Do NOT use numbered lists, bullet points, markdown, headings, or tables — just natural sentences. Lead with the answer or the number.';
 
 /**
  * Answer one finance question for a linked WhatsApp user. `question` is the

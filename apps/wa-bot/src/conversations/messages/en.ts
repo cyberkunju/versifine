@@ -181,6 +181,7 @@ export const en: MessagePack = {
 
   correctApplied: (newCategory) =>
     `✅ Updated. The last transaction is now ${newCategory}. Future similar entries will use this category too.`,
+  correctUpdated: (summary) => `✅ Updated — the last transaction is now ${summary}.`,
   correctNotPossible:
     "I couldn't find a recent transaction to correct. Send your last expense again with the right category.",
 

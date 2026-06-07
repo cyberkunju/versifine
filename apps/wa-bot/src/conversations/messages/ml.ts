@@ -178,6 +178,7 @@ export const ml: MessagePack = {
     `✅ മാറ്റി. അവസാനത്തെ transaction ഇപ്പോൾ ${newCategory} ആണ്. ഇതേപോലെ വരുന്ന entries-ഉം ഇനി ഈ category-യിലേക്ക് വരും.`,
   correctNotPossible:
     'തിരുത്താൻ പാകത്തിൽ ഒരു transaction കണ്ടെത്താനായില്ല. അവസാന ചെലവ് ശരിയായ category-യോടെ വീണ്ടും അയക്കൂ.',
+  correctUpdated: (summary) => `✅ അപ്ഡേറ്റ് ചെയ്തു — അവസാന transaction ഇപ്പോൾ ${summary} ആണ്.`,
 
   statusLine: (state, language) =>
     `സ്റ്റാറ്റസ്: ലിങ്ക്ഡ്, ഭാഷ ${language}, നിലവിലെ ഘട്ടം: ${state.toLowerCase()}.`,
