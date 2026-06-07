@@ -29,23 +29,17 @@ const PRESERVE_BLOCK = `Preserve verbatim, do NOT translate:
 - the SAME numeric digits the user wrote (do not localize numerals)
 - Latin uppercase command keywords like MENU, BACK, RESET, LINK, HELP, STATUS, UNDO, LANGUAGE, HUMAN, STOP`;
 
-const TRANSLATE_PROMPTS: Record<Exclude<Language, 'en' | 'hi' | 'ml'>, string> = {
-  ta: `You translate financial chat messages from English (or any source) into Tamil (script: தமிழ்).
-Output ONLY the translated text in Tamil script. Do not output any other script.
-${PRESERVE_BLOCK}`,
-  te: `You translate financial chat messages from English (or any source) into Telugu (script: తెలుగు).
-Output ONLY the translated text in Telugu script. Do not output any other script.
-${PRESERVE_BLOCK}`,
-  kn: `You translate financial chat messages from English (or any source) into Kannada (script: ಕನ್ನಡ).
-Output ONLY the translated text in Kannada script. Do not output any other script.
-${PRESERVE_BLOCK}`,
-};
+function translatePrompt(target: Language): string {
+  const meta = LANGUAGE_META[target];
+  return `You translate financial chat messages from English (or any source) into ${meta.englishName} (native script: ${meta.nativeName}).
+Output ONLY the translated text in ${meta.englishName} script. Do not output any other script.
+${PRESERVE_BLOCK}`;
+}
 
-const SHARP_RETRY_PROMPTS: Record<Exclude<Language, 'en' | 'hi' | 'ml'>, string> = {
-  ta: `Your previous reply contained the wrong script. Translate the user's message into Tamil — and ONLY Tamil — using ONLY the Unicode block U+0B80–U+0BFF. Do not output a single Devanagari, Malayalam, Telugu, or Kannada character.`,
-  te: `Your previous reply contained the wrong script. Translate the user's message into Telugu — and ONLY Telugu — using ONLY the Unicode block U+0C00–U+0C7F. Do not output a single Devanagari, Malayalam, Tamil, or Kannada character.`,
-  kn: `Your previous reply contained the wrong script. Translate the user's message into Kannada — and ONLY Kannada — using ONLY the Unicode block U+0C80–U+0CFF. Do not output a single Devanagari, Malayalam, Tamil, or Telugu character.`,
-};
+function sharpRetryPrompt(target: Language): string {
+  const meta = LANGUAGE_META[target];
+  return `Your previous reply contained the wrong script. Translate the user's message into ${meta.englishName} — and ONLY ${meta.englishName}, written in its own native script (${meta.nativeName}). Do not output a single character of any other Indian script.`;
+}
 
 interface CacheEntry {
   text: string;
@@ -117,7 +111,7 @@ function passesValidation(text: string, target: Language): boolean {
 
 async function callTranslate(
   text: string,
-  target: Exclude<Language, 'en' | 'hi' | 'ml'>,
+  target: Language,
   systemPrompt: string,
 ): Promise<string | null> {
   const client = getOpenAI();
@@ -159,12 +153,12 @@ export async function translateForUser(text: string, targetLanguage: Language): 
   if ((NATIVE_PACK_LANGS as ReadonlyArray<Language>).includes(targetLanguage)) return text;
   if (!isAIConfigured()) return text;
 
-  const target = targetLanguage as Exclude<Language, 'en' | 'hi' | 'ml'>;
+  const target = targetLanguage;
   const key = cacheKey(target, text);
   const cached = readCache(key);
   if (cached) return cached;
 
-  const first = await callTranslate(text, target, TRANSLATE_PROMPTS[target]);
+  const first = await callTranslate(text, target, translatePrompt(target));
   if (first && passesValidation(first, target)) {
     writeCache(key, first);
     return first;
@@ -183,7 +177,7 @@ export async function translateForUser(text: string, targetLanguage: Language): 
           temperature: 0,
           max_tokens: Math.max(256, Math.min(1024, text.length * 4)),
           messages: [
-            { role: 'system', content: SHARP_RETRY_PROMPTS[target] },
+            { role: 'system', content: sharpRetryPrompt(target) },
             { role: 'user', content: text },
           ],
         }),

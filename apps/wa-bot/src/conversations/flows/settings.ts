@@ -40,6 +40,11 @@ const LANGUAGE_ALIASES: Record<Language, string[]> = {
   ta: ['tamil', 'tamizh', 'தமிழ்', 'தமிழ', 'तमिल', 'തമിഴ്', 'తమిళం', 'ತಮಿಳು'],
   te: ['telugu', 'telegu', 'తెలుగు', 'तेलुगु', 'തെലുങ്ക്', 'தெலுங்கு', 'ತೆಲುಗು'],
   kn: ['kannada', 'kannad', 'canada language', 'ಕನ್ನಡ', 'कन्नड', 'കന്നഡ', 'கன்னடம்', 'కన్నడ'],
+  bn: ['bengali', 'bangla', 'bangali', 'বাংলা', 'बंगाली', 'ബംഗാളി', 'பெங்காலி', 'బెంగాలీ'],
+  mr: ['marathi', 'marati', 'मराठी', 'मराठि', 'മറാത്തി', 'மராத்தி', 'మరాఠీ'],
+  gu: ['gujarati', 'gujrati', 'ગુજરાતી', 'गुजराती', 'ഗുജറാത്തി', 'குஜராத்தி', 'గుజరాతీ'],
+  pa: ['punjabi', 'panjabi', 'ਪੰਜਾਬੀ', 'पंजाबी', 'പഞ്ചാബി', 'பஞ்சாபி', 'పంజాబీ'],
+  od: ['odia', 'oriya', 'odiya', 'ଓଡ଼ିଆ', 'ओड़िया', 'ഒഡിയ', 'ஒடியா', 'ఒడియా'],
 };
 
 /** Verbs that signal the user wants to change a setting. */

@@ -19,7 +19,7 @@
  * and a confusing 400.
  */
 import { toFile } from 'openai/uploads';
-import { detectScript } from '@versifine/shared';
+import { detectScript, LANGUAGES, LANGUAGE_META, isLanguage } from '@versifine/shared';
 import { env } from '../../config.ts';
 import { log } from '../../utils/logger.ts';
 import { getOpenAI, isAIConfigured, withLatency } from './client.ts';
@@ -32,11 +32,21 @@ export interface TranscribeResult {
   source: TranscribeSource;
 }
 
-/** Session languages routed to Sarvam Saarika (Indic ASR) when a key is set. */
-const SARVAM_LANGS: ReadonlySet<string> = new Set(['hi', 'ml', 'ta', 'te', 'kn']);
+/**
+ * Session languages routed to Sarvam Saaras (Indic ASR) when a key is set —
+ * every supported Indian language (i.e. all but English). Derived from the
+ * shared registry so new languages are covered automatically.
+ */
+const SARVAM_LANGS: ReadonlySet<string> = new Set(LANGUAGES.filter((l) => l !== 'en'));
+
+/** Bare codes whose romanised (Latin-script) speech we still trust the ASR for. */
+const ROMANISABLE_LANGS: ReadonlySet<string> = new Set(LANGUAGES.filter((l) => l !== 'en'));
 
 /** Map a bare language tag to the Azure Speech locales for MAI fast transcription. */
 function maiLocales(lang: string | undefined): string[] {
+  if (lang && isLanguage(lang) && lang !== 'en') {
+    return [LANGUAGE_META[lang].bcp47, 'en-IN'];
+  }
   switch (lang) {
     case 'hi':
       return ['hi-IN', 'en-IN'];
@@ -93,14 +103,22 @@ function resolveLanguage(
   fallback: string | undefined,
 ): string {
   const byScript = detectScript(text);
-  if (byScript && byScript !== 'en') return byScript; // a non-Latin Indic script is unambiguous
+  if (byScript && byScript !== 'en') {
+    // Devanagari is shared by Hindi and Marathi. detectScript can only ever
+    // say "hi", so when the user's own language (or the ASR) is Marathi, honour
+    // that instead of forcing every Devanagari speaker into Hindi.
+    if (byScript === 'hi') {
+      const asrBare = bareLanguageHint(asrLanguage);
+      const fbBare = bareLanguageHint(fallback);
+      if (asrBare === 'mr' || fbBare === 'mr') return 'mr';
+    }
+    return byScript; // a non-Latin Indic script is otherwise unambiguous
+  }
   const asr = bareLanguageHint(asrLanguage);
   if (byScript === 'en') {
-    // Latin text: trust the ASR only if it also says a romanisable language;
-    // otherwise call it English so we don't reply in the wrong script.
-    return asr === 'hi' || asr === 'ml' || asr === 'ta' || asr === 'te' || asr === 'kn'
-      ? asr
-      : 'en';
+    // Latin text: trust the ASR only if it also says a romanisable Indian
+    // language; otherwise call it English so we don't reply in the wrong script.
+    return asr && ROMANISABLE_LANGS.has(asr) ? asr : 'en';
   }
   return asr ?? bareLanguageHint(fallback) ?? 'en';
 }

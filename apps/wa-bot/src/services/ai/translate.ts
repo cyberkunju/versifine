@@ -1,19 +1,28 @@
 /**
- * Translate-for-user. Mirrors the API's translate.ts strategy.
+ * Translate-for-user — Sarvam Mayura first, OpenAI as a fallback.
  *
- * en/hi/ml ship hand-translated copy in the bot — those never hit the
- * model. ta/te/kn pass through the LLM with strict validation: at least
- * 50% of the alphabetic output must be in the target script and less
- * than 5% can be a sibling Indic script. On validation failure we retry
- * once with a sharper prompt; if that still fails we return the source
- * unchanged. Better one English line than confidently wrong Tamil.
+ * en/hi/ml ship hand-translated copy in the bot, so those never hit a model.
+ * Every other supported language (ta/te/kn/bn/mr/gu/pa/od) is rendered at
+ * send time by translating the English bot copy into the user's language.
+ *
+ * Provider order:
+ *   1. Sarvam Mayura (`/translate`) — purpose-built for Indian languages,
+ *      native script, code-mix aware. This is the primary path.
+ *   2. OpenAI chat — a generic per-language fallback when Sarvam is
+ *      unavailable or returns the wrong script.
+ *
+ * Either way the output is script-validated: at least 50% of the alphabetic
+ * characters must be in the target script and under 5% may be a sibling
+ * Indic script. On total failure we return the English source unchanged —
+ * better one clean English line than confidently wrong text.
  */
 import { LANGUAGE_META, SIBLING_SCRIPTS, type Language } from '@versifine/shared';
 import { env } from '../../config.ts';
 import { log } from '../../utils/logger.ts';
 import { getOpenAI, isAIConfigured, withLatency } from './client.ts';
 
-const NATIVE_PACK_LANGS: ReadonlyArray<Language> = ['en', 'hi', 'ml'];
+/** Languages with hand-translated packs — never translated at runtime. */
+const NATIVE_PACK_LANGS: ReadonlySet<Language> = new Set(['en', 'hi', 'ml']);
 
 const TARGET_SCRIPT_THRESHOLD = 0.5;
 const SIBLING_CONTAMINATION_LIMIT = 0.05;
@@ -25,31 +34,13 @@ const PRESERVE_BLOCK = `Preserve verbatim, do NOT translate:
 - the SAME numeric digits the user wrote (do not localize numerals)
 - Latin uppercase command keywords like MENU, BACK, RESET, LINK, HELP, STATUS, UNDO, LANGUAGE, HUMAN, STOP`;
 
-const TRANSLATE_PROMPTS: Record<'ta' | 'te' | 'kn', string> = {
-  ta: `You translate financial chat messages from English (or any source) into Tamil (script: தமிழ்).
-Output ONLY the translated text in Tamil script. Do not output any other script.
-${PRESERVE_BLOCK}`,
-  te: `You translate financial chat messages from English (or any source) into Telugu (script: తెలుగు).
-Output ONLY the translated text in Telugu script. Do not output any other script.
-${PRESERVE_BLOCK}`,
-  kn: `You translate financial chat messages from English (or any source) into Kannada (script: ಕನ್ನಡ).
-Output ONLY the translated text in Kannada script. Do not output any other script.
-${PRESERVE_BLOCK}`,
-};
-
-const SHARP_RETRY_PROMPTS: Record<'ta' | 'te' | 'kn', string> = {
-  ta: `Your previous reply contained the wrong script. Translate the user's message into Tamil — and ONLY Tamil — using ONLY the Unicode block U+0B80–U+0BFF. Do not output a single Devanagari, Malayalam, Telugu, or Kannada character.`,
-  te: `Your previous reply contained the wrong script. Translate the user's message into Telugu — and ONLY Telugu — using ONLY the Unicode block U+0C00–U+0C7F. Do not output a single Devanagari, Malayalam, Tamil, or Kannada character.`,
-  kn: `Your previous reply contained the wrong script. Translate the user's message into Kannada — and ONLY Kannada — using ONLY the Unicode block U+0C80–U+0CFF. Do not output a single Devanagari, Malayalam, Tamil, or Telugu character.`,
-};
-
 interface CacheEntry {
   text: string;
   expiresAt: number;
 }
 
 const CACHE_TTL_MS = 5 * 60_000;
-const CACHE_MAX = 400;
+const CACHE_MAX = 600;
 const cache = new Map<string, CacheEntry>();
 
 function cacheKey(language: Language, text: string): string {
@@ -82,7 +73,11 @@ function countLetters(text: string, regex: RegExp): number {
   return matches ? matches.length : 0;
 }
 
-function passesValidation(text: string, target: 'ta' | 'te' | 'kn'): boolean {
+/**
+ * Validate that `text` is predominantly in `target`'s script with little
+ * sibling-script contamination. Generalised over every supported language.
+ */
+function passesValidation(text: string, target: Language): boolean {
   if (!text.trim()) return false;
   const targetCount = countLetters(text, LANGUAGE_META[target].scriptRegex);
   const siblingCount = SIBLING_SCRIPTS[target].reduce((acc, re) => acc + countLetters(text, re), 0);
@@ -94,11 +89,70 @@ function passesValidation(text: string, target: 'ta' | 'te' | 'kn'): boolean {
   return targetRatio >= TARGET_SCRIPT_THRESHOLD && contaminationRatio < SIBLING_CONTAMINATION_LIMIT;
 }
 
-async function callTranslate(
+/* ------------------------------------------------------------------ *
+ * Provider 1 — Sarvam Mayura (/translate)
+ * ------------------------------------------------------------------ */
+
+/** Sarvam caps a single translate request; bot copy is short, so we guard. */
+const SARVAM_MAX_INPUT = 950;
+
+async function sarvamTranslate(text: string, target: Language): Promise<string | null> {
+  if (!env.SARVAM_API_KEY) return null;
+  if (text.length > SARVAM_MAX_INPUT) return null;
+  try {
+    const res = await withLatency(`sarvam.translate.${target}`, () =>
+      fetch(`${env.SARVAM_API_URL}/translate`, {
+        method: 'POST',
+        headers: {
+          'api-subscription-key': env.SARVAM_API_KEY as string,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          input: text,
+          // The bot's source copy is English; Mayura still auto-corrects if a
+          // fragment is already localized.
+          source_language_code: 'en-IN',
+          target_language_code: LANGUAGE_META[target].bcp47,
+          // Friendly, conversational register for a chat assistant.
+          mode: 'modern-colloquial',
+          output_script: null,
+          numerals_format: 'international',
+        }),
+      }),
+    );
+    if (!res.ok) {
+      log.warn('SARVAM_TRANSLATE_HTTP', { target, status: res.status });
+      return null;
+    }
+    const json = (await res.json().catch(() => null)) as { translated_text?: string } | null;
+    const out = json?.translated_text?.trim();
+    return out && out.length > 0 ? out : null;
+  } catch (err) {
+    log.warn('SARVAM_TRANSLATE_FAIL', {
+      target,
+      error: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    });
+    return null;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Provider 2 — OpenAI chat (generic per-language fallback)
+ * ------------------------------------------------------------------ */
+
+function openAiPrompt(target: Language, sharp: boolean): string {
+  const meta = LANGUAGE_META[target];
+  const head = sharp
+    ? `Your previous reply used the wrong script. Translate the message into ${meta.englishName} (${meta.nativeName}) and output ONLY ${meta.englishName} in its native script — not a single character of any other Indian script.`
+    : `You translate financial chat messages from English (or any source) into ${meta.englishName} (native script: ${meta.nativeName}).
+Output ONLY the translated text in ${meta.englishName} script. Do not output any other script.`;
+  return `${head}\n${PRESERVE_BLOCK}`;
+}
+
+async function openAiTranslate(
   text: string,
-  target: 'ta' | 'te' | 'kn',
-  systemPrompt: string,
-  temperature: number,
+  target: Language,
+  sharp: boolean,
 ): Promise<string | null> {
   const client = getOpenAI();
   if (!client) return null;
@@ -106,10 +160,10 @@ async function callTranslate(
     const completion = await withLatency(`translate.${target}`, () =>
       client.chat.completions.create({
         model: env.OPENAI_TRANSLATE_MODEL,
-        temperature,
+        temperature: sharp ? 0 : 0.2,
         max_tokens: Math.max(256, Math.min(1024, text.length * 4)),
         messages: [
-          { role: 'system', content: systemPrompt },
+          { role: 'system', content: openAiPrompt(target, sharp) },
           { role: 'user', content: text },
         ],
       }),
@@ -126,35 +180,52 @@ async function callTranslate(
 
 /**
  * Translate `text` into the user's target language for outgoing display.
- *
- * Returns the source unchanged when:
- *   - target language has a native pack (en/hi/ml)
- *   - the API key is missing
- *   - the model failed validation twice
+ * Returns the source unchanged when the target has a native pack, when the
+ * text is already in the target script, or when every provider fails.
  */
 export async function translateForUser(text: string, targetLanguage: Language): Promise<string> {
   if (!text.trim()) return text;
-  if ((NATIVE_PACK_LANGS as ReadonlyArray<Language>).includes(targetLanguage)) return text;
-  if (!isAIConfigured()) return text;
+  if (NATIVE_PACK_LANGS.has(targetLanguage)) return text;
 
-  const target = targetLanguage as 'ta' | 'te' | 'kn';
-  const key = cacheKey(target, text);
+  // Already in the target script (e.g. the copilot answered in-language)?
+  // Don't double-translate.
+  if (passesValidation(text, targetLanguage)) return text;
+
+  const key = cacheKey(targetLanguage, text);
   const cached = readCache(key);
   if (cached) return cached;
 
-  const first = await callTranslate(text, target, TRANSLATE_PROMPTS[target], 0.2);
-  if (first && passesValidation(first, target)) {
-    writeCache(key, first);
-    return first;
+  // 1) Sarvam Mayura — primary.
+  const viaSarvam = await sarvamTranslate(text, targetLanguage);
+  if (viaSarvam && passesValidation(viaSarvam, targetLanguage)) {
+    writeCache(key, viaSarvam);
+    return viaSarvam;
   }
-  log.warn('AI_TRANSLATE_VALIDATION', { target, attempt: 1 });
+  if (viaSarvam) {
+    // Sarvam returned text but it failed the script check — still usually
+    // better than English; keep it only if it carries ANY target-script.
+    const hasTarget = countLetters(viaSarvam, LANGUAGE_META[targetLanguage].scriptRegex) > 0;
+    if (hasTarget) {
+      writeCache(key, viaSarvam);
+      return viaSarvam;
+    }
+  }
 
-  const second = await callTranslate(text, target, SHARP_RETRY_PROMPTS[target], 0);
-  if (second && passesValidation(second, target)) {
-    writeCache(key, second);
-    return second;
+  // 2) OpenAI — fallback (two attempts: normal, then sharp).
+  if (isAIConfigured()) {
+    const first = await openAiTranslate(text, targetLanguage, false);
+    if (first && passesValidation(first, targetLanguage)) {
+      writeCache(key, first);
+      return first;
+    }
+    log.warn('AI_TRANSLATE_VALIDATION', { target: targetLanguage, attempt: 1 });
+    const second = await openAiTranslate(text, targetLanguage, true);
+    if (second && passesValidation(second, targetLanguage)) {
+      writeCache(key, second);
+      return second;
+    }
+    log.warn('AI_TRANSLATE_VALIDATION', { target: targetLanguage, attempt: 2 });
   }
-  log.warn('AI_TRANSLATE_VALIDATION', { target, attempt: 2 });
 
   return text;
 }

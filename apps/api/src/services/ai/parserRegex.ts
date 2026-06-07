@@ -75,9 +75,44 @@ function normalizeDigitTypos(text: string): string {
   );
 }
 
+/**
+ * Map Indic-script digits (Devanagari ०-९, Bengali ০-৯, Gurmukhi, Gujarati,
+ * Odia, Tamil, Telugu, Kannada, Malayalam) to ASCII 0-9 so the amount regexes
+ * see "৫০"/"૫૦"/"੫੦" as "50". Each script's digit block is contiguous and
+ * starts at codepoint + 6 (…66) within the block, so the digit value is just
+ * the offset from that base. Latin digits and all other characters pass
+ * through untouched.
+ */
+const INDIC_DIGIT_BASES = [
+  0x0966, // Devanagari (Hindi/Marathi)
+  0x09e6, // Bengali
+  0x0a66, // Gurmukhi (Punjabi)
+  0x0ae6, // Gujarati
+  0x0b66, // Odia
+  0x0be6, // Tamil
+  0x0c66, // Telugu
+  0x0ce6, // Kannada
+  0x0d66, // Malayalam
+];
+function normalizeIndicDigits(text: string): string {
+  let out = '';
+  for (const ch of text) {
+    const cp = ch.codePointAt(0)!;
+    let mapped = ch;
+    for (const base of INDIC_DIGIT_BASES) {
+      if (cp >= base && cp <= base + 9) {
+        mapped = String(cp - base);
+        break;
+      }
+    }
+    out += mapped;
+  }
+  return out;
+}
+
 export function extractAmount(text: string): AmountExtraction {
   if (!text) return { amount: null, currency: null };
-  const cleaned = normalizeDigitTypos(text.replace(/[\u00a0]/g, ' '));
+  const cleaned = normalizeDigitTypos(normalizeIndicDigits(text.replace(/[\u00a0]/g, ' ')));
 
   // 1) Currency followed by amount: "₹450", "Rs 450", "USD 50", "$50".
   const leading = new RegExp(

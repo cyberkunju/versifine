@@ -24,6 +24,11 @@ const LANGS = [
   { native: 'தமிழ்', english: 'Tamil', sample: '₹450 பதிவு செய்யப்பட்டது — போக்குவரத்து.' },
   { native: 'తెలుగు', english: 'Telugu', sample: '₹450 నమోదు చేయబడింది — రవాణా.' },
   { native: 'ಕನ್ನಡ', english: 'Kannada', sample: '₹450 ದಾಖಲಿಸಲಾಗಿದೆ — ಸಾರಿಗೆ.' },
+  { native: 'বাংলা', english: 'Bengali', sample: '₹450 রেকর্ড করা হয়েছে — পরিবহন।' },
+  { native: 'मराठी', english: 'Marathi', sample: '₹450 नोंदवले — वाहतूक.' },
+  { native: 'ગુજરાતી', english: 'Gujarati', sample: '₹450 નોંધાયું — પરિવહન.' },
+  { native: 'ਪੰਜਾਬੀ', english: 'Punjabi', sample: '₹450 ਦਰਜ ਕੀਤਾ — ਆਵਾਜਾਈ.' },
+  { native: 'ଓଡ଼ିଆ', english: 'Odia', sample: '₹450 ରେକର୍ଡ ହେଲା — ପରିବହନ।' },
 ];
 
 const FAQ: Array<{ q: string; a: string }> = [
@@ -37,7 +42,7 @@ const FAQ: Array<{ q: string; a: string }> = [
   },
   {
     q: 'Which languages are supported?',
-    a: 'Six, end-to-end: English, Hindi, Malayalam, Tamil, Telugu, and Kannada. Capture, replies, and voice synthesis all respect your primary language. The dashboard shell ships in English, Hindi, and Malayalam today.',
+    a: 'Eleven, end-to-end: English, Hindi, Malayalam, Tamil, Telugu, Kannada, Bengali, Marathi, Gujarati, Punjabi, and Odia. Capture, replies, and voice synthesis all respect your primary language. The dashboard shell ships in English, Hindi, and Malayalam today; the rest are translated at runtime.',
   },
   {
     q: 'How is the forecast computed?',
@@ -312,7 +317,7 @@ onMount(() => {
         </article>
 
         <article data-reveal class="reveal rounded-2xl border border-[hsl(var(--border))] bg-white p-5 shadow-sm sm:p-9">
-          <h3 class="font-display text-2xl font-medium text-[hsl(var(--brand-navy))]">Six languages. No theatre.</h3>
+          <h3 class="font-display text-2xl font-medium text-[hsl(var(--brand-navy))]">Eleven languages. No theatre.</h3>
           <p class="mt-3 text-[15px] leading-relaxed text-[hsl(var(--muted-foreground))]">
             Three hand-translated packs plus runtime translation for the rest — with
             sibling-script checks so Tamil never leaks into Malayalam mid-sentence. The same

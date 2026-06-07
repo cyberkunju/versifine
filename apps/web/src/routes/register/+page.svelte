@@ -97,7 +97,7 @@ const SLIDES: Slide[] = [
   {
     id: 6,
     kind: 'feature',
-    text: 'Built INR-first: UPI handles, rupee shorthand, and six languages — the way money actually moves in India.',
+    text: 'Built INR-first: UPI handles, rupee shorthand, and eleven languages — the way money actually moves in India.',
   },
   {
     id: 7,
@@ -142,7 +142,7 @@ const SLIDES: Slide[] = [
   {
     id: 15,
     kind: 'feature',
-    text: 'Voice notes work in English, Hindi, Malayalam, Tamil, Telugu, and Kannada — and come back spoken in the same language.',
+    text: 'Voice notes work in English, Hindi, Malayalam, Tamil, Telugu, Kannada, Bengali, Marathi, Gujarati, Punjabi, and Odia — and come back spoken in the same language.',
   },
   {
     id: 16,

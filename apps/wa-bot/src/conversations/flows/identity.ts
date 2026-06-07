@@ -36,6 +36,11 @@ const NUMBER_TO_LANG: Record<string, Language> = {
   '4': 'ta',
   '5': 'te',
   '6': 'kn',
+  '7': 'bn',
+  '8': 'mr',
+  '9': 'gu',
+  '10': 'pa',
+  '11': 'od',
 };
 
 const NAME_TO_LANG: Record<string, Language> = {
@@ -51,6 +56,19 @@ const NAME_TO_LANG: Record<string, Language> = {
   తెలుగు: 'te',
   kannada: 'kn',
   ಕನ್ನಡ: 'kn',
+  bengali: 'bn',
+  bangla: 'bn',
+  বাংলা: 'bn',
+  marathi: 'mr',
+  मराठी: 'mr',
+  gujarati: 'gu',
+  ગુજરાતી: 'gu',
+  punjabi: 'pa',
+  panjabi: 'pa',
+  ਪੰਜਾਬੀ: 'pa',
+  odia: 'od',
+  oriya: 'od',
+  ଓଡ଼ିଆ: 'od',
 };
 
 function pickLanguage(text: string): Language | null {

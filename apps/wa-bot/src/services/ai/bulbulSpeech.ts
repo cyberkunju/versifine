@@ -12,19 +12,19 @@
  * to OpenAI TTS or text-only.
  */
 import type { OutgoingVoice } from '../../types.ts';
-import type { Language } from '@versifine/shared';
+import { LANGUAGE_META, type Language } from '@versifine/shared';
 import { env } from '../../config.ts';
 import { log } from '../../utils/logger.ts';
 import { withLatency } from './client.ts';
 
-const TARGET_LANG_CODE: Record<Language, string> = {
-  en: 'en-IN',
-  hi: 'hi-IN',
-  ml: 'ml-IN',
-  ta: 'ta-IN',
-  te: 'te-IN',
-  kn: 'kn-IN',
-};
+/**
+ * Sarvam's `target_language_code` is the same BCP-47 tag the registry already
+ * stores (hi-IN, bn-IN, od-IN, …), so we derive it rather than maintain a
+ * second parallel map that could drift as languages are added.
+ */
+function targetLangCode(language: Language): string {
+  return LANGUAGE_META[language].bcp47;
+}
 
 export interface BulbulOptions {
   text: string;
@@ -51,7 +51,7 @@ export async function synthesizeBulbul(options: BulbulOptions): Promise<Outgoing
         },
         body: JSON.stringify({
           text,
-          target_language_code: TARGET_LANG_CODE[language],
+          target_language_code: targetLangCode(language),
           model: env.SARVAM_TTS_MODEL,
           speaker: env.SARVAM_TTS_SPEAKER,
           output_audio_codec: 'mp3',

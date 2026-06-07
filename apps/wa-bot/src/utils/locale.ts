@@ -8,7 +8,9 @@
  * supported language so a bad locale degrades to "no locale" instead of
  * failing the whole request.
  */
-const SUPPORTED_LOCALES = new Set(['en', 'hi', 'ml', 'ta', 'te', 'kn']);
+import { LANGUAGES } from '@versifine/shared';
+
+const SUPPORTED_LOCALES = new Set<string>(LANGUAGES);
 
 export function normalizeLocale(locale: string | undefined): string | undefined {
   if (!locale) return undefined;

@@ -192,9 +192,16 @@ const PACKS: Record<Language, MessagePack> = {
   en,
   hi,
   ml,
+  // The UI shell falls back to English for languages without a hand-translated
+  // pack; dynamic content (chat replies, etc.) is translated via the API.
   ta: en,
   te: en,
   kn: en,
+  bn: en,
+  mr: en,
+  gu: en,
+  pa: en,
+  od: en,
 };
 
 export function getMessages(lang: Language): MessagePack {

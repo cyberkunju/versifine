@@ -64,7 +64,12 @@ export const en: MessagePack = {
     '3. മലയാളം\n' +
     '4. தமிழ்\n' +
     '5. తెలుగు\n' +
-    '6. ಕನ್ನಡ\n\n' +
+    '6. ಕನ್ನಡ\n' +
+    '7. বাংলা\n' +
+    '8. मराठी\n' +
+    '9. ગુજરાતી\n' +
+    '10. ਪੰਜਾਬੀ\n' +
+    '11. ଓଡ଼ିଆ\n\n' +
     "Reply with a number, or just say 'English'.",
 
   languageSet: (lang) => `Got it. I'll talk to you in ${lang}.`,
