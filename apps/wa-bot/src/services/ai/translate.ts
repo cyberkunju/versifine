@@ -24,7 +24,7 @@ import { getOpenAI, isAIConfigured, withLatency } from './client.ts';
 /** Languages with hand-translated packs — never translated at runtime. */
 const NATIVE_PACK_LANGS: ReadonlySet<Language> = new Set(['en', 'hi', 'ml']);
 
-const TARGET_SCRIPT_THRESHOLD = 0.5;
+const TARGET_SCRIPT_THRESHOLD = 0.3;
 const SIBLING_CONTAMINATION_LIMIT = 0.05;
 
 const PRESERVE_BLOCK = `Preserve verbatim, do NOT translate:
@@ -258,15 +258,9 @@ export async function translateForUser(text: string, targetLanguage: Language): 
     writeCache(key, viaSarvam);
     return viaSarvam;
   }
-  if (viaSarvam) {
-    // Sarvam returned text but it failed the script check — still usually
-    // better than English; keep it only if it carries ANY target-script.
-    const hasTarget = countLetters(viaSarvam, LANGUAGE_META[targetLanguage].scriptRegex) > 0;
-    if (hasTarget) {
-      writeCache(key, viaSarvam);
-      return viaSarvam;
-    }
-  }
+  // If Sarvam under-translated (left English frame words), fall through to the
+  // OpenAI fallback which tends to translate the whole sentence — cleaner than
+  // returning a half-translated, code-mixed line.
 
   // 2) OpenAI — fallback (two attempts: normal, then sharp).
   if (isAIConfigured()) {

@@ -18,7 +18,7 @@ import { getOpenAI, isAIConfigured, normalizeChatParams, withLatency } from './c
 
 const NATIVE_PACK_LANGS: ReadonlyArray<Language> = ['en', 'hi', 'ml'];
 
-const TARGET_SCRIPT_THRESHOLD = 0.5;
+const TARGET_SCRIPT_THRESHOLD = 0.3;
 const SIBLING_CONTAMINATION_LIMIT = 0.05;
 
 const PRESERVE_BLOCK = `Preserve verbatim, do NOT translate:

@@ -88,6 +88,12 @@ did not explicitly state):
 
 Rules — read carefully:
 - If the user did not state a number, amount = null. Never guess.
+- The user is in India and the base currency is INR. Treat rupee/taka words in
+  any Indian language — "rupee", "rupees", "rupaye", "rupaya", "rupiya",
+  "taka", "tanka", "paisa", "₹", "रुपये", "টাকা", "ৰূপ", "રૂપિયા", "ਰੁਪਏ",
+  "ଟଙ୍କା", "రూపాయలు", "ரூபாய்", "ರೂಪಾಯಿ", "രൂപ" — as INR, i.e. currency = null
+  (NOT BDT/NPR/PKR/LKR). Only set a foreign currency for clearly non-Indian
+  money: dollar/USD/$, euro/EUR/€, pound/GBP/£, dirham/AED, yen/JPY, etc.
 - If the user did not name a currency, currency = null. Default later.
 - If the user did not name a wallet, walletHint = null.
 - If the user did not give a date, date = null. Never use today.
