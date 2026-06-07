@@ -631,6 +631,7 @@ function clarifierEdits(
     amount: followup?.amount ?? draft.amount ?? regexAmount.amount ?? null,
     currency: followup?.currency ?? draft.currency ?? regexCurrency ?? null,
     description: cleanDescription(followup?.description ?? null, draft.description) ?? noun ?? null,
+    notes: followup?.notes ?? draft.notes ?? null,
     categoryHint: followup?.categoryHint ?? draft.categoryHint ?? noun ?? null,
     walletHint: followup?.walletHint ?? draft.walletHint ?? null,
     date: followup?.date ?? draft.date ?? null,
@@ -766,6 +767,7 @@ app.post('/image', requireUserOrBot, captureLimit, async (c) => {
     amount: extracted.amount,
     currency: extracted.currency,
     description: extracted.description,
+    notes: null,
     categoryHint,
     walletHint: walletPick.wallet?.name ?? null,
     date: extracted.date,
@@ -811,6 +813,7 @@ app.post('/image', requireUserOrBot, captureLimit, async (c) => {
         amount: item.amount,
         currency: extracted.currency,
         description: item.description,
+        notes: null,
         categoryHint:
           item.category && (CATEGORIES as readonly string[]).includes(item.category)
             ? (item.category as Category)

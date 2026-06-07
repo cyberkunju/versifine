@@ -89,6 +89,10 @@ export async function persistDraft(input: PersistInput): Promise<PersistResult |
     walletId: input.walletId,
     tags: [],
   };
+  // Carry the user's extra context/story onto the transaction notes.
+  if (draft.notes && draft.notes.trim()) {
+    payload.notes = draft.notes.trim().slice(0, 2000);
+  }
   // Honour an explicit category the user picked in the confirm dialog. The
   // parser/confirm flow carries it on `categoryHint`; map it into `category`
   // so createTransaction treats it as user-chosen instead of silently

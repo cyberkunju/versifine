@@ -47,6 +47,9 @@ export interface ParsedExpense {
   amount: number | null;
   currency: string | null;
   description: string | null;
+  /** Extra context/story the user gave beyond the item (who, why, occasion,
+   *  place) — stored as the transaction's notes. Null when none. */
+  notes: string | null;
   categoryHint: string | null;
   walletHint: string | null;
   date: string | null;
@@ -73,6 +76,7 @@ did not explicitly state):
   "amount": positive number or null,
   "currency": ISO 4217 alpha-3 (e.g. "INR", "USD") or null,
   "description": one short line about what was bought/paid for, or null,
+  "notes": any extra context/story the user gave beyond the item — who they were with, why, the occasion, place details — as a short clean phrase, or null,
   "categoryHint": one or two words hinting category (e.g. "groceries", "auto") or null,
   "walletHint": which wallet was used ("hdfc", "cash", "upi", "credit card") or null,
   "date": "YYYY-MM-DD" if explicit, otherwise null,
@@ -88,6 +92,11 @@ Rules — read carefully:
 - If the user did not name a wallet, walletHint = null.
 - If the user did not give a date, date = null. Never use today.
 - description is a SHORT noun phrase, not a sentence. e.g. "auto", "chai", "lunch with team".
+- notes captures the EXTRA story/context the user volunteered — who they were with,
+  why, the occasion, the place, what happened — as a short clean phrase. Keep it
+  faithful to what they said; do NOT invent it. If they gave no extra context,
+  notes = null. Never duplicate the amount or date into notes, and never put the
+  whole story into description (description stays short for the category).
 - For transfers ("moved 500 from cash to hdfc") set type="transfer" and walletHint=destination.
 - For income ("got salary 85000") set type="income".
 - For foreign currency ("spent 50 dollars on lunch"), set currency="USD",
@@ -96,22 +105,28 @@ Rules — read carefully:
 Examples (input → JSON output, your model must match this style):
 
   "spent 450 on auto"
-  → {"type":"expense","amount":450,"currency":null,"description":"auto","categoryHint":"transport","walletHint":null,"date":null,"splitPeople":null,"originalAmount":null,"originalCurrency":null,"confidence":0.85}
+  → {"type":"expense","amount":450,"currency":null,"description":"auto","notes":null,"categoryHint":"transport","walletHint":null,"date":null,"splitPeople":null,"originalAmount":null,"originalCurrency":null,"confidence":0.85}
+
+  "had chai with my college friend at the station while waiting for the train, 50"
+  → {"type":"expense","amount":50,"currency":null,"description":"chai","notes":"with college friend at the station while waiting for the train","categoryHint":"coffee","walletHint":null,"date":null,"splitPeople":null,"originalAmount":null,"originalCurrency":null,"confidence":0.85}
+
+  "800 for dinner, treated my team after we shipped the release"
+  → {"type":"expense","amount":800,"currency":null,"description":"dinner","notes":"treated the team after shipping the release","categoryHint":"restaurants","walletHint":null,"date":null,"splitPeople":null,"originalAmount":null,"originalCurrency":null,"confidence":0.82}
 
   "200 chai pe kharch"   (Hindi)
-  → {"type":"expense","amount":200,"currency":null,"description":"chai","categoryHint":"coffee","walletHint":null,"date":null,"splitPeople":null,"originalAmount":null,"originalCurrency":null,"confidence":0.8}
+  → {"type":"expense","amount":200,"currency":null,"description":"chai","notes":null,"categoryHint":"coffee","walletHint":null,"date":null,"splitPeople":null,"originalAmount":null,"originalCurrency":null,"confidence":0.8}
 
   "Food-inu 200 spent aayi"  (Malayalam-English)
-  → {"type":"expense","amount":200,"currency":null,"description":"food","categoryHint":"food","walletHint":null,"date":null,"splitPeople":null,"originalAmount":null,"originalCurrency":null,"confidence":0.78}
+  → {"type":"expense","amount":200,"currency":null,"description":"food","notes":null,"categoryHint":"food","walletHint":null,"date":null,"splitPeople":null,"originalAmount":null,"originalCurrency":null,"confidence":0.78}
 
   "Sapadu ku 180 spend panninen"  (Tamil-English)
-  → {"type":"expense","amount":180,"currency":null,"description":"meal","categoryHint":"food","walletHint":null,"date":null,"splitPeople":null,"originalAmount":null,"originalCurrency":null,"confidence":0.78}
+  → {"type":"expense","amount":180,"currency":null,"description":"meal","notes":null,"categoryHint":"food","walletHint":null,"date":null,"splitPeople":null,"originalAmount":null,"originalCurrency":null,"confidence":0.78}
 
   "spent 50 dollars on lunch"
-  → {"type":"expense","amount":50,"currency":"USD","description":"lunch","categoryHint":"food","walletHint":null,"date":null,"splitPeople":null,"originalAmount":50,"originalCurrency":"USD","confidence":0.85}
+  → {"type":"expense","amount":50,"currency":"USD","description":"lunch","notes":null,"categoryHint":"food","walletHint":null,"date":null,"splitPeople":null,"originalAmount":50,"originalCurrency":"USD","confidence":0.85}
 
   "dinner 3000 split with 4 people"
-  → {"type":"expense","amount":3000,"currency":null,"description":"dinner","categoryHint":"restaurants","walletHint":null,"date":null,"splitPeople":4,"originalAmount":null,"originalCurrency":null,"confidence":0.8}`;
+  → {"type":"expense","amount":3000,"currency":null,"description":"dinner","notes":null,"categoryHint":"restaurants","walletHint":null,"date":null,"splitPeople":4,"originalAmount":null,"originalCurrency":null,"confidence":0.8}`;
 
 const BATCH_SYSTEM_PROMPT = `You are the transaction extractor for an Indian-first finance app.
 Users speak English, Hindi, Malayalam, Tamil, Telugu, Kannada, or code-mixed/romanised variants.
@@ -124,6 +139,7 @@ Return JSON only:
       "amount": positive number or null,
       "currency": ISO 4217 alpha-3 or null,
       "description": one short noun phrase for THIS item, or null,
+      "notes": extra context/story for THIS item (who/why/occasion/place), or null,
       "categoryHint": one or two words hinting category, or null,
       "walletHint": wallet/payment source if explicitly stated, otherwise null,
       "date": "YYYY-MM-DD" if explicit, otherwise null,
@@ -150,6 +166,7 @@ const llmSchema = z
     amount: z.union([z.number(), z.string(), z.null()]).optional(),
     currency: z.union([z.string(), z.null()]).optional(),
     description: z.union([z.string(), z.null()]).optional(),
+    notes: z.union([z.string(), z.null()]).optional(),
     categoryHint: z.union([z.string(), z.null()]).optional(),
     walletHint: z.union([z.string(), z.null()]).optional(),
     date: z.union([z.string(), z.null()]).optional(),
@@ -207,6 +224,7 @@ function emptyParse(): ParsedExpense {
     amount: null,
     currency: null,
     description: null,
+    notes: null,
     categoryHint: null,
     walletHint: null,
     date: null,
@@ -431,6 +449,7 @@ async function callLLM(input: ParseInput, priorHint?: ParsedExpense): Promise<Pa
       amount: coerceNumber(parsed.data.amount),
       currency: coerceCurrency(parsed.data.currency),
       description: coerceString(parsed.data.description),
+      notes: coerceString(parsed.data.notes, 280),
       categoryHint: coerceString(parsed.data.categoryHint, 40),
       walletHint: coerceString(parsed.data.walletHint, 40),
       date: coerceString(parsed.data.date, 10),
@@ -524,6 +543,7 @@ export async function parseExpense(input: ParseInput): Promise<ParsedExpense> {
   const mergedType: ExpenseType = (llmType as ExpenseType | null) ?? fallbackType;
   const fallbackDescription = inferDescriptionFallback(text);
   const mergedDescription = llm?.description ?? fallbackDescription;
+  const mergedNotes = llm?.notes ?? null;
   const mergedCategoryHint = llm?.categoryHint ?? fallbackDescription;
   const mergedWalletHint = llm?.walletHint ?? null;
 
@@ -548,6 +568,7 @@ export async function parseExpense(input: ParseInput): Promise<ParsedExpense> {
     amount: mergedAmount,
     currency: mergedCurrency,
     description: mergedDescription,
+    notes: mergedNotes,
     categoryHint: mergedCategoryHint,
     walletHint: mergedWalletHint,
     date: mergedDate,
@@ -579,6 +600,7 @@ function parsedFromLlmData(data: z.infer<typeof llmSchema>): ParsedExpense {
     amount: coerceNumber(data.amount),
     currency: coerceCurrency(data.currency),
     description: coerceString(data.description),
+    notes: coerceString(data.notes, 280),
     categoryHint: coerceString(data.categoryHint, 40),
     walletHint: coerceString(data.walletHint, 40),
     date: coerceString(data.date, 10),
