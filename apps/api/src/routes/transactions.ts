@@ -162,7 +162,14 @@ app.patch('/:id', zValidator('json', transactionUpdateInput), async (c) => {
     changedFields.push(key);
   }
 
-  if (body.amount !== undefined) updates.amount = body.amount.toFixed(2);
+  if (body.amount !== undefined) {
+    updates.amount = body.amount.toFixed(2);
+    // Keep baseAmount (the base-currency value that queries, summaries and
+    // budgets actually sum) in lockstep, preserving the original FX rate.
+    const oldAmount = Number(existing.amount);
+    const rate = oldAmount > 0 ? Number(existing.baseAmount) / oldAmount : 1;
+    updates.baseAmount = (body.amount * rate).toFixed(2);
+  }
   if (body.currency !== undefined) updates.currency = body.currency;
   if (body.date !== undefined) updates.date = body.date;
   if (body.description !== undefined) updates.description = body.description;
