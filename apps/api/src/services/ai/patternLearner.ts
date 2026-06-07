@@ -192,11 +192,26 @@ export async function learnPatternFromParse(
   if (parsed.confidence < 0.75 || parsed.amount === null || !parsed.description) {
     return;
   }
+  // Don't learn over-specific patterns. If the user wrapped the expense in a
+  // story (notes present), the leftover words bake the whole story into the
+  // regex and it would never match again — pure clutter. Same for any template
+  // that keeps more than a couple of literal connector words after placeholder
+  // substitution. We only want generalizable shapes like "{description}
+  // {amount}" or "spent {amount} on {description}".
+  if (parsed.notes && parsed.notes.trim()) return;
 
   try {
     // Generate template candidate
     const template = generateTemplateCandidate(text, parsed);
     if (!template) return;
+
+    // Reject over-fit templates: count literal words left after removing the
+    // {placeholders}. More than 3 ⇒ it memorised a sentence, not a shape.
+    const residueWords = template
+      .replace(/\{[a-zA-Z]+\}/g, ' ')
+      .replace(/[^\p{L}\p{N}]+/gu, ' ')
+      .trim();
+    if (residueWords && residueWords.split(/\s+/).filter(Boolean).length > 3) return;
 
     const compiled = compileTemplate(template);
 
