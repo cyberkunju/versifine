@@ -199,6 +199,11 @@ export async function learnPatternFromParse(
   // substitution. We only want generalizable shapes like "{description}
   // {amount}" or "spent {amount} on {description}".
   if (parsed.notes && parsed.notes.trim()) return;
+  // Never learn from a dated utterance. The date words ("yesterday", "on the
+  // 5th", "last night") would bake into the regex as inert literals; a future
+  // match would then return NO date and skip the date extractor, wrongly
+  // dating the transaction to today. Dates must always stay dynamic.
+  if (parsed.date) return;
 
   try {
     // Generate template candidate
