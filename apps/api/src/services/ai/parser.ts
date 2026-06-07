@@ -384,8 +384,21 @@ async function callLLM(input: ParseInput, priorHint?: ParsedExpense): Promise<Pa
     }
 
     const messagesList: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
-      { role: 'system', content: dynamicPrompt }
+      { role: 'system', content: dynamicPrompt },
     ];
+    // Give the model today's date (server runs on IST) so it can resolve any
+    // relative date the deterministic regex missed — including ones phrased in
+    // an Indian language ("कल", "ഇന്നലെ", "2 din pehle"). The regex result
+    // still wins when present; this only fills `date` when regex returned null.
+    {
+      const now = new Date();
+      const iso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const weekday = now.toLocaleDateString('en-US', { weekday: 'long' });
+      messagesList.push({
+        role: 'system',
+        content: `Today is ${iso} (${weekday}). If the message says WHEN the money moved — "yesterday", "last Friday", "2 days ago", "on the 5th", or the same idea in any Indian language — set "date" to that absolute "YYYY-MM-DD". If no time is implied, "date": null.`,
+      });
+    }
     if (input.history && input.history.length > 0) {
       for (const turn of input.history) {
         messagesList.push({ role: turn.role, content: turn.content });

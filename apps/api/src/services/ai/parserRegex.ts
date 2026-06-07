@@ -505,40 +505,95 @@ export function extractCurrency(text: string): Currency | null {
 export function extractDate(text: string, now: Date = new Date()): string | null {
   if (!text) return null;
   const lower = text.toLowerCase();
-
-  if (/\btoday\b/.test(lower)) return toIsoDate(now);
-  // Check "day before yesterday" BEFORE the bare "yesterday" pattern; the
-  // shorter token would otherwise greedy-match inside the longer phrase
-  // and we'd report off-by-one.
-  if (/\bday\s+before\s+yesterday\b/.test(lower)) {
+  const shift = (days: number): string => {
     const d = new Date(now);
-    d.setDate(d.getDate() - 2);
+    d.setDate(d.getDate() + days);
     return toIsoDate(d);
-  }
-  if (/\byesterday\b/.test(lower)) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - 1);
-    return toIsoDate(d);
+  };
+
+  // --- "today" and same-day synonyms ---
+  if (
+    /\b(today|just\s+now|right\s+now|this\s+morning|this\s+afternoon|this\s+evening|tonight|last\s+night|earlier\s+today)\b/.test(
+      lower,
+    )
+  ) {
+    return toIsoDate(now);
   }
 
+  // --- relative day words (longer phrases FIRST to avoid sub-matches) ---
+  if (/\bday\s+after\s+tomorrow\b/.test(lower)) return shift(2);
+  if (/\bday\s+before\s+yesterday\b/.test(lower)) return shift(-2);
+  if (/\btomorrow\b/.test(lower)) return shift(1);
+  if (/\byesterday\b/.test(lower)) return shift(-1);
+
+  // --- "N days/weeks ago" (also "a/couple/few days back/earlier") ---
+  const daysAgo = /\b(\d{1,3}|a|an|one|two|three|four|five|six|seven|eight|nine|ten|couple(?:\s+of)?|few)\s+days?\s+(?:ago|back|earlier|before)\b/.exec(
+    lower,
+  );
+  if (daysAgo) {
+    const n = smallWordToInt(daysAgo[1]!);
+    if (n !== null) return shift(-n);
+  }
+  const weeksAgo = /\b(\d{1,2}|a|an|one|two|three|four|couple(?:\s+of)?)\s+weeks?\s+(?:ago|back|earlier)\b/.exec(
+    lower,
+  );
+  if (weeksAgo) {
+    const n = smallWordToInt(weeksAgo[1]!);
+    if (n !== null) return shift(-7 * n);
+  }
+  if (/\b(a|one)\s+week\s+(?:ago|back)\b/.test(lower)) return shift(-7);
+
+  // --- last / this / previous / next <weekday> ---
   const dayWord =
-    /\b(last|this|previous)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i.exec(
+    /\b(last|this|previous|next|past|coming)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i.exec(
       text,
     );
   if (dayWord) {
     const target = WEEKDAY_INDEX[dayWord[2]!.toLowerCase()];
     if (typeof target === 'number') {
+      const word = dayWord[1]!.toLowerCase();
       const d = new Date(now);
       const cur = d.getDay();
-      const isLast = dayWord[1]!.toLowerCase() !== 'this';
-      let diff = (cur - target + 7) % 7;
-      if (diff === 0) diff = isLast ? 7 : 0;
-      d.setDate(d.getDate() - diff);
+      if (word === 'next' || word === 'coming') {
+        let diff = (target - cur + 7) % 7;
+        if (diff === 0) diff = 7;
+        d.setDate(d.getDate() + diff);
+      } else {
+        let diff = (cur - target + 7) % 7;
+        if (diff === 0) diff = word === 'this' ? 0 : 7;
+        d.setDate(d.getDate() - diff);
+      }
       return toIsoDate(d);
     }
   }
 
-  // ISO yyyy-mm-dd
+  // --- month-name dates: "14 may", "may 14", "14th of may", "jan 5 2025" ---
+  const monthDate = parseMonthNameDate(lower, now);
+  if (monthDate) return monthDate;
+
+  // --- "on the 5th" / "on 21st" — a day-of-month in the current month (or the
+  //     previous month if that day is still in the future). Requires "on" so we
+  //     don't misread "the 1st time" or "2nd coffee" as a date. ---
+  const domMatch = /\bon\s+(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)\b/.exec(lower);
+  if (domMatch) {
+    const dom = Number(domMatch[1]);
+    if (dom >= 1 && dom <= 31) {
+      let y = now.getFullYear();
+      let mo = now.getMonth(); // 0-based
+      const probe = new Date(y, mo, dom);
+      if (probe.getMonth() === mo && probe.getTime() > now.getTime() + 86_400_000) {
+        // That day this month is in the future → assume last month.
+        mo -= 1;
+        if (mo < 0) {
+          mo = 11;
+          y -= 1;
+        }
+      }
+      if (validateDate(y, mo + 1, dom)) return formatIso(y, mo + 1, dom);
+    }
+  }
+
+  // --- ISO yyyy-mm-dd ---
   const iso = /\b(\d{4})-(\d{2})-(\d{2})\b/.exec(text);
   if (iso) {
     const y = Number(iso[1]);
@@ -547,7 +602,7 @@ export function extractDate(text: string, now: Date = new Date()): string | null
     if (validateDate(y, m, d)) return formatIso(y, m, d);
   }
 
-  // dd/mm/yyyy or dd-mm-yyyy or dd.mm.yyyy
+  // --- dd/mm/yyyy or dd-mm-yyyy or dd.mm.yyyy ---
   const dmy = /\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})\b/.exec(text);
   if (dmy) {
     const d = Number(dmy[1]);
@@ -557,6 +612,86 @@ export function extractDate(text: string, now: Date = new Date()): string | null
     if (validateDate(y, m, d)) return formatIso(y, m, d);
   }
 
+  return null;
+}
+
+/** Small spelled-out / article counts used by "N days ago" etc. */
+function smallWordToInt(token: string): number | null {
+  const t = token.trim().toLowerCase();
+  if (/^\d+$/.test(t)) {
+    const n = Number(t);
+    return n > 0 && n <= 366 ? n : null;
+  }
+  const map: Record<string, number> = {
+    a: 1,
+    an: 1,
+    one: 1,
+    two: 2,
+    three: 3,
+    four: 4,
+    five: 5,
+    six: 6,
+    seven: 7,
+    eight: 8,
+    nine: 9,
+    ten: 10,
+    few: 3,
+    couple: 2,
+    'couple of': 2,
+  };
+  return map[t] ?? null;
+}
+
+const MONTH_INDEX: Record<string, number> = {
+  jan: 1, january: 1,
+  feb: 2, february: 2,
+  mar: 3, march: 3,
+  apr: 4, april: 4,
+  may: 5,
+  jun: 6, june: 6,
+  jul: 7, july: 7,
+  aug: 8, august: 8,
+  sep: 9, sept: 9, september: 9,
+  oct: 10, october: 10,
+  nov: 11, november: 11,
+  dec: 12, december: 12,
+};
+const MONTH_PATTERN = Object.keys(MONTH_INDEX).join('|');
+
+/**
+ * Parse "14 may", "may 14", "14th of may", "jan 5 2025". Year defaults to the
+ * current year; if that lands clearly in the future we roll back a year (an
+ * expense is almost always for a past/near date).
+ */
+function parseMonthNameDate(lower: string, now: Date): string | null {
+  const dayFirst = new RegExp(
+    `\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?(${MONTH_PATTERN})\\b(?:\\s+(\\d{4}))?`,
+    'i',
+  ).exec(lower);
+  const monthFirst = new RegExp(
+    `\\b(${MONTH_PATTERN})\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b(?:,?\\s+(\\d{4}))?`,
+    'i',
+  ).exec(lower);
+
+  let day: number | null = null;
+  let mon: number | null = null;
+  let year: number | null = null;
+  if (dayFirst) {
+    day = Number(dayFirst[1]);
+    mon = MONTH_INDEX[dayFirst[2]!.toLowerCase()] ?? null;
+    year = dayFirst[3] ? Number(dayFirst[3]) : null;
+  } else if (monthFirst) {
+    mon = MONTH_INDEX[monthFirst[1]!.toLowerCase()] ?? null;
+    day = Number(monthFirst[2]);
+    year = monthFirst[3] ? Number(monthFirst[3]) : null;
+  }
+  if (day === null || mon === null) return null;
+  if (year === null) {
+    year = now.getFullYear();
+    const probe = new Date(year, mon - 1, day);
+    if (probe.getTime() > now.getTime() + 2 * 86_400_000) year -= 1;
+  }
+  if (validateDate(year, mon, day)) return formatIso(year, mon, day);
   return null;
 }
 

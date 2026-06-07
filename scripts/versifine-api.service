@@ -9,6 +9,9 @@ User=versifine
 Group=versifine
 WorkingDirectory=/opt/versifine/repo/apps/api
 EnvironmentFile=/etc/versifine/api.env
+# India-first: resolve "today"/"yesterday"/period queries on IST wall-clock so a
+# late-night (00:00–05:30 IST) "chai today" doesn't land on the previous UTC day.
+Environment=TZ=Asia/Kolkata
 # Run the API straight from TypeScript source. Bun executes .ts natively, and
 # running from source (not a bundle) avoids two classes of bundler bugs we hit:
 #   - thrown AppErrors escaping to Bun's default text/plain 500, and
