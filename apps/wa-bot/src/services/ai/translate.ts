@@ -113,8 +113,11 @@ async function sarvamTranslate(text: string, target: Language): Promise<string |
           // fragment is already localized.
           source_language_code: 'en-IN',
           target_language_code: LANGUAGE_META[target].bcp47,
-          // Friendly, conversational register for a chat assistant.
-          mode: 'modern-colloquial',
+          // 'formal' translates completely into the native script. The
+          // 'modern-colloquial' mode deliberately keeps English words
+          // ("Coffee", "logged", "under"), which reads as broken code-mix in a
+          // UI confirmation — so we use formal for clean, fully-native output.
+          mode: 'formal',
           output_script: null,
           numerals_format: 'international',
         }),
