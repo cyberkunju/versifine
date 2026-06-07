@@ -224,7 +224,7 @@ async function parseBatchItems(
   // which splits the short description from the notes.
   const parts = splitPotentialBatch(text);
   const numericTokens = text.match(/\d[\d.,]*/g) ?? [];
-  const looksLikeBatch = numericTokens.length >= 2 && parts.length >= 2;
+  const looksLikeBatch = numericTokens.length >= 2;
   if (!looksLikeBatch) return null;
 
   const modelBatch = await parseExpenseBatch({ text, locale, spaceId });
