@@ -136,6 +136,14 @@ export const hi: MessagePack = {
 
   captureFollowup: (q) => q,
 
+  captureAsk: (needs) => {
+    if (needs.includes('amount')) return 'कितने का था?';
+    if (needs.includes('description')) return 'किस चीज़ के लिए था?';
+    if (needs.includes('wallet')) return 'कौन सा अकाउंट या वॉलेट इस्तेमाल किया?';
+    if (needs.includes('currency')) return 'कौन सी करेंसी थी?';
+    return 'बस एक और जानकारी चाहिए — किस लिए था?';
+  },
+
   captureCancelled: 'रद्द कर दिया। कुछ save नहीं हुआ।',
 
   captureFailed: 'इसे रिकॉर्ड नहीं कर पाया। फिर से कोशिश करें या RESET भेजें।',

@@ -145,6 +145,14 @@ export const en: MessagePack = {
 
   captureFollowup: (q) => q,
 
+  captureAsk: (needs) => {
+    if (needs.includes('amount')) return 'How much was it?';
+    if (needs.includes('description')) return 'What was it for?';
+    if (needs.includes('wallet')) return 'Which account or wallet did you use?';
+    if (needs.includes('currency')) return 'Which currency was that?';
+    return 'I just need one more detail — what was it for?';
+  },
+
   captureCancelled: 'Cancelled. Nothing saved.',
 
   captureFailed: "Couldn't log that. Try again or send RESET.",

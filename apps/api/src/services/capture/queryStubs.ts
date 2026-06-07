@@ -83,7 +83,16 @@ const CATEGORY_ALIASES: Record<string, Category> = {
   subscription: 'Subscriptions',
   subscriptions: 'Subscriptions',
   coffee: 'Coffee & Beverages',
+  tea: 'Coffee & Beverages',
+  chai: 'Coffee & Beverages',
   beverages: 'Coffee & Beverages',
+  beverage: 'Coffee & Beverages',
+  drinks: 'Coffee & Beverages',
+  snacks: 'Restaurants',
+  lunch: 'Restaurants',
+  dinner: 'Restaurants',
+  breakfast: 'Restaurants',
+  meals: 'Restaurants',
   health: 'Healthcare',
   healthcare: 'Healthcare',
   medical: 'Healthcare',
@@ -96,7 +105,14 @@ export function canonicalizeCategory(hint: string | null | undefined): Category 
   const trimmed = hint.trim();
   if (!trimmed) return null;
   if (isCategory(trimmed)) return trimmed as Category;
-  return CATEGORY_ALIASES[trimmed.toLowerCase()] ?? null;
+  const lower = trimmed.toLowerCase();
+  if (CATEGORY_ALIASES[lower]) return CATEGORY_ALIASES[lower]!;
+  // Fuzzy: the hint may be a phrase ("drinking tea", "on the taxi"). Match any
+  // alias keyword appearing as a whole word.
+  for (const alias of Object.keys(CATEGORY_ALIASES)) {
+    if (new RegExp(`\\b${alias}\\b`).test(lower)) return CATEGORY_ALIASES[alias]!;
+  }
+  return null;
 }
 
 /* ----- Period detection ------------------------------------------------ */

@@ -158,9 +158,14 @@ function renderCaptureResponse(session: Session, response: CaptureResponseShape)
     setState(session.phone, 'CAPTURE_CONFIRM');
   }
   if (response.followupQuestion) {
+    // Prefer a localized clarifier built from what's missing — the API's
+    // followupQuestion is English and would otherwise reach hi/ml users
+    // untranslated (their native packs don't translate).
+    const needs = response.draft?.needs ?? [];
+    const text = needs.length > 0 ? m.captureAsk(needs) : response.followupQuestion;
     return {
-      text: response.followupQuestion,
-      speakable: response.followupQuestion,
+      text,
+      speakable: text,
       ...(response.draftId ? { pendingDraftId: response.draftId } : {}),
     };
   }

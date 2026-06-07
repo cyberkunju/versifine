@@ -112,6 +112,9 @@ export interface MessagePack {
   /** Free-form follow-up question forwarded from the API. */
   captureFollowup: (question: string) => string;
 
+  /** Localized "one missing detail" clarifier, derived from the draft's needs. */
+  captureAsk: (needs: ReadonlyArray<string>) => string;
+
   /** User said CANCEL on a draft. */
   captureCancelled: string;
 

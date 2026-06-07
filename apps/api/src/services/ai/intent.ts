@@ -41,7 +41,11 @@ Read the user's message and pick exactly ONE intent from this list:
   transfer         — user moved money between their own wallets
   set_budget       — user wants to create or change a budget
   set_goal         — user wants to create or change a savings goal
-  query_spending   — user asks how much they spent on something
+  query_spending   — user asks how much they spent on something (a category or
+                     merchant), e.g. "how much did I spend on tea", "how much on
+                     taxi", "how much does the taxi cost", "what did I spend on
+                     groceries this month", "chai pe kitna kharch hua". Put the
+                     thing they asked about in "category" (e.g. "tea", "taxi").
   query_summary    — user asks for an overall summary or total for a period
                      (today, yesterday, this week, this month, last month, etc.),
                      e.g. "today spend", "how much today", "this week total",
@@ -64,6 +68,12 @@ Return JSON with this exact schema:
 }
 
 Hard rules:
+- A message phrased as a QUESTION about past spending — it contains "how much",
+  "how many", "what did I spend", "how much was", "how much does … cost",
+  "total on", "spending on", "kitna kharch", "എത്ര ചെലവ" — is a QUERY
+  (query_spending when it names a thing like tea/taxi/groceries, else
+  query_summary), NEVER an expense, even though it mentions a spend noun or a
+  number. Do not log it.
 - If you cannot decide, return intent="unknown", confidence < 0.4.
 - Never invent an amount. If the user did not say a number, amount = null.
 - A BARE spend word with no amount is still an expense the user wants to log.

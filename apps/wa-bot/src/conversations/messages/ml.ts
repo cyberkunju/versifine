@@ -139,6 +139,14 @@ export const ml: MessagePack = {
 
   captureFollowup: (q) => q,
 
+  captureAsk: (needs) => {
+    if (needs.includes('amount')) return 'എത്ര രൂപയായിരുന്നു?';
+    if (needs.includes('description')) return 'എന്തിനായിരുന്നു?';
+    if (needs.includes('wallet')) return 'ഏത് അക്കൗണ്ട്/വാലറ്റ് ഉപയോഗിച്ചു?';
+    if (needs.includes('currency')) return 'ഏത് കറൻസിയായിരുന്നു?';
+    return 'ഒരു വിവരം കൂടി വേണം — എന്തിനായിരുന്നു?';
+  },
+
   captureCancelled: 'റദ്ദാക്കി. ഒന്നും സേവ് ചെയ്തിട്ടില്ല.',
 
   captureFailed: 'ഇത് രേഖപ്പെടുത്താൻ കഴിഞ്ഞില്ല. വീണ്ടും ശ്രമിക്കൂ അല്ലെങ്കിൽ RESET അയക്കൂ.',
