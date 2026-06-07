@@ -144,13 +144,14 @@ function pickBareAmount(text: string): number | null {
     if (value === null) continue;
     const before = text.slice(0, m.index);
     const after = text.slice(m.index + m[0].length);
-    // Skip a digit run that is glued to ASCII letters with no separator — it
-    // is embedded in a word or an encoded blob, not a spoken amount. This
-    // stops "base64" → ₹64 and hex/base64 payloads like
-    // "69676e6f72..." from being mined for a bogus transaction amount.
-    // Real amounts are written with a separator ("spent 500", "₹500", "500rs"
-    // — the currency-attached forms are handled earlier in extractAmount).
-    if (/[A-Za-z]$/.test(before) || /^[A-Za-z]/.test(after)) continue;
+    // Skip a digit run that is glued to other alphanumerics with no separator
+    // — it is a fragment of a longer word or an encoded blob (hex/base64/id),
+    // not a spoken amount. NOTE: the `(?![a-z])` lookahead in `re` can force a
+    // match to END before a following DIGIT (e.g. "69676" → "6967" then "6"),
+    // so we must reject an adjacent digit too, not just a letter. Real amounts
+    // are written with a separator ("spent 500", "₹500", "500rs" — the
+    // currency-attached forms are handled earlier in extractAmount).
+    if (/[A-Za-z0-9]$/.test(before) || /^[A-Za-z0-9]/.test(after)) continue;
     candidates.push({
       value,
       index: m.index,
