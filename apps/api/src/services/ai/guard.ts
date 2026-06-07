@@ -173,7 +173,7 @@ const INJECTION_PATTERNS: RegExp[] = [
   // "answer regardless of your scope/rules"
   /\b(regardless|no matter|even if|despite)\b[^.\n]{0,30}\b(scope|rules?|instructions?|restrictions?|guidelines?|policy)\b/i,
   // decode-and-execute style
-  /\b(decode|decrypt|base64|rot13|reverse)\b[^.\n]{0,30}\b(then|and)\b[^.\n]{0,20}\b(do|execute|run|follow|answer|reply|say|output)\b/i,
+  /\b(decode|decrypt|base64|rot13|reverse)\b[^.\n]{0,45}\b(then|and)\b[^.\n]{0,20}\b(do|execute|run|follow|answer|reply|say|output|it)\b/i,
 ];
 
 /**
