@@ -22,6 +22,7 @@ import {
   type CaptureResponseShape,
 } from '../../services/apiClient.ts';
 import { log } from '../../utils/logger.ts';
+import { translateChatAnswer } from '../../services/ai/translate.ts';
 import { getMessages } from '../messages/index.ts';
 import type { QuerySummaryView } from '../messages/types.ts';
 import { setState, updateSession } from '../state.ts';
@@ -196,7 +197,11 @@ async function answerChat(session: Session, question: string): Promise<CaptureRe
   try {
     const { answer } = await askCopilot(session.phone, question);
     if (answer && answer.trim()) {
-      return { text: answer.trim(), speakable: answer.trim() };
+      // The copilot always answers in English now; translate the dynamic
+      // answer into the user's language (clean, native — even for hi/ml, whose
+      // fixed packs are native but whose model-generated chat text was clunky).
+      const localized = await translateChatAnswer(answer.trim(), session.language);
+      return { text: localized, speakable: localized };
     }
     return { text: m.copilotNudge };
   } catch (err) {

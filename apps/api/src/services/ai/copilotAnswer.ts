@@ -41,7 +41,7 @@ export interface AnswerResult {
 }
 
 const BOT_STYLE_NOTE =
-  'You are replying inside WhatsApp. Reply in 2-3 short, plain-text sentences. Do NOT use numbered lists, bullet points, markdown, headings, or tables — just natural sentences. Lead with the answer or the number.';
+  'Write your ENTIRE reply in ENGLISH ONLY, regardless of the user\'s language — do not use any other language or script. The system translates your English answer into the user\'s language afterwards, so a clean English reply is essential. Reply in 2-3 short, plain-text sentences. Do NOT use numbered lists, bullet points, markdown, headings, or tables — just natural sentences. Lead with the answer or the number.';
 
 /**
  * Answer one finance question for a linked WhatsApp user. `question` is the

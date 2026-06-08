@@ -239,6 +239,46 @@ export async function translateToEnglish(text: string, source: Language): Promis
 }
 
 /**
+ * Translate a dynamic CHAT/copilot answer (always produced in English by the
+ * model) into the user's language. Unlike `translateForUser`, this is NOT
+ * gated by the native-pack set: hi/ml chat answers ARE translated too, because
+ * the model's direct Indic output is clunky ("ഒരു ചെലവ് നോട്ടാക്കണോ") whereas
+ * Sarvam Mayura's `formal` mode is clean, natural, fully-native. Fixed UI
+ * strings still use the hand-written packs via `translateForUser`.
+ */
+export async function translateChatAnswer(text: string, target: Language): Promise<string> {
+  if (!text.trim()) return text;
+  if (target === 'en') return text;
+  // Already predominantly in the target script? Leave it.
+  if (passesValidation(text, target)) return text;
+
+  const key = cacheKey(target, `chat>${text}`);
+  const cached = readCache(key);
+  if (cached) return cached;
+
+  const viaSarvam = await sarvamTranslate(text, target);
+  if (viaSarvam && passesValidation(viaSarvam, target)) {
+    writeCache(key, viaSarvam);
+    return viaSarvam;
+  }
+  // Fall back to the OpenAI translator (handles the case where Sarvam is down).
+  if (isAIConfigured()) {
+    const first = await openAiTranslate(text, target, false);
+    if (first && passesValidation(first, target)) {
+      writeCache(key, first);
+      return first;
+    }
+    const second = await openAiTranslate(text, target, true);
+    if (second && passesValidation(second, target)) {
+      writeCache(key, second);
+      return second;
+    }
+  }
+  // Last resort: return whatever Sarvam gave (even if mixed), else English.
+  return viaSarvam ?? text;
+}
+
+/**
  * Translate `text` into the user's target language for outgoing display.
  * Returns the source unchanged when the target has a native pack, when the
  * text is already in the target script, or when every provider fails.
