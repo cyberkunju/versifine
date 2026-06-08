@@ -25,6 +25,14 @@ import { limits, rateLimit } from '../middleware/rateLimit.ts';
 import { validate } from '../middleware/validate.ts';
 import { classifyIntent } from '../services/ai/intent.ts';
 import { screenInput } from '../services/ai/guard.ts';
+import {
+  handleLendBorrow,
+  handleTransfer,
+  handleDebtQuery,
+  detectDebtQuery,
+  tryRepayment,
+  type MoneyResult,
+} from '../services/capture/money.ts';
 import { isAIConfigured } from '../services/ai/client.ts';
 import {
   type MissingField,
@@ -319,6 +327,163 @@ async function tryPersistBatchExpenses(input: RunPipelineInput) {
   );
 }
 
+/**
+ * Render a money-movement result (lend/borrow/settle/debt-query/transfer) into
+ * the uniform capture envelope. The bot localises from the structured
+ * `queryResult` payload — never from an English string here. `intent` is a
+ * free string on the wire (the output isn't enum-validated), so the new
+ * money intents ride alongside the existing ones.
+ */
+function moneyResponse(
+  c: import('hono').Context,
+  result: MoneyResult,
+  echo: string,
+) {
+  switch (result.kind) {
+    case 'ledger':
+      return c.json(
+        ok({
+          intent: result.intent,
+          needsConfirmation: false,
+          queryResult: { kind: 'ledger', ledger: result.ledger },
+          echo,
+        }),
+      );
+    case 'settle':
+      return c.json(
+        ok({
+          intent: 'settle_debt',
+          needsConfirmation: false,
+          queryResult: {
+            kind: 'settle',
+            ledger: result.ledger,
+            settledAmount: result.settledAmount,
+            cleared: result.cleared,
+          },
+          echo,
+        }),
+      );
+    case 'debts':
+      return c.json(
+        ok({
+          intent: 'query_debts',
+          needsConfirmation: false,
+          queryResult: { kind: 'debts', debts: result.debts },
+          echo,
+        }),
+      );
+    case 'transfer':
+      return c.json(
+        ok({
+          intent: 'transfer',
+          needsConfirmation: false,
+          queryResult: { kind: 'transfer', transfer: result.transfer },
+          echo,
+        }),
+      );
+    case 'needs':
+      return c.json(
+        ok({
+          intent: result.intent,
+          needsConfirmation: true,
+          followupQuestion: result.message,
+          echo,
+        }),
+      );
+  }
+}
+
+/**
+ * Money-movement routing — bridges natural language to the (already built)
+ * ledger + transfer engine. Returns a Response when the message is a
+ * lend/borrow/repayment/debt-query/transfer, else null so normal expense
+ * routing continues.
+ *
+ * Ordering matters:
+ *   1. Repayment is checked FIRST and deterministically (REPAY_RE + an open
+ *      ledger entry), regardless of the classifier's label — "ravi paid me
+ *      back 2000" is often mislabelled `income`, and must settle the debt
+ *      rather than log phantom income.
+ *   2. Debt QUESTIONS ("who owes me", "how much do I owe X") resolve next.
+ *   3. lend / borrow STATEMENTS create a ledger entry.
+ *   4. transfer moves money between the user's own wallets (never a spend);
+ *      this must intercept the `transfer` intent before persistOrDraftExpense,
+ *      which can't persist transfers.
+ */
+async function routeMoneyMovement(
+  input: RunPipelineInput,
+  intent: Intent,
+): Promise<Response | null> {
+  const { c, text, locale, source } = input;
+  const user = c.get('user');
+  const traceLog = c.get('log');
+
+  // 1. Repayment (deterministic, intent-agnostic).
+  try {
+    const repay = await tryRepayment({
+      userId: user.id,
+      spaceId: user.activeSpaceId,
+      baseCurrency: user.baseCurrency,
+      text,
+      locale,
+    });
+    if (repay) {
+      traceLog.info('CAPTURE_MONEY', { kind: repay.kind, intent: repay.intent });
+      return moneyResponse(c, repay, text);
+    }
+  } catch (err) {
+    traceLog.warn('MONEY_REPAY_FAIL', { error: String(err) });
+  }
+
+  // 2. Debt question.
+  const debtQ = detectDebtQuery(text);
+  if (debtQ) {
+    try {
+      const result = await handleDebtQuery(user.activeSpaceId, debtQ);
+      traceLog.info('CAPTURE_MONEY', { kind: result.kind, scope: debtQ.scope });
+      return moneyResponse(c, result, text);
+    } catch (err) {
+      traceLog.warn('MONEY_DEBT_QUERY_FAIL', { error: String(err) });
+    }
+  }
+
+  // 3. Lend / borrow statement.
+  if (intent === 'lend' || intent === 'borrow') {
+    try {
+      const result = await handleLendBorrow({
+        userId: user.id,
+        spaceId: user.activeSpaceId,
+        baseCurrency: user.baseCurrency,
+        text,
+        direction: intent === 'lend' ? 'lent' : 'borrowed',
+        locale,
+      });
+      traceLog.info('CAPTURE_MONEY', { kind: result.kind, intent: result.intent });
+      return moneyResponse(c, result, text);
+    } catch (err) {
+      traceLog.warn('MONEY_LEDGER_FAIL', { error: String(err) });
+    }
+  }
+
+  // 4. Transfer between own wallets.
+  if (intent === 'transfer') {
+    try {
+      const result = await handleTransfer({
+        userId: user.id,
+        spaceId: user.activeSpaceId,
+        text,
+        source,
+      });
+      traceLog.info('CAPTURE_MONEY', { kind: result.kind, intent: result.intent });
+      return moneyResponse(c, result, text);
+    } catch (err) {
+      traceLog.warn('MONEY_TRANSFER_FAIL', { error: String(err) });
+    }
+  }
+
+  return null;
+}
+
 async function runTextPipeline(input: RunPipelineInput) {
   const { c, text, origin, locale } = input;
   const user = c.get('user');
@@ -353,6 +518,14 @@ async function runTextPipeline(input: RunPipelineInput) {
     sourceType: intentResult.source,
     inputSize: summarizeForLog(text),
   });
+
+  // Money movement — lend / borrow / repayment / debt question / transfer.
+  // Runs before the expense/batch/chat routing because these are NOT spends:
+  // a repayment settles a debt (not income), a transfer moves money between
+  // the user's own wallets (not a spend), and a debt question is answered from
+  // the ledger. Returns null for everything else so normal routing continues.
+  const moneyRoute = await routeMoneyMovement(input, intentResult.intent);
+  if (moneyRoute) return moneyRoute;
 
   // Free-form chat → defer to the copilot stream endpoint. But guard against
   // the classifier labeling a bare spend word ("chai") or a bare number

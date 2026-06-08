@@ -8,7 +8,7 @@
  * the ISO code for everything else.
  */
 import { resolveCurrencySymbol } from '@versifine/shared';
-import type { DraftSummary, MessagePack, QuerySummaryView } from './types.ts';
+import type { DraftSummary, MessagePack, QuerySummaryView, LedgerView, LedgerSettledView, DebtsView, TransferView } from './types.ts';
 
 const PERIOD_LABELS_EN: Record<string, string> = {
   today: 'today',
@@ -186,6 +186,53 @@ export const en: MessagePack = {
 
   copilotNudge:
     'For deep questions, try the web copilot at versifine.com — I can also try here, just send the question.',
+
+  ledgerLogged: (v: LedgerView) => {
+    const amt = formatAmount(v.amount, v.currency);
+    return v.direction === 'lent'
+      ? `✅ Noted — ${v.counterparty} owes you ${amt}. I'll keep track until it's paid back.`
+      : `✅ Noted — you owe ${v.counterparty} ${amt}. I'll keep track until it's cleared.`;
+  },
+
+  ledgerSettled: (v: LedgerSettledView) => {
+    const paid = formatAmount(v.settledAmount, v.currency);
+    const left = formatAmount(v.outstanding, v.currency);
+    if (v.direction === 'lent') {
+      return v.cleared
+        ? `✅ All settled — ${v.counterparty} has paid you back in full.`
+        : `✅ Got ${paid} back from ${v.counterparty}. ${left} still to go.`;
+    }
+    return v.cleared
+      ? `✅ All settled — you've paid ${v.counterparty} back in full.`
+      : `✅ Paid ${paid} to ${v.counterparty}. ${left} left to clear.`;
+  },
+
+  debtsSummary: (v: DebtsView) => {
+    const lines: string[] = [];
+    if (v.scope !== 'borrowed' && v.receivables.length > 0) {
+      lines.push('💰 Owed to you:');
+      for (const r of v.receivables) {
+        lines.push(`• ${r.counterparty} — ${formatAmount(r.outstanding, v.currency)}`);
+      }
+      lines.push(`Total: ${formatAmount(v.totalReceivable, v.currency)}`);
+    }
+    if (v.scope !== 'lent' && v.payables.length > 0) {
+      if (lines.length > 0) lines.push('');
+      lines.push('💸 You owe:');
+      for (const p of v.payables) {
+        lines.push(`• ${p.counterparty} — ${formatAmount(p.outstanding, v.currency)}`);
+      }
+      lines.push(`Total: ${formatAmount(v.totalPayable, v.currency)}`);
+    }
+    if (lines.length === 0) {
+      if (v.counterparty) return `You're all square with ${v.counterparty} — nothing outstanding. 🎉`;
+      return 'You have no open debts right now. 🎉';
+    }
+    return lines.join('\n');
+  },
+
+  transferLogged: (v: TransferView) =>
+    `✅ Moved ${formatAmount(v.amount, v.currency)} from ${v.fromName} to ${v.toName}. (This isn't counted as spending.)`,
 
   budgetAskCategory: 'Which category? (e.g., Groceries, Restaurants, Transportation)',
   budgetAskAmount: (category) => `How much per month for ${category}?`,

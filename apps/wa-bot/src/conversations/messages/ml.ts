@@ -7,7 +7,7 @@
  * patterns when the bot echoes user input back.
  */
 import { resolveCurrencySymbol } from '@versifine/shared';
-import type { DraftSummary, MessagePack, QuerySummaryView } from './types.ts';
+import type { DraftSummary, MessagePack, QuerySummaryView, LedgerView, LedgerSettledView, DebtsView, TransferView } from './types.ts';
 
 const PERIOD_LABELS_ML: Record<string, string> = {
   today: 'ഇന്ന്',
@@ -181,6 +181,53 @@ export const ml: MessagePack = {
 
   copilotNudge:
     'വിശദമായ ചോദ്യങ്ങൾക്ക് വെബ് copilot ഉപയോഗിക്കാം: versifine.com. ഇവിടെയും ചോദിക്കാം — ചോദ്യം നേരിട്ട് അയക്കൂ.',
+
+  ledgerLogged: (v: LedgerView) => {
+    const amt = formatAmount(v.amount, v.currency);
+    return v.direction === 'lent'
+      ? `✅ കുറിച്ചുവെച്ചു — ${v.counterparty} നിങ്ങൾക്ക് ${amt} തരാനുണ്ട്. തിരികെ കിട്ടുന്നതുവരെ ഞാൻ ഓർത്തുവെക്കാം.`
+      : `✅ കുറിച്ചുവെച്ചു — നിങ്ങൾ ${v.counterparty}-ന് ${amt} കൊടുക്കാനുണ്ട്. തീരുന്നതുവരെ ഞാൻ ഓർത്തുവെക്കാം.`;
+  },
+
+  ledgerSettled: (v: LedgerSettledView) => {
+    const paid = formatAmount(v.settledAmount, v.currency);
+    const left = formatAmount(v.outstanding, v.currency);
+    if (v.direction === 'lent') {
+      return v.cleared
+        ? `✅ കണക്ക് തീർന്നു — ${v.counterparty} മുഴുവൻ പണവും തിരികെ തന്നു.`
+        : `✅ ${v.counterparty}-ൽ നിന്ന് ${paid} തിരികെ കിട്ടി. ഇനിയും ${left} ബാക്കിയുണ്ട്.`;
+    }
+    return v.cleared
+      ? `✅ കണക്ക് തീർന്നു — നിങ്ങൾ ${v.counterparty}-ന് മുഴുവൻ പണവും തിരികെ കൊടുത്തു.`
+      : `✅ ${v.counterparty}-ന് ${paid} കൊടുത്തു. ഇനിയും ${left} ബാക്കിയുണ്ട്.`;
+  },
+
+  debtsSummary: (v: DebtsView) => {
+    const lines: string[] = [];
+    if (v.scope !== 'borrowed' && v.receivables.length > 0) {
+      lines.push('💰 നിങ്ങൾക്ക് കിട്ടാനുള്ളത്:');
+      for (const r of v.receivables) {
+        lines.push(`• ${r.counterparty} — ${formatAmount(r.outstanding, v.currency)}`);
+      }
+      lines.push(`ആകെ: ${formatAmount(v.totalReceivable, v.currency)}`);
+    }
+    if (v.scope !== 'lent' && v.payables.length > 0) {
+      if (lines.length > 0) lines.push('');
+      lines.push('💸 നിങ്ങൾ കൊടുക്കാനുള്ളത്:');
+      for (const p of v.payables) {
+        lines.push(`• ${p.counterparty} — ${formatAmount(p.outstanding, v.currency)}`);
+      }
+      lines.push(`ആകെ: ${formatAmount(v.totalPayable, v.currency)}`);
+    }
+    if (lines.length === 0) {
+      if (v.counterparty) return `${v.counterparty}-യുമായി കണക്ക് ശരിയാണ് — ഒന്നും ബാക്കിയില്ല. 🎉`;
+      return 'ഇപ്പോൾ ബാക്കിയുള്ള കടമൊന്നുമില്ല. 🎉';
+    }
+    return lines.join('\n');
+  },
+
+  transferLogged: (v: TransferView) =>
+    `✅ ${formatAmount(v.amount, v.currency)} ${v.fromName}-ൽ നിന്ന് ${v.toName}-ലേക്ക് മാറ്റി. (ഇത് ചെലവായി കണക്കാക്കില്ല.)`,
 
   budgetAskCategory: 'ഏത് കാറ്റഗറിക്കാണ്? (Groceries, Restaurants, Transportation പോലെ)',
   budgetAskAmount: (category) => `${category}-നു ഓരോ മാസവും എത്ര?`,

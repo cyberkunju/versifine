@@ -6,7 +6,7 @@
  * users read ₹4,250 the same way regardless of UI language).
  */
 import { resolveCurrencySymbol } from '@versifine/shared';
-import type { DraftSummary, MessagePack, QuerySummaryView } from './types.ts';
+import type { DraftSummary, MessagePack, QuerySummaryView, LedgerView, LedgerSettledView, DebtsView, TransferView } from './types.ts';
 
 const PERIOD_LABELS_HI: Record<string, string> = {
   today: 'आज',
@@ -177,6 +177,53 @@ export const hi: MessagePack = {
   },
 
   copilotNudge: 'गहरे सवाल के लिए वेब copilot आज़माएँ: versifine.com। यहाँ भी पूछ सकते हैं — सीधे सवाल भेजें।',
+
+  ledgerLogged: (v: LedgerView) => {
+    const amt = formatAmount(v.amount, v.currency);
+    return v.direction === 'lent'
+      ? `✅ नोट कर लिया — ${v.counterparty} पर आपके ${amt} बाकी हैं। जब तक वापस न मिलें, मैं याद रखूँगा।`
+      : `✅ नोट कर लिया — आप पर ${v.counterparty} के ${amt} बाकी हैं। जब तक चुक न जाएँ, मैं याद रखूँगा।`;
+  },
+
+  ledgerSettled: (v: LedgerSettledView) => {
+    const paid = formatAmount(v.settledAmount, v.currency);
+    const left = formatAmount(v.outstanding, v.currency);
+    if (v.direction === 'lent') {
+      return v.cleared
+        ? `✅ पूरा हिसाब साफ़ — ${v.counterparty} ने आपके पूरे पैसे लौटा दिए।`
+        : `✅ ${v.counterparty} से ${paid} वापस मिले। अभी ${left} और बाकी हैं।`;
+    }
+    return v.cleared
+      ? `✅ पूरा हिसाब साफ़ — आपने ${v.counterparty} के पूरे पैसे लौटा दिए।`
+      : `✅ ${v.counterparty} को ${paid} चुकाए। अभी ${left} और बाकी हैं।`;
+  },
+
+  debtsSummary: (v: DebtsView) => {
+    const lines: string[] = [];
+    if (v.scope !== 'borrowed' && v.receivables.length > 0) {
+      lines.push('💰 आपको मिलने हैं:');
+      for (const r of v.receivables) {
+        lines.push(`• ${r.counterparty} — ${formatAmount(r.outstanding, v.currency)}`);
+      }
+      lines.push(`कुल: ${formatAmount(v.totalReceivable, v.currency)}`);
+    }
+    if (v.scope !== 'lent' && v.payables.length > 0) {
+      if (lines.length > 0) lines.push('');
+      lines.push('💸 आपको चुकाने हैं:');
+      for (const p of v.payables) {
+        lines.push(`• ${p.counterparty} — ${formatAmount(p.outstanding, v.currency)}`);
+      }
+      lines.push(`कुल: ${formatAmount(v.totalPayable, v.currency)}`);
+    }
+    if (lines.length === 0) {
+      if (v.counterparty) return `${v.counterparty} के साथ आपका हिसाब बराबर है — कुछ बाकी नहीं। 🎉`;
+      return 'अभी आपका कोई उधार बाकी नहीं है। 🎉';
+    }
+    return lines.join('\n');
+  },
+
+  transferLogged: (v: TransferView) =>
+    `✅ ${formatAmount(v.amount, v.currency)} ${v.fromName} से ${v.toName} में भेज दिए। (यह खर्च में नहीं गिना जाता।)`,
 
   budgetAskCategory: 'किस कैटेगरी के लिए? (जैसे Groceries, Restaurants, Transportation)',
   budgetAskAmount: (category) => `${category} के लिए हर महीने कितना?`,

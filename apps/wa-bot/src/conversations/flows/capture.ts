@@ -24,7 +24,7 @@ import {
 import { log } from '../../utils/logger.ts';
 import { translateChatAnswer } from '../../services/ai/translate.ts';
 import { getMessages } from '../messages/index.ts';
-import type { QuerySummaryView } from '../messages/types.ts';
+import type { QuerySummaryView, LedgerView, LedgerSettledView, DebtsView, TransferView } from '../messages/types.ts';
 import { setState, updateSession } from '../state.ts';
 
 export interface CaptureResult {
@@ -63,6 +63,33 @@ function renderCaptureResponse(session: Session, response: CaptureResponseShape)
 
   // Successful persist → server returns intent + queryResult.transaction.
   if (!response.needsConfirmation) {
+    // Money movement — lend / borrow / repayment / debt question / transfer.
+    // These carry a `kind` discriminator on queryResult and are localised from
+    // structured fields (never an English string), so hi/ml render natively.
+    const qr = response.queryResult as Record<string, unknown> | undefined;
+    const moneyKind = typeof qr?.kind === 'string' ? (qr.kind as string) : undefined;
+    if (moneyKind === 'ledger' && qr?.ledger) {
+      const text = m.ledgerLogged(qr.ledger as LedgerView);
+      return { text, speakable: text };
+    }
+    if (moneyKind === 'settle' && qr?.ledger) {
+      const ledger = qr.ledger as LedgerView;
+      const text = m.ledgerSettled({
+        ...ledger,
+        settledAmount: Number(qr.settledAmount ?? 0),
+        cleared: Boolean(qr.cleared),
+      });
+      return { text, speakable: text };
+    }
+    if (moneyKind === 'debts' && qr?.debts) {
+      const text = m.debtsSummary(qr.debts as DebtsView);
+      return { text, speakable: text };
+    }
+    if (moneyKind === 'transfer' && qr?.transfer) {
+      const text = m.transferLogged(qr.transfer as TransferView);
+      return { text, speakable: text };
+    }
+
     if (
       response.intent === 'expense' ||
       response.intent === 'income' ||

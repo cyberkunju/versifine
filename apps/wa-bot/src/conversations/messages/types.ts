@@ -35,6 +35,44 @@ export interface QuerySummaryView {
   horizonDays: number | null;
 }
 
+/**
+ * A lend/borrow ledger entry, as the API returns it. `direction='lent'` means
+ * the counterparty owes the user; `borrowed` means the user owes them.
+ */
+export interface LedgerView {
+  direction: 'lent' | 'borrowed';
+  counterparty: string;
+  amount: number;
+  currency: string;
+  outstanding: number;
+  status: 'open' | 'partial' | 'settled';
+}
+
+/** A settlement result — a ledger entry that a repayment just decremented. */
+export interface LedgerSettledView extends LedgerView {
+  settledAmount: number;
+  cleared: boolean;
+}
+
+/** Answer to a debt question: who owes the user, and whom the user owes. */
+export interface DebtsView {
+  scope: 'lent' | 'borrowed' | 'all';
+  counterparty: string | null;
+  receivables: Array<{ counterparty: string; outstanding: number }>;
+  payables: Array<{ counterparty: string; outstanding: number }>;
+  totalReceivable: number;
+  totalPayable: number;
+  currency: string;
+}
+
+/** A transfer between two of the user's own wallets (never a spend). */
+export interface TransferView {
+  amount: number;
+  currency: string;
+  fromName: string;
+  toName: string;
+}
+
 export interface MessagePack {
   /** Initial reply when an unknown phone first messages the bot. */
   greeting: string;
@@ -132,6 +170,18 @@ export interface MessagePack {
 
   /** Nudge the user toward the copilot for chat intent. */
   copilotNudge: string;
+
+  /** Lend/borrow recorded → a ledger entry was created. */
+  ledgerLogged: (v: LedgerView) => string;
+
+  /** A repayment settled (fully or partially) a ledger entry. */
+  ledgerSettled: (v: LedgerSettledView) => string;
+
+  /** Answer to a debt question ("who owes me", "how much do I owe"). */
+  debtsSummary: (v: DebtsView) => string;
+
+  /** Transfer between the user's own wallets logged (not a spend). */
+  transferLogged: (v: TransferView) => string;
 
   /** Budget set-budget flow */
   budgetAskCategory: string;
