@@ -126,9 +126,15 @@ export async function tryRepayment(args: {
   baseCurrency: string;
   text: string;
   locale?: string;
+  /** When the classifier already tagged this settle_debt, skip the REPAY_RE
+   *  gate (the phrasing may be in a language the English regex misses). */
+  force?: boolean;
+  /** Only settle when the named counterparty matches an OPEN entry — used for
+   *  the "got 2000 from ravi" path so unrelated income never clears a debt. */
+  requireNameMatch?: boolean;
 }): Promise<MoneyResult | null> {
-  const { userId, spaceId, baseCurrency, text, locale } = args;
-  if (!REPAY_RE.test(text)) return null;
+  const { userId, spaceId, baseCurrency, text, locale, force, requireNameMatch } = args;
+  if (!force && !REPAY_RE.test(text)) return null;
 
   // Need at least one open/partial entry to settle.
   const open = await listLedger(spaceId, {});
@@ -147,6 +153,10 @@ export async function tryRepayment(args: {
       )
     : [];
   let candidates = nameMatched.length > 0 ? nameMatched : live;
+  // For the "got X from <name>" path: refuse to settle anything unless the
+  // named person actually has an open entry — never clear an unrelated debt
+  // from "got salary 85000 from office".
+  if (requireNameMatch && nameMatched.length === 0) return null;
 
   // Disambiguate direction from phrasing when both kinds are open.
   const dirHint: 'lent' | 'borrowed' | null = THEY_PAID_ME.test(text)
@@ -207,22 +217,35 @@ export async function tryRepayment(args: {
  * 3. Debt queries — "who owes me", "how much do I owe", "what does X owe"
  * ------------------------------------------------------------------ */
 
-const OWE_ME = /\b(who\s+owes?\s+me|owed\s+to\s+me|owe\s+me|lent\s+to|receivable|i\s+lent|money\s+(?:people|they)\s+owe)\b/i;
-const I_OWE = /\b(how\s+much\s+do\s+i\s+owe|what\s+do\s+i\s+owe|my\s+debts?|i\s+owe|payable|borrowed\s+from|do\s+i\s+owe)\b/i;
-const LEDGER_WORD = /\b(owe|owes|owed|debt|debts|loan|loans|lent|borrow|borrowed|udhaar|udhar|ledger|receivable|payable)\b/i;
+const OWE_ME = /\b(who\s+owes?\s+me|owed\s+to\s+me|owe\s+me|lent\s+to|receivable|i\s+lent|money\s+(?:people|they)\s+owe|mujhe\s+kitna\s+(?:dena|milna|deta)|kaun\s+mujhe)\b/i;
+const I_OWE = /\b(how\s+much\s+do\s+i\s+owe|what\s+do\s+i\s+owe|my\s+debts?|i\s+owe|payable|borrowed\s+from|do\s+i\s+owe|mujh\s+par\s+kitna|main\s+kitna\s+(?:dena|deta))\b/i;
+// Ledger concept words across the 11 languages (romanised + native). Kept
+// broad on purpose; a SPEND verb / non-question guard prevents false positives.
+const LEDGER_WORD =
+  /\b(owe|owes|owed|debt|debts|loan|loans|lent|borrow|borrowed|udhaar|udhar|udhari|karz|karza|karj|kadan|kadhan|baki|baaki|receivable|payable|ledger)\b|कर्ज़|कर्ज|उधार|उधारी|കടം|കടം|கடன்|అప్పు|ಸಾಲ|ঋণ|ধার|ਉਧਾਰ|ਕਰਜ਼|દેવું|ઉધાર|ଋଣ|ଧାର/iu;
+// Interrogative markers across languages (romanised + native).
+const DEBT_QUESTION =
+  /\b(who|how\s+much|what|do\s+i|does|list|show|my|am\s+i|kitna|kitne|kaun|etra|ethra|evvalavu|entha|enta|eshtu|kshto|koto|kshoto|deta|deni|baki)\b|कितना|कौन|कितने|എത്ര|ആര്|எவ்வளவு|யார்|ఎంత|ఎవరు|ಎಷ್ಟು|ಯಾರು|কত|কে|કેટલું|કોણ|ਕਿੰਨਾ|ਕੌਣ|କେତେ|କିଏ|\?/iu;
 
 /** Detect a debt/ledger question. Returns the scope + optional counterparty, else null. */
-export function detectDebtQuery(text: string): { scope: 'lent' | 'borrowed' | 'all'; counterparty: string | null } | null {
+export function detectDebtQuery(
+  text: string,
+  counterpartyHint?: string | null,
+): { scope: 'lent' | 'borrowed' | 'all'; counterparty: string | null } | null {
   if (!LEDGER_WORD.test(text)) return null;
   // A statement with an amount is an action (lend/borrow/repay), not a query.
   const hasAmount = extractAmount(text).amount !== null;
-  const isQuestion = /\b(who|how\s+much|what|do\s+i|does|list|show|my)\b/i.test(text) || text.includes('?');
+  const isQuestion = DEBT_QUESTION.test(text);
   if (hasAmount && !isQuestion) return null;
   if (!isQuestion) return null;
 
-  let counterparty: string | null = null;
-  const m = /\b(?:does|do\s+i\s+owe|owe)\s+([A-Z][a-z]+)\b/.exec(text);
-  if (m?.[1]) counterparty = m[1];
+  // Counterparty: prefer the classifier's hint (language-agnostic), else a
+  // Latin-name regex for English phrasings.
+  let counterparty: string | null = counterpartyHint?.trim() || null;
+  if (!counterparty) {
+    const m = /\b(?:does|do\s+i\s+owe|owe)\s+([A-Z][a-z]+)\b/.exec(text);
+    if (m?.[1]) counterparty = m[1];
+  }
 
   const wantsOweMe = OWE_ME.test(text);
   const wantsIOwe = I_OWE.test(text);

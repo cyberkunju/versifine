@@ -380,3 +380,129 @@ describe('extractSplitCount', () => {
     expect(extractSplitCount('split with 99 people')).toBeNull();
   });
 });
+
+// --- fractional / compound Indian number words -------------------------
+// Production bug: "ढाई सौ" (dhai=2.5, sau=100) returned 100 because the
+// fraction word was unknown and only the scale parsed. A fraction-multiplier
+// layer + a hundred scale across romanised + native scripts for all 11 langs
+// now compose these correctly. Digits still win whenever present.
+describe('extractAmount — fractional / compound number words', () => {
+  const cases: Array<[string, number]> = [
+    // ── the exact reported failures ──────────────────────────────────
+    ['ढाई सौ', 250], // hi: dhai(2.5) × sau(100)
+    ['सवा लाख', 125_000], // hi: sava(+0.25) × lakh
+    ['ਸਵਾ ਲੱਖ', 125_000], // pa: sava × lakh
+    ['पौने बे लाख', 175_000], // hi/mr: pauna(−0.25) be(2) → 1.75 lakh
+    ['પોણા બે લાખ', 175_000], // gu: pona be lakh → 1.75 lakh
+    ['dedh hazaar', 1_500], // romanised: dedh(1.5) × 1000
+    ['sadhe teen sau', 350], // romanised: (3+0.5) × 100
+    // ── hundred scale, romanised + native, all over the map ──────────
+    ['dhai sau', 250],
+    ['पाँच सौ', 500], // hi: 5 × 100
+    ['paanch sau', 500], // (romanised hundred)
+    ['दो सौ', 200], // hi: regression, plain 2×100
+    ['sava sau', 125], // 1.25 × 100
+    ['sadhe char sau', 450], // (4+0.5) × 100
+    ['paune do sau', 175], // (2−0.25) × 100
+    // ── thousand / lakh / crore with fractions ───────────────────────
+    ['ढाई हज़ार', 2_500], // 2.5 × 1000
+    ['सवा हज़ार', 1_250], // 1.25 × 1000
+    ['dedh lakh', 150_000], // 1.5 × 100000
+    ['सवा करोड़', 12_500_000], // 1.25 × 10^7
+    ['adhai lakh', 250_000], // adhai(2.5) × lakh
+    ['sava do lakh', 225_000], // (2+0.25) × lakh
+    ['paune teen lakh', 275_000], // (3−0.25) × lakh
+    // ── plain scale-word regressions that must still hold ────────────
+    ['एक लाख', 100_000],
+    ['दो करोड़', 20_000_000],
+    ['पाँच सौ रुपये', 500],
+  ];
+  for (const [input, expected] of cases) {
+    test(`"${input}" → ${expected}`, () => {
+      expect(extractAmount(input).amount).toBe(expected);
+    });
+  }
+});
+
+// --- year-as-amount false positives ------------------------------------
+// "log my expense from 1850" used to log ₹1850; "in 3024 I will buy a
+// spaceship" logged ₹3024. A bare 4-digit number in a year band, sitting
+// right after a temporal preposition with no currency and no price marker,
+// is a YEAR, not a spend.
+describe('extractAmount — year discriminator', () => {
+  test('"from 1850" with no price/currency is NOT an amount', () => {
+    expect(extractAmount('log my expense from 1850')).toEqual({ amount: null, currency: null });
+  });
+
+  test('"in 3024" sci-fi year is NOT an amount', () => {
+    expect(extractAmount('in 3024 I will buy a spaceship')).toEqual({
+      amount: null,
+      currency: null,
+    });
+  });
+
+  test('"since 1999" is treated as a year', () => {
+    expect(extractAmount('saving since 1999')).toEqual({ amount: null, currency: null });
+  });
+
+  // ── must-not-break: legit amounts that resemble years ──────────────
+  test('"₹1850" stays a real amount (currency attached)', () => {
+    expect(extractAmount('₹1850')).toEqual({ amount: 1850, currency: 'INR' });
+  });
+
+  test('"spent 1850 on shoes" stays a real amount (price marker)', () => {
+    expect(extractAmount('spent 1850 on shoes')).toEqual({ amount: 1850, currency: null });
+  });
+
+  test('"paid 2020 for rent" stays a real amount', () => {
+    expect(extractAmount('paid 2020 for rent')).toEqual({ amount: 2020, currency: null });
+  });
+
+  test('bare "2000" with no temporal preposition stays an amount', () => {
+    expect(extractAmount('auto 2000')).toEqual({ amount: 2000, currency: null });
+  });
+
+  test('a year alongside a real spend picks the spend', () => {
+    // "from 2019" is a year; the 4500 after "spent" is the amount.
+    expect(extractAmount('records I bought from 2019, spent 4500')).toEqual({
+      amount: 4500,
+      currency: null,
+    });
+  });
+
+  test('"in 2020 rupees" with a currency stays an amount', () => {
+    expect(extractAmount('in 2020 rupees')).toEqual({ amount: 2020, currency: 'INR' });
+  });
+});
+
+// --- red-team false-positive guards (standalone fractions + year ranges) ---
+// A fraction word with no companion count/scale/currency must NOT fabricate a
+// 0.75–2.5 amount from a name ("Sava"), interjection, or stray token. And a
+// year RANGE ("from 1999 to 2024") must drop BOTH years, not leak the second.
+describe('extractAmount — fraction/year false-positive guards', () => {
+  const nulls = [
+    'Sava',
+    'Savita',
+    'der',
+    'pona',
+    'sade',
+    'dhai',
+    'lent Sava',
+    'from 1999 to 2024',
+    'saving from 2018 till 2024',
+  ];
+  for (const input of nulls) {
+    test(`"${input}" → null (no phantom amount)`, () => {
+      expect(extractAmount(input).amount).toBeNull();
+    });
+  }
+
+  test('"in 2020 spent 5000" still picks the real spend', () => {
+    expect(extractAmount('in 2020 spent 5000').amount).toBe(5000);
+  });
+
+  test('fraction WITH a scale still composes', () => {
+    expect(extractAmount('sava lakh').amount).toBe(125_000);
+    expect(extractAmount('ढाई सौ').amount).toBe(250);
+  });
+});

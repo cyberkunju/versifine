@@ -83,10 +83,21 @@ function findCategoryInText(text: string): Category | null {
 }
 
 export function pickAmount(input: string): number | null {
-  const match = input.replace(/[,\s]/g, '').match(/(\d+(?:\.\d+)?)/);
-  if (!match) return null;
-  const n = Number(match[1]);
-  return Number.isFinite(n) && n > 0 ? n : null;
+  // Scale-aware: "5k"→5000, "1.5 lakh"→150000, "2 crore"→2e7. Mirrors the API
+  // parser so the budget path agrees with expense parsing (the old regex
+  // stopped at the digit and logged "5k" as ₹5).
+  const m = input
+    .toLowerCase()
+    .replace(/,/g, '')
+    .match(/(\d+(?:\.\d+)?)\s*(k|thousand|thousands|lakhs?|lac|crores?)?\b/);
+  if (!m) return null;
+  let n = Number(m[1]);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const suf = m[2];
+  if (suf === 'k' || suf === 'thousand' || suf === 'thousands') n *= 1_000;
+  else if (suf === 'lakh' || suf === 'lakhs' || suf === 'lac') n *= 100_000;
+  else if (suf === 'crore' || suf === 'crores') n *= 10_000_000;
+  return Math.round(n * 100) / 100;
 }
 
 export function looksLikeBudgetTrigger(text: string): boolean {

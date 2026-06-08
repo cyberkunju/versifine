@@ -5,6 +5,7 @@ import {
   type Language,
   isLanguage,
   isTransactionIntent,
+  resolveLanguageName,
 } from '@versifine/shared';
 import { captureTextInput } from '@versifine/shared';
 /**
@@ -34,6 +35,7 @@ import {
   type MoneyResult,
 } from '../services/capture/money.ts';
 import { isAIConfigured } from '../services/ai/client.ts';
+import { handleGoal } from '../services/capture/goal.ts';
 import {
   type MissingField,
   type ParsedExpense,
@@ -413,12 +415,14 @@ function moneyResponse(
 async function routeMoneyMovement(
   input: RunPipelineInput,
   intent: Intent,
+  counterpartyHint?: string | null,
 ): Promise<Response | null> {
   const { c, text, locale, source } = input;
   const user = c.get('user');
   const traceLog = c.get('log');
 
-  // 1. Repayment (deterministic, intent-agnostic).
+  // 1. Repayment (deterministic, intent-agnostic — forced when the classifier
+  //    already tagged settle_debt so non-English phrasings still settle).
   try {
     const repay = await tryRepayment({
       userId: user.id,
@@ -426,6 +430,7 @@ async function routeMoneyMovement(
       baseCurrency: user.baseCurrency,
       text,
       locale,
+      force: intent === 'settle_debt',
     });
     if (repay) {
       traceLog.info('CAPTURE_MONEY', { kind: repay.kind, intent: repay.intent });
@@ -435,8 +440,38 @@ async function routeMoneyMovement(
     traceLog.warn('MONEY_REPAY_FAIL', { error: String(err) });
   }
 
-  // 2. Debt question.
-  const debtQ = detectDebtQuery(text);
+  // 1b. "got 2000 from ravi" / "received 500 from mom" — incoming money from a
+  //     NAMED person. If that person has an open loan FROM the user, this is a
+  //     repayment, not fresh income. Guarded by requireNameMatch so salary /
+  //     refunds from unrelated sources never clear a debt.
+  if (/\b(got|get|getting|received|recieved|collected)\b[^.\n]*\bfrom\s+\p{L}/iu.test(text)) {
+    try {
+      const repay = await tryRepayment({
+        userId: user.id,
+        spaceId: user.activeSpaceId,
+        baseCurrency: user.baseCurrency,
+        text,
+        locale,
+        force: true,
+        requireNameMatch: true,
+      });
+      if (repay) {
+        traceLog.info('CAPTURE_MONEY', { kind: repay.kind, intent: repay.intent, via: 'got_from' });
+        return moneyResponse(c, repay, text);
+      }
+    } catch (err) {
+      traceLog.warn('MONEY_GOTFROM_FAIL', { error: String(err) });
+    }
+  }
+
+  // 2. Debt question — by deterministic detector OR the classifier's
+  //    query_debts label (language-agnostic). The classifier's `category`
+  //    carries the counterparty name when one was spoken in any language.
+  const debtQ =
+    detectDebtQuery(text, counterpartyHint) ??
+    (intent === 'query_debts'
+      ? { scope: 'all' as const, counterparty: counterpartyHint?.trim() || null }
+      : null);
   if (debtQ) {
     try {
       const result = await handleDebtQuery(user.activeSpaceId, debtQ);
@@ -580,8 +615,46 @@ async function runTextPipeline(input: RunPipelineInput) {
   // a repayment settles a debt (not income), a transfer moves money between
   // the user's own wallets (not a spend), and a debt question is answered from
   // the ledger. Returns null for everything else so normal routing continues.
-  const moneyRoute = await routeMoneyMovement(input, intentResult.intent);
+  const moneyRoute = await routeMoneyMovement(input, intentResult.intent, intentResult.category);
   if (moneyRoute) return moneyRoute;
+
+  // Language switch — the user asked to be replied to in another language.
+  // Resolve the target (the classifier puts the language name in `category`)
+  // and hand the bot a directive to flip + persist its session language. With
+  // no recognised target the bot surfaces the tappable menu instead.
+  if (intentResult.intent === 'change_language') {
+    const target = resolveLanguageName(intentResult.category);
+    traceLog.info('CAPTURE_CHANGE_LANGUAGE', { target: target ?? 'menu' });
+    return c.json(
+      ok({
+        intent: 'change_language',
+        needsConfirmation: false,
+        queryResult: { kind: 'change_language', language: target },
+        echo: text,
+      }),
+    );
+  }
+
+  // Savings goal — "save 50000 for a trip", "goal 1 lakh by december". Route
+  // to the goals service BEFORE the expense path, which would otherwise log
+  // the target as a spend.
+  if (intentResult.intent === 'set_goal') {
+    const result = await handleGoal(user.activeSpaceId, text);
+    traceLog.info('CAPTURE_GOAL', { kind: result.kind });
+    if (result.kind === 'goal') {
+      return c.json(
+        ok({
+          intent: 'set_goal',
+          needsConfirmation: false,
+          queryResult: { kind: 'goal', goal: result.goal },
+          echo: text,
+        }),
+      );
+    }
+    return c.json(
+      ok({ intent: 'set_goal', needsConfirmation: true, followupQuestion: result.message, echo: text }),
+    );
+  }
 
   // Free-form chat → defer to the copilot stream endpoint. But guard against
   // the classifier labeling a bare spend word ("chai") or a bare number

@@ -102,7 +102,13 @@ async function llmCounterparty(text: string): Promise<{ counterparty: string | n
 
 /** Extract everything the ledger needs from a lend/borrow utterance. */
 export async function extractDebt(text: string, _locale?: string): Promise<DebtExtraction> {
-  const amt = extractAmount(text);
+  // The PRINCIPAL is stated before any "for <purpose>" clause:
+  //   "lent ravi 2000 for the 500 rupee book" → 2000 (not the book's 500).
+  // Parse the amount from the pre-"for" head first; only fall back to the full
+  // text when the head carries no amount (e.g. "lent for the trip 2000").
+  const head = text.split(/\s+\bfor\b\s+/i)[0] ?? text;
+  const headAmt = extractAmount(head);
+  const amt = headAmt.amount !== null ? headAmt : extractAmount(text);
   const date = extractDate(text);
   const { counterparty, note } = isAIConfigured()
     ? await llmCounterparty(text)

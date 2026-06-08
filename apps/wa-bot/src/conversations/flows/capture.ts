@@ -13,6 +13,7 @@
  * (CAPTURE_CONFIRM when the API returned a draft; LINKED_MAIN otherwise).
  */
 import type { Session, IncomingMessage } from '../../types.ts';
+import { isLanguage, type Language, LANGUAGE_META } from '@versifine/shared';
 import {
   ApiClientError,
   askCopilot,
@@ -88,6 +89,29 @@ function renderCaptureResponse(session: Session, response: CaptureResponseShape)
     if (moneyKind === 'transfer' && qr?.transfer) {
       const text = m.transferLogged(qr.transfer as TransferView);
       return { text, speakable: text };
+    }
+    if (moneyKind === 'goal' && qr?.goal) {
+      const g = qr.goal as { name: string; targetAmount: number; deadline: string | null };
+      const text = m.goalSet(g.name, g.targetAmount, g.deadline);
+      return { text, speakable: text };
+    }
+    if (moneyKind === 'change_language') {
+      // The API resolved a target language from the user's request ("talk to
+      // me in Tamil", "telugu lo matladu"). Flip the live session language so
+      // the engine's localize() renders the confirmation — and every reply
+      // after — in the new language; the engine persists it on the way out.
+      const lang = typeof qr?.language === 'string' ? qr.language : null;
+      if (lang && isLanguage(lang)) {
+        updateSession(session.phone, { language: lang as Language });
+        const mt = getMessages(lang as Language);
+        const label = LANGUAGE_META[lang as Language].englishName;
+        const text = mt.languageChanged?.(label) ?? `Done — I'll reply in ${label} from now on.`;
+        return { text, speakable: text };
+      }
+      // Couldn't resolve the target → drop into language-pick mode and show
+      // the menu (the user can tap or type a language).
+      setState(session.phone, 'AWAITING_LANGUAGE');
+      return { text: m.greeting };
     }
 
     if (

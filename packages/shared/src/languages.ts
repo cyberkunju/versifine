@@ -201,3 +201,61 @@ export function detectScript(text: string): Language | null {
 export function isDevanagari(lang: Language): boolean {
   return LANGUAGE_META[lang].scriptBlock === 'Devanagari';
 }
+
+/**
+ * Extra romanised aliases / common misspellings that map to a language code,
+ * beyond the canonical English + native names already in LANGUAGE_META.
+ */
+const LANGUAGE_NAME_ALIASES: Record<string, Language> = {
+  english: 'en',
+  angrezi: 'en',
+  hindi: 'hi',
+  hinglish: 'hi',
+  hindustani: 'hi',
+  malayalam: 'ml',
+  manglish: 'ml',
+  tamil: 'ta',
+  tanglish: 'ta',
+  telugu: 'te',
+  tenglish: 'te',
+  kannada: 'kn',
+  kanglish: 'kn',
+  bengali: 'bn',
+  bangla: 'bn',
+  marathi: 'mr',
+  gujarati: 'gu',
+  gujrati: 'gu',
+  punjabi: 'pa',
+  panjabi: 'pa',
+  odia: 'od',
+  oriya: 'od',
+  odiya: 'od',
+};
+
+/**
+ * Resolve a free-text language NAME — English name ("Tamil"), native name
+ * ("தமிழ்"), or a common romanised alias / misspelling ("bangla", "oriya",
+ * "hinglish") — to a Language code. Returns null when nothing matches, which
+ * callers treat as "show the language menu". Case-insensitive; tolerant of
+ * surrounding punctuation/whitespace.
+ */
+export function resolveLanguageName(input: string | null | undefined): Language | null {
+  if (!input) return null;
+  const raw = input.trim().toLowerCase().replace(/[.,!?;:]+$/g, '');
+  if (!raw) return null;
+  // Direct alias hit.
+  if (LANGUAGE_NAME_ALIASES[raw]) return LANGUAGE_NAME_ALIASES[raw];
+  // Exact English/native name.
+  for (const lang of LANGUAGES) {
+    const meta = LANGUAGE_META[lang];
+    if (raw === meta.englishName.toLowerCase() || input.trim() === meta.nativeName) return lang;
+  }
+  // Substring/token match (handles "in tamil please", "தமிழ் ல", "to hindi").
+  for (const [alias, lang] of Object.entries(LANGUAGE_NAME_ALIASES)) {
+    if (new RegExp(`\\b${alias}\\b`).test(raw)) return lang;
+  }
+  for (const lang of LANGUAGES) {
+    if (input.includes(LANGUAGE_META[lang].nativeName)) return lang;
+  }
+  return null;
+}

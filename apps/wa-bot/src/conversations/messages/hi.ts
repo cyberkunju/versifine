@@ -225,6 +225,9 @@ export const hi: MessagePack = {
   transferLogged: (v: TransferView) =>
     `✅ ${formatAmount(v.amount, v.currency)} ${v.fromName} से ${v.toName} में भेज दिए। (यह खर्च में नहीं गिना जाता।)`,
 
+  goalSet: (name, targetAmount, deadline) =>
+    `🎯 लक्ष्य तय: ${name} — ${formatAmount(targetAmount, 'INR')} बचाने हैं${deadline ? ` ${deadline} तक` : ''}। मैं आपकी प्रगति देखता रहूँगा।`,
+
   budgetAskCategory: 'किस कैटेगरी के लिए? (जैसे Groceries, Restaurants, Transportation)',
   budgetAskAmount: (category) => `${category} के लिए हर महीने कितना?`,
   budgetSet: (category, amount) =>

@@ -522,10 +522,20 @@ export async function parseExpense(input: ParseInput): Promise<ParsedExpense> {
 
     if (memHit?.type === 'exact') {
       log.info('PARSE_TIER0_HIT', { spaceId: input.spaceId, similarity: memHit.similarity });
-      // Return the cached result, but keep the `needs` list fresh in case
-      // wallets have changed since it was stored.
-      const cached = { ...memHit.parsedResult, needs: computeNeeds(memHit.parsedResult) };
-      return cached;
+      // Return the cached result, but (a) self-heal stale NUMERICS and (b) keep
+      // the `needs` list fresh. The deterministic extractors are versionless
+      // truth — when they disagree with the cached amount/currency (because the
+      // parser improved since this row was stored: "80 hazaar"→₹80 cached but
+      // now ₹80,000, a fixed fraction word, a stripped year/phone), the fresh
+      // value wins. This stops the utterance cache from masking parser fixes
+      // for returning users without a DB migration or cache wipe.
+      const cached: ParsedExpense = { ...memHit.parsedResult };
+      const fresh = extractAmount(text);
+      if (fresh.amount !== null && fresh.amount !== cached.amount) {
+        cached.amount = fresh.amount;
+        if (fresh.currency) cached.currency = fresh.currency;
+      }
+      return { ...cached, needs: computeNeeds(cached) };
     }
 
     if (memHit?.type === 'prior') {

@@ -183,6 +183,9 @@ export interface MessagePack {
   /** Transfer between the user's own wallets logged (not a spend). */
   transferLogged: (v: TransferView) => string;
 
+  /** A savings goal was created from natural language. */
+  goalSet: (name: string, targetAmount: number, deadline: string | null) => string;
+
   /** Budget set-budget flow */
   budgetAskCategory: string;
   budgetAskAmount: (category: string) => string;

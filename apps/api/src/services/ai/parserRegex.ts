@@ -71,6 +71,41 @@ const QUANTITY_UNIT =
   /^\s*(?:x|nos?|pcs?|pieces?|plates?|cups?|glasses?|kg|kgs?|g|grams?|litres?|liters?|l|ml|people|persons?|friends?|times?|months?|years?|days?|weeks?|hours?|hrs?|%|percent)\b/i;
 
 /**
+ * Temporal prepositions that, when sitting IMMEDIATELY before a bare 4-digit
+ * number, mark it as a YEAR rather than a spend. Anchored with `$` so only the
+ * word directly preceding the number is considered ("...from 1850" hits,
+ * "from the shop 1850" does not).
+ */
+const TEMPORAL_PREFIX = /(?:^|[^\p{L}])(?:in|from|by|during|since|year|yr)\s+$/iu;
+
+/**
+ * A bare number that is really a calendar/sci-fi YEAR, not an amount. Fires
+ * ONLY when ALL hold:
+ *   - the token is exactly 4 digits (no comma, no decimal, no scale suffix)
+ *   - the value lands in a year band: [1800..2099] (history→near future) or
+ *     [3000..3099] (sci-fi, e.g. "in 3024 I will buy a spaceship")
+ *   - it is NOT introduced by a price marker ("spent 1850", "for 2020" stay
+ *     amounts) — currency-attached forms never reach here, they are matched by
+ *     the leading/trailing currency passes in extractAmount
+ *   - it IS introduced by a temporal preposition (in/from/by/during/since/year)
+ * This is deliberately conservative: "1850" or "₹2020" or "spent 1900" all
+ * remain real amounts; only "expense from 1850"-style phrasing is rejected.
+ */
+function looksLikeYear(
+  value: number,
+  rawToken: string,
+  suffix: string | null,
+  before: string,
+): boolean {
+  if (suffix) return false;
+  if (!/^\d{4}$/.test(rawToken)) return false;
+  const inBand = (value >= 1800 && value <= 2099) || (value >= 3000 && value <= 3099);
+  if (!inBand) return false;
+  if (PRICE_MARKER.test(before)) return false;
+  return TEMPORAL_PREFIX.test(before);
+}
+
+/**
  * Pull an amount out of a sentence. Recognises a leading currency
  * symbol/word, a trailing currency symbol/word, and bare numbers like
  * "450" or "3,200" or "1.5k".
@@ -212,6 +247,10 @@ interface BareCandidate {
   index: number;
   afterPriceMarker: boolean;
   beforeQuantityUnit: boolean;
+  isYear: boolean;
+  /** 4-digit, in a year band, no price marker, no scale — a YEAR if a sibling
+   *  year is confirmed (handles ranges: "from 1999 to 2024" → both years). */
+  yearBandEligible: boolean;
 }
 
 /**
@@ -239,27 +278,46 @@ function pickBareAmount(text: string): number | null {
     // are written with a separator ("spent 500", "₹500", "500rs" — the
     // currency-attached forms are handled earlier in extractAmount).
     if (/[A-Za-z0-9]$/.test(before) || /^[A-Za-z0-9]/.test(after)) continue;
+    const isYear = looksLikeYear(value, m[1]!, m[2] ?? null, before);
     candidates.push({
       value,
       index: m.index,
       afterPriceMarker: PRICE_MARKER.test(before),
       beforeQuantityUnit: QUANTITY_UNIT.test(after),
+      isYear,
+      yearBandEligible:
+        !m[2] &&
+        /^\d{4}$/.test(m[1]!) &&
+        ((value >= 1800 && value <= 2099) || (value >= 3000 && value <= 3099)) &&
+        !PRICE_MARKER.test(before),
     });
   }
   if (candidates.length === 0) return null;
-  if (candidates.length === 1) {
+  // Range handling: once ANY figure is a confirmed year ("from 1999 …"), every
+  // other bare year-band figure with no price marker is also a year — so
+  // "from 1999 to 2024" drops BOTH, not just the one after "from".
+  if (candidates.some((c) => c.isYear)) {
+    for (const c of candidates) {
+      if (c.yearBandEligible) c.isYear = true;
+    }
+  }
+  // Drop bare years ("from 1850", "in 3024 …"). If EVERY figure was a year,
+  // there is no spend to mine — return null rather than logging the year.
+  const real = candidates.filter((c) => !c.isYear);
+  if (real.length === 0) return null;
+  if (real.length === 1) {
     // A lone number that is immediately a QUANTITY ("3 days", "2 years",
     // "5 people") and is NOT introduced by a price marker is a count, not a
     // spend — don't mine it. This stops "headache for 3 days" → ₹3.
-    const only = candidates[0]!;
+    const only = real[0]!;
     if (only.beforeQuantityUnit && !only.afterPriceMarker) return null;
     return only.value;
   }
 
-  const maxValue = Math.max(...candidates.map((c) => c.value));
+  const maxValue = Math.max(...real.map((c) => c.value));
   let best: BareCandidate | null = null;
   let bestScore = Number.NEGATIVE_INFINITY;
-  for (const c of candidates) {
+  for (const c of real) {
     let score = 0;
     if (c.afterPriceMarker) score += 5;
     if (c.beforeQuantityUnit) score -= 4;
@@ -317,6 +375,24 @@ interface WordedToken {
   value: number;
   /** A scale multiplier (hundred/thousand/lakh/crore) vs an additive unit. */
   scale: boolean;
+  /**
+   * Indian fractional number-word modifier. Two flavours:
+   *   - `whole`  : a COMPLETE multiplier that ignores any following count.
+   *                "dhai"/"ढाई" = 2.5, "dedh"/"डेढ़" = 1.5.
+   *   - `offset` : a +/- applied to the FOLLOWING count (default count 1).
+   *                "sava"/"सवा" = +0.25  → sava lakh = 1.25 lakh
+   *                "sadhe"/"साढ़े" = +0.5 → sadhe teen sau = 3.5 × 100 = 350
+   *                "pauna"/"पौने" = -0.25 → pauna be lakh = (2−0.25) lakh = 1.75 lakh
+   */
+  frac?: { whole?: number; offset?: number };
+  /**
+   * "Weak" units are romanised Indic transliterations (do=2, teen=3, char=4…)
+   * that collide with everyday English ("do", "char", "teen"). They only count
+   * inside a run that ALSO carries a scale or fraction word — a run made of
+   * weak units alone is discarded so "what to do today" never logs ₹2. Native
+   * scripts and English number words stay strong.
+   */
+  weak?: boolean;
 }
 
 /** Additive units (value < 100), keyed by lower-cased word in every language. */
@@ -455,6 +531,51 @@ const WORDED_UNITS: Record<string, number> = {
   ಎಪ್ಪತ್ತು: 70,
   ಎಂಬತ್ತು: 80,
   ತೊಂಬತ್ತು: 90,
+  // --- Marathi (Devanagari; shares Hindi digits, distinct "two"/"hundred") ---
+  दोन: 2,
+  बे: 2,
+  // --- Bengali ---------------------------------------------------------
+  শূন্য: 0,
+  এক: 1,
+  দুই: 2,
+  তিন: 3,
+  চার: 4,
+  পাঁচ: 5,
+  ছয়: 6,
+  সাত: 7,
+  আট: 8,
+  নয়: 9,
+  দশ: 10,
+  বিশ: 20,
+  ত্রিশ: 30,
+  পঞ্চাশ: 50,
+  // --- Gujarati --------------------------------------------------------
+  એક: 1,
+  બે: 2,
+  ત્રણ: 3,
+  ચાર: 4,
+  પાંચ: 5,
+  દસ: 10,
+  વીસ: 20,
+  પચાસ: 50,
+  // --- Punjabi (Gurmukhi) ---------------------------------------------
+  ਇੱਕ: 1,
+  ਦੋ: 2,
+  ਤਿੰਨ: 3,
+  ਚਾਰ: 4,
+  ਪੰਜ: 5,
+  ਦਸ: 10,
+  ਵੀਹ: 20,
+  ਪੰਜਾਹ: 50,
+  // --- Odia ------------------------------------------------------------
+  ଏକ: 1,
+  ଦୁଇ: 2,
+  ତିନି: 3,
+  ଚାରି: 4,
+  ପାଞ୍ଚ: 5,
+  ଦଶ: 10,
+  କୋଡ଼ିଏ: 20,
+  ପଚାଶ: 50,
 };
 
 /** Scale multipliers, keyed by lower-cased word in every language. */
@@ -499,10 +620,170 @@ const WORDED_SCALES: Record<string, number> = {
   ಸಾವಿರ: 1_000,
   ಲಕ್ಷ: 100_000,
   ಕೋಟಿ: 10_000_000,
+  // --- Romanised scales (all langs; needed for worded fractions like
+  //     "dedh hazaar", "sadhe teen sau"). "so" is intentionally OMITTED —
+  //     it collides with the English word "so"; only "sau"/"sao" map to 100. ---
+  sau: 100,
+  sao: 100,
+  hazaar: 1_000,
+  hazar: 1_000,
+  hajaar: 1_000,
+  hajar: 1_000,
+  saavira: 1_000,
+  savira: 1_000,
+  aayiram: 1_000,
+  ayiram: 1_000,
+  laksh: 100_000,
+  laksham: 100_000,
+  koti: 10_000_000,
+  kodi: 10_000_000,
+  // --- Bengali ---------------------------------------------------------
+  শো: 100,
+  একশো: 100,
+  হাজার: 1_000,
+  লাখ: 100_000,
+  লক্ষ: 100_000,
+  কোটি: 10_000_000,
+  // --- Marathi ---------------------------------------------------------
+  शंभर: 100,
+  // --- Gujarati --------------------------------------------------------
+  સો: 100,
+  હજાર: 1_000,
+  લાખ: 100_000,
+  કરોડ: 10_000_000,
+  // --- Punjabi ---------------------------------------------------------
+  ਸੌ: 100,
+  ਹਜ਼ਾਰ: 1_000,
+  ਲੱਖ: 100_000,
+  ਕਰੋੜ: 10_000_000,
+  // --- Odia ------------------------------------------------------------
+  ଶହ: 100,
+  ଶହେ: 100,
+  ହଜାର: 1_000,
+  ଲକ୍ଷ: 100_000,
+  କୋଟି: 10_000_000,
+};
+
+/**
+ * Fractional/compound Indian number words. They sit IN FRONT of a count and/or
+ * a scale word and bend the value by a quarter or a half:
+ *   "ढाई सौ"        = 2.5 × 100      = 250
+ *   "सवा लाख"       = 1.25 × 100000  = 125000
+ *   "पौने बे लाख"   = (2−0.25) lakh  = 175000
+ *   "dedh hazaar"   = 1.5 × 1000     = 1500
+ *   "sadhe teen sau"= (3+0.5) × 100  = 350
+ * `whole` is a complete multiplier (ignores a following count); `offset` is a
+ * +/- applied to the following count (which defaults to 1 when none follows).
+ * Romanised forms are safe (none are English words); "be"/"so" are left out of
+ * the romanised set on purpose — only their native forms (बे/બે/সো…) are mapped.
+ */
+const WORDED_FRACTIONS: Record<string, { whole?: number; offset?: number }> = {
+  // ── 2.5  "two and a half" ──────────────────────────────────────────
+  dhai: { whole: 2.5 },
+  dhaai: { whole: 2.5 },
+  adhai: { whole: 2.5 },
+  adhaai: { whole: 2.5 },
+  ढाई: { whole: 2.5 },
+  अढाई: { whole: 2.5 },
+  ढ़ाई: { whole: 2.5 },
+  adich: { whole: 2.5 }, // Marathi अडीच
+  adhich: { whole: 2.5 },
+  अडीच: { whole: 2.5 },
+  adhi: { whole: 2.5 }, // Gujarati અઢી
+  અઢી: { whole: 2.5 },
+  araai: { whole: 2.5 }, // Bengali আড়াই
+  আড়াই: { whole: 2.5 },
+  ਢਾਈ: { whole: 2.5 }, // Punjabi
+  ଅଢେଇ: { whole: 2.5 }, // Odia
+  // ── 1.5  "one and a half" ──────────────────────────────────────────
+  dedh: { whole: 1.5 },
+  ded: { whole: 1.5 },
+  derh: { whole: 1.5 },
+  देढ़: { whole: 1.5 },
+  डेढ़: { whole: 1.5 },
+  डेढ: { whole: 1.5 },
+  deed: { whole: 1.5 }, // Marathi दीड
+  दीड: { whole: 1.5 },
+  dodh: { whole: 1.5 }, // Gujarati દોઢ
+  દોઢ: { whole: 1.5 },
+  der: { whole: 1.5 }, // Bengali দেড়
+  দেড়: { whole: 1.5 },
+  ਡੇਢ: { whole: 1.5 }, // Punjabi
+  ଦେଢ଼: { whole: 1.5 }, // Odia
+  // ── +0.25  "sava" (a quarter past) ─────────────────────────────────
+  sava: { offset: 0.25 },
+  sawa: { offset: 0.25 },
+  savaa: { offset: 0.25 },
+  savva: { offset: 0.25 }, // Marathi सव्वा
+  सवा: { offset: 0.25 },
+  सव्वा: { offset: 0.25 },
+  સવા: { offset: 0.25 },
+  soya: { offset: 0.25 }, // Bengali সোয়া
+  সোয়া: { offset: 0.25 },
+  ਸਵਾ: { offset: 0.25 }, // Punjabi
+  ସୱା: { offset: 0.25 }, // Odia
+  // ── +0.5  "sadhe" (and a half) ─────────────────────────────────────
+  sadhe: { offset: 0.5 },
+  saadhe: { offset: 0.5 },
+  sade: { offset: 0.5 },
+  साढ़े: { offset: 0.5 },
+  साढे: { offset: 0.5 },
+  साडे: { offset: 0.5 }, // Marathi साडे
+  sada: { offset: 0.5 }, // Gujarati સાડા
+  સાડા: { offset: 0.5 },
+  sare: { offset: 0.5 }, // Bengali সাড়ে
+  সাড়ে: { offset: 0.5 },
+  ਸਾਢੇ: { offset: 0.5 }, // Punjabi
+  ସାଢେ: { offset: 0.5 }, // Odia
+  // ── −0.25  "pauna" (a quarter to) ──────────────────────────────────
+  pauna: { offset: -0.25 },
+  paune: { offset: -0.25 },
+  pona: { offset: -0.25 },
+  poona: { offset: -0.25 },
+  paun: { offset: -0.25 }, // Marathi पाऊण
+  पौना: { offset: -0.25 },
+  पौने: { offset: -0.25 },
+  पोणा: { offset: -0.25 },
+  पाऊण: { offset: -0.25 },
+  પોણા: { offset: -0.25 },
+  poune: { offset: -0.25 }, // Bengali পৌনে
+  পৌনে: { offset: -0.25 },
+  ਪੌਣਾ: { offset: -0.25 }, // Punjabi
+  ପୌଣା: { offset: -0.25 }, // Odia
 };
 
 /** Connector words that join number words without breaking a run or adding value. */
 const WORDED_CONNECTORS = new Set(['and']);
+
+/**
+ * Romanised Indic unit words (do=2, teen=3, char=4 …). They collide with
+ * English, so they are registered as WEAK: a worded run consisting only of
+ * weak units is dropped; they only contribute when bound to a scale/fraction
+ * ("sava do lakh", "sadhe teen sau", "paanch sau"). Native-script equivalents
+ * live in WORDED_UNITS and are strong.
+ */
+const WORDED_WEAK_UNITS: Record<string, number> = {
+  ek: 1,
+  do: 2,
+  be: 2, // gu/mr "two"
+  bey: 2,
+  teen: 3,
+  char: 4,
+  paanch: 5,
+  panch: 5,
+  chhe: 6,
+  chha: 6,
+  saat: 7,
+  aath: 8,
+  nau: 9,
+  das: 10,
+  // romanised round tens used with hundred/scale ("pachas hazaar" = 50000)
+  bees: 20,
+  tees: 30,
+  chalis: 40,
+  pachas: 50,
+  saath: 60,
+};
 
 const WORDED_LOOKUP: Map<string, WordedToken> = (() => {
   const map = new Map<string, WordedToken>();
@@ -512,6 +793,15 @@ const WORDED_LOOKUP: Map<string, WordedToken> = (() => {
   for (const [word, value] of Object.entries(WORDED_SCALES)) {
     // Scale words take precedence if a key ever collides with a unit.
     map.set(word, { value, scale: true });
+  }
+  for (const [word, frac] of Object.entries(WORDED_FRACTIONS)) {
+    // Fraction modifiers carry no standalone additive/scale value; the
+    // composer reads `frac` and applies it to the following count/scale.
+    map.set(word, { value: 0, scale: false, frac });
+  }
+  for (const [word, value] of Object.entries(WORDED_WEAK_UNITS)) {
+    // Don't clobber a strong/native mapping if one already exists for the key.
+    if (!map.has(word)) map.set(word, { value, scale: false, weak: true });
   }
   return map;
 })();
@@ -540,23 +830,57 @@ function tokenizeWords(text: string): string[] {
 function composeWordedNumber(parts: WordedToken[]): number {
   let result = 0;
   let current = 0;
+  let fracWhole: number | null = null; // dhai=2.5, dedh=1.5 — complete multiplier
+  let fracOffset: number | null = null; // sava=+0.25, sadhe=+0.5, pauna=-0.25
+
+  // The base a scale word multiplies: a pending whole-fraction wins, else a
+  // pending offset over an implied count of 1, else the group built so far.
+  const takeBase = (): number => {
+    if (fracWhole !== null) {
+      const b = fracWhole;
+      fracWhole = null;
+      return b;
+    }
+    if (fracOffset !== null) {
+      const b = 1 + fracOffset;
+      fracOffset = null;
+      return b;
+    }
+    return current === 0 ? 1 : current;
+  };
+
   for (const part of parts) {
+    if (part.frac) {
+      if (part.frac.whole != null) fracWhole = part.frac.whole;
+      else fracOffset = part.frac.offset ?? 0;
+      continue;
+    }
     if (!part.scale) {
-      if (current > 0 && current < part.value) {
+      if (fracOffset !== null) {
+        // "sava do" → 2.25, "pauna be" → 1.75, "sadhe teen" → 3.5.
+        current += part.value + fracOffset;
+        fracOffset = null;
+      } else if (fracWhole !== null) {
+        // A bare count after a whole-fraction is unusual; fold additively.
+        current += fracWhole + part.value;
+        fracWhole = null;
+      } else if (current > 0 && current < part.value) {
         current = current * part.value;
       } else {
         current += part.value;
       }
     } else if (part.value === 100) {
-      // "hundred" multiplies the group built so far (defaulting to one).
-      current = (current === 0 ? 1 : current) * 100;
+      // "hundred" multiplies the group/fraction built so far (default one).
+      current = takeBase() * 100;
     } else {
       // thousand / lakh / crore flush the current group and scale it up.
-      const group = current === 0 ? 1 : current;
-      result += group * part.value;
+      result += takeBase() * part.value;
       current = 0;
     }
   }
+  // Flush a dangling fraction with no following scale ("dhai" alone = 2.5).
+  if (fracWhole !== null) current += fracWhole;
+  else if (fracOffset !== null) current += 1 + fracOffset;
   return result + current;
 }
 
@@ -588,6 +912,18 @@ function pickWordedAmount(text: string): { value: number; currency: Currency | n
 
   let best: number | null = null;
   for (const run of runs) {
+    // A run must carry a real magnitude to count. Valid signals:
+    //   - a scale word (hundred/thousand/lakh/…), OR
+    //   - a STRONG additive unit (English/native number word, not a romanised
+    //     weak unit, not a bare fraction).
+    // A run of ONLY fraction words ("sava", "der", "pona") and/or weak units
+    // ("do", "be") fabricates a 0.75–2.5 amount from a name or interjection —
+    // discard it. "sava lakh"/"ढाई सौ" survive via their scale word; "fifty"
+    // and "twenty five" survive via strong units.
+    const hasStrongSignal = run.some(
+      (t) => t.scale || (!t.weak && !t.frac && t.value > 0),
+    );
+    if (!hasStrongSignal) continue;
     const value = composeWordedNumber(run);
     if (value > 0 && (best === null || value > best)) best = value;
   }

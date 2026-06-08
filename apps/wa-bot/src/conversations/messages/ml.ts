@@ -229,6 +229,9 @@ export const ml: MessagePack = {
   transferLogged: (v: TransferView) =>
     `✅ ${formatAmount(v.amount, v.currency)} ${v.fromName}-ൽ നിന്ന് ${v.toName}-ലേക്ക് മാറ്റി. (ഇത് ചെലവായി കണക്കാക്കില്ല.)`,
 
+  goalSet: (name, targetAmount, deadline) =>
+    `🎯 ലക്ഷ്യം സെറ്റ് ചെയ്തു: ${name} — ${formatAmount(targetAmount, 'INR')} സമ്പാദിക്കണം${deadline ? ` ${deadline}-നകം` : ''}. നിങ്ങളുടെ പുരോഗതി ഞാൻ ട്രാക്ക് ചെയ്യാം.`,
+
   budgetAskCategory: 'ഏത് കാറ്റഗറിക്കാണ്? (Groceries, Restaurants, Transportation പോലെ)',
   budgetAskAmount: (category) => `${category}-നു ഓരോ മാസവും എത്ര?`,
   budgetSet: (category, amount) =>
