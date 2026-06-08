@@ -28,6 +28,9 @@ export type TranscribeSource = 'gpt-4o-transcribe' | 'whisper-1' | 'sarvam' | 'm
 
 export interface TranscribeResult {
   text: string;
+  /** Native-script transcript for the "🎤 ..." echo (what the user actually
+   *  said, in their own language). Falls back to `text` when unavailable. */
+  echoText: string;
   language: string;
   source: TranscribeSource;
 }
@@ -165,10 +168,52 @@ async function transcribeSarvam(
     if (!text) return null;
     // Saaras outputs English; keep the user's session language (fallback) for
     // the reply rather than flipping to 'en' off the translated text.
-    return { text, language: fallback ?? 'en', source: 'sarvam' };
+    return { text, echoText: text, language: fallback ?? 'en', source: 'sarvam' };
   } catch (err) {
     log.warn('SARVAM_STT_FAIL', {
       error: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    });
+    return null;
+  }
+}
+
+/**
+ * Sarvam Saarika native transcription (`/speech-to-text`) — returns the audio
+ * in its OWN script (Malayalam stays Malayalam, code-mix transliterates
+ * readably), with numbers as digits. Used ONLY to produce the "🎤 ..." echo so
+ * the user sees what they actually said in their language. Understanding still
+ * uses the English translate transcript. Returns null on any failure (the echo
+ * then falls back to the English text).
+ */
+const SARVAM_NATIVE_STT_MODEL = 'saarika:v2.5';
+
+async function transcribeSarvamNative(
+  audio: Buffer,
+  mimetype: string,
+  bcp47: string | undefined,
+): Promise<string | null> {
+  if (!env.SARVAM_API_KEY) return null;
+  const cleanMime = (mimetype.split(';')[0] || 'audio/ogg').trim();
+  try {
+    const result = await withLatency('transcribe.sarvam.native', async () => {
+      const fd = new FormData();
+      fd.append('file', new Blob([new Uint8Array(audio)], { type: cleanMime }), filenameFor(cleanMime));
+      fd.append('model', SARVAM_NATIVE_STT_MODEL);
+      // language_code helps accuracy; "unknown" lets Saarika auto-detect.
+      fd.append('language_code', bcp47 && bcp47.length >= 5 ? bcp47 : 'unknown');
+      const res = await fetch(`${env.SARVAM_API_URL.replace(/\/+$/, '')}/speech-to-text`, {
+        method: 'POST',
+        headers: { 'api-subscription-key': env.SARVAM_API_KEY as string },
+        body: fd,
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return (await res.json()) as { transcript?: string };
+    });
+    const text = (result.transcript ?? '').trim();
+    return text || null;
+  } catch (err) {
+    log.warn('SARVAM_NATIVE_STT_FAIL', {
+      error: err instanceof Error ? err.message.slice(0, 160) : String(err),
     });
     return null;
   }
@@ -206,7 +251,7 @@ async function transcribeMai(
     });
     const text = (result.combinedPhrases?.[0]?.text ?? '').trim();
     if (!text) return null;
-    return { text, language: resolveLanguage(text, undefined, lang), source: 'mai' };
+    return { text, echoText: text, language: resolveLanguage(text, undefined, lang), source: 'mai' };
   } catch (err) {
     log.warn('MAI_STT_FAIL', {
       error: err instanceof Error ? err.message.slice(0, 200) : String(err),
@@ -227,8 +272,14 @@ export async function transcribe(
   // (e.g. Malayalam "പിന്നെ"→"പിള്ളെ"), keeps the source script, and is
   // faster. Any failure (30s sync limit, network, empty) falls through.
   if (env.SARVAM_API_KEY && fallback && SARVAM_LANGS.has(fallback)) {
-    const sv = await transcribeSarvam(audio, mimetype, fallback);
-    if (sv) return sv;
+    // Fire BOTH in parallel (no added latency): the English translate
+    // transcript (for understanding) and the native-script transcript (for the
+    // "🎤 ..." echo so the user sees their own language).
+    const [sv, native] = await Promise.all([
+      transcribeSarvam(audio, mimetype, fallback),
+      transcribeSarvamNative(audio, mimetype, language),
+    ]);
+    if (sv) return { ...sv, echoText: native ?? sv.text };
     log.warn('SARVAM_STT_FALLBACK', { language: fallback });
   }
 
@@ -244,6 +295,7 @@ export async function transcribe(
     log.warn('AI_TRANSCRIBE_MOCK', { reason: 'no_api_key', mimetype });
     return {
       text: '',
+      echoText: '',
       language: bareLanguageHint(language) ?? 'en',
       source: 'mock',
     };
@@ -251,7 +303,7 @@ export async function transcribe(
 
   const client = getOpenAI();
   if (!client) {
-    return { text: '', language: bareLanguageHint(language) ?? 'en', source: 'mock' };
+    return { text: '', echoText: '', language: bareLanguageHint(language) ?? 'en', source: 'mock' };
   }
 
   const filename = filenameFor(mimetype);
@@ -269,6 +321,7 @@ export async function transcribe(
     const text = (result.text ?? '').trim();
     return {
       text,
+      echoText: text,
       language: resolveLanguage(text, (result as { language?: string }).language, fallback),
       source: 'gpt-4o-transcribe',
     };
@@ -298,6 +351,7 @@ export async function transcribe(
         : undefined;
     return {
       text,
+      echoText: text,
       language: resolveLanguage(text, detected, fallback),
       source: 'whisper-1',
     };
@@ -305,6 +359,6 @@ export async function transcribe(
     log.error('AI_TRANSCRIBE_FAIL', {
       error: err instanceof Error ? err.message.slice(0, 240) : String(err),
     });
-    return { text: '', language: fallback ?? 'en', source: 'mock' };
+    return { text: '', echoText: '', language: fallback ?? 'en', source: 'mock' };
   }
 }

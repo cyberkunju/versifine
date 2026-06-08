@@ -285,10 +285,11 @@ async function maybeTranscribe(
   session: Session,
 ): Promise<{
   text: string;
+  echoText: string;
   language: Language;
 }> {
   if (!message.hasAudio || !message.audioBuffer) {
-    return { text: message.body, language: session.language };
+    return { text: message.body, echoText: message.body, language: session.language };
   }
   // Pass the user's chosen language only as a SOFT fallback — the transcriber
   // auto-detects so code-mixed / English speech isn't mangled into the wrong
@@ -301,9 +302,9 @@ async function maybeTranscribe(
     LANGUAGE_META[session.language].bcp47,
   );
   if (!result.text) {
-    return { text: '', language: session.language };
+    return { text: '', echoText: '', language: session.language };
   }
-  return { text: result.text, language: session.language };
+  return { text: result.text, echoText: result.echoText || result.text, language: session.language };
 }
 
 async function localize(text: string, language: Language): Promise<string> {
@@ -329,6 +330,7 @@ export async function runEngine(message: IncomingMessage): Promise<OutgoingReply
   // same audio a second time. We keep the transcript to (a) decide routing
   // and (b) echo it back to the user so they see what we heard.
   let voiceTranscript: string | null = null;
+  let voiceEcho: string | null = null;
   if (message.hasAudio && message.audioBuffer) {
     setReplyMode(message.phone, 'auto');
     const transcribed = await maybeTranscribe(message, session);
@@ -340,6 +342,9 @@ export async function runEngine(message: IncomingMessage): Promise<OutgoingReply
     // (intent + multilingual parser + regex amount extraction) already handles
     // raw, code-mixed Indic speech, so the faithful transcript is what routes.
     voiceTranscript = rawTranscript ? rawTranscript : null;
+    // The echo shows the user their own words in their own language (native
+    // script), while `voiceTranscript` (English) drives understanding.
+    voiceEcho = transcribed.echoText.trim() || voiceTranscript;
     log.info('VOICE_TRANSCRIBED', {
       phone: session.phone,
       length: transcribed.text.length,
@@ -457,7 +462,7 @@ export async function runEngine(message: IncomingMessage): Promise<OutgoingReply
   // Voice-in → prefix the reply with what we heard so the user can confirm
   // the transcription, and mirror the modality (voice-in → voice-out).
   const wasVoice = voiceTranscript !== null;
-  const withTranscript = wasVoice ? `🎤 _“${voiceTranscript}”_\n\n${localized}` : localized;
+  const withTranscript = wasVoice ? `🎤 _“${voiceEcho ?? voiceTranscript}”_\n\n${localized}` : localized;
 
   const speakable = outcome.speakable !== false && active.replyMode !== 'text' && wasVoice;
   // Only the actual answer is spoken, never the transcript echo.
