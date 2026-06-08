@@ -12,7 +12,7 @@ The same map in three places (env defaults, design.md, and this file). Source of
 | Receipt vision | `gpt-5.4-nano` | `OPENAI_VISION_MODEL` | API |
 | Expense parse | `gpt-5.4-nano` | `OPENAI_PARSE_MODEL` | API |
 | Intent classify | `gpt-5.4-nano` | `OPENAI_NLU_MODEL` | API |
-| Copilot chat | `gpt-5-mini` | `OPENAI_CHAT_MODEL` | API (streaming) |
+| Copilot chat | `gpt-5.4-nano` | `OPENAI_CHAT_MODEL` | API (streaming) |
 | Translate | `gpt-5.4-nano` (Sarvam Mayura primary in bot) | `OPENAI_TRANSLATE_MODEL` | API + bot |
 | Embeddings | `Cohere-embed-v3-multilingual` | `OPENAI_EMBED_MODEL` | API (1024-dim) |
 

@@ -139,7 +139,7 @@ End-to-end audio test pending a real voice sample at wiring time.
 | `OPENAI_PARSE_MODEL` | gpt-5.4-nano | **gpt-5.4-nano** ✅ |
 | `OPENAI_TRANSLATE_MODEL` | gpt-5.4-nano | **gpt-5.4-nano** ✅ (api + wa-bot) |
 | `OPENAI_VISION_MODEL` | gpt-5.4-nano | **gpt-5.4-nano** ✅ |
-| `OPENAI_CHAT_MODEL` | gpt-5-mini | gpt-5-mini |
+| `OPENAI_CHAT_MODEL` | gpt-5-mini → **gpt-5.4-nano** | **gpt-5.4-nano** ✅ (A/B-validated; see note) |
 | `OPENAI_ESCALATION_MODEL` *(new)* | gpt-5.4-mini | not wired (⏳ needs gpt-5.4-mini quota) |
 | `OPENAI_EMBED_MODEL` | text-embedding-3-large | Cohere-embed-v3-multilingual (⏳ 3-large quota pending + bulk re-embed) |
 | `OPENAI_TRANSCRIPTION_MODEL` | MAI-Transcribe-1.5 | MAI-Transcribe-1.5 |
@@ -153,8 +153,19 @@ End-to-end audio test pending a real voice sample at wiring time.
 > `max_completion_tokens` + `reasoning_effort: minimal`). Verified live: valid
 > JSON intent/parse, multilingual fraction parse (`ढाई सौ`→₹250, `सवा लाख`→₹1,25,000),
 > Hindi translate, and image input — 0 failures, ~350ms vs gpt-5-mini's ~1.5–2.3s.
-> Still on the interim tier: copilot chat (`gpt-5-mini`), embeddings (Cohere v3),
-> and the low-confidence escalation path (needs `gpt-5.4-mini` quota).
+> Still on the interim tier: embeddings (Cohere v3), and the low-confidence
+> escalation path (needs `gpt-5.4-mini` quota).
+>
+> **Copilot chat → gpt-5.4-nano (2026-06-08):** the plan reserved chat for the
+> mini class, but a chat-specific A/B (tool-calling, grounded numeric answers,
+> multilingual fluency at a 1500-token budget, injection/off-topic safety,
+> latency) showed nano **equal-or-better** than gpt-5-mini on every dimension
+> (mini even mis-scaled a tool result 100× and contaminated a Malayalam reply
+> with a Bengali glyph; nano did neither) while running ~25–35% faster on long
+> Indic generations. So chat was moved to nano too. **When `gpt-5.4-mini` quota
+> lands**, it takes the escalation path and chat may be promoted to it (the
+> hardest generative path) — the quota table already budgeted "150 if chat
+> later moves here".
 
 > Azure uses *deployment names* (chosen at deploy time) + a Foundry endpoint +
 > `api-version`, not the raw OpenAI base URL. `client.ts` switches to the Azure

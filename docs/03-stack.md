@@ -77,7 +77,7 @@ The complete model map (mirrors the design doc):
 | Receipt vision | `OPENAI_VISION_MODEL` | `gpt-5.4-nano` |
 | Expense parser | `OPENAI_PARSE_MODEL` | `gpt-5.4-nano` |
 | Intent NLU | `OPENAI_NLU_MODEL` | `gpt-5.4-nano` |
-| Copilot chat | `OPENAI_CHAT_MODEL` | `gpt-5-mini` |
+| Copilot chat | `OPENAI_CHAT_MODEL` | `gpt-5.4-nano` |
 | Translate | `OPENAI_TRANSLATE_MODEL` | `gpt-5.4-nano` (Sarvam Mayura primary in bot) |
 | Embeddings | `OPENAI_EMBED_MODEL` | `Cohere-embed-v3-multilingual` (1024-dim) |
 | TTS (all languages) | `SARVAM_TTS_MODEL` | Sarvam `bulbul:v3` (speaker `kabir`) |
