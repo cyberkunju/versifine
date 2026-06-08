@@ -33,7 +33,7 @@
 | Vision (GPay/messy screenshots) | **gpt-5.4-nano** (image input) | printed bills go to Document Intelligence first |
 | Copilot chat | **gpt-5-mini** | natural, low-latency finance Q&A |
 | Escalation / fallback | **gpt-5.4-mini** | fires only when nano returns low confidence on a hard receipt/parse |
-| Embeddings | **text-embedding-3-large** | transaction similarity / categorization (3072-dim) |
+| Embeddings | **Cohere-embed-v3-multilingual** (1024-dim) | transaction similarity / categorization / utterance-memory; KEPT over text-embedding-3-large after benchmark (see below) |
 | English STT | **MAI-Transcribe-1.5** | #1 FLEURS; keyword-biasing toward merchants / "rupees" / UPI / finance terms |
 
 ### Sarvam (external account, not Foundry)
@@ -141,7 +141,7 @@ End-to-end audio test pending a real voice sample at wiring time.
 | `OPENAI_VISION_MODEL` | gpt-5.4-nano | **gpt-5.4-nano** ✅ |
 | `OPENAI_CHAT_MODEL` | gpt-5-mini → **gpt-5.4-nano** | **gpt-5.4-nano** ✅ (A/B-validated; see note) |
 | `OPENAI_ESCALATION_MODEL` *(new)* | gpt-5.4-mini | not wired (⏳ needs gpt-5.4-mini quota) |
-| `OPENAI_EMBED_MODEL` | text-embedding-3-large | Cohere-embed-v3-multilingual (⏳ 3-large quota pending + bulk re-embed) |
+| `OPENAI_EMBED_MODEL` | **Cohere-embed-v3-multilingual** (KEEP) | **Cohere-embed-v3-multilingual** ✅ (benchmark-backed; 3-large rejected) |
 | `OPENAI_TRANSCRIPTION_MODEL` | MAI-Transcribe-1.5 | MAI-Transcribe-1.5 |
 | `SARVAM_STT_MODEL` *(new)* | saaras:v3 | saaras:v3 |
 | `SARVAM_TTS_MODEL` *(new)* | bulbul:v3 | bulbul:v3 (speaker `kabir`) |
@@ -202,10 +202,17 @@ STT ≈ ₹0.13/note, TTS ≈ ₹0.60/reply. (List prices; Azure deployment type
 ## Open integration tasks (when keys land)
 
 **STATUS: the interim Azure/Sarvam stack is LIVE in production (cutover 2026-06-06);
-the four workhorse stages were upgraded to `gpt-5.4-nano` on 2026-06-08.**
-Direct OpenAI is no longer used except as a TTS fallback. Remaining *target*
-work is the embeddings upgrade (text-embedding-3-large + bulk re-embed) and the
-low-confidence escalation path (`gpt-5.4-mini`), both pending their own quota.
+the four workhorse stages were upgraded to `gpt-5.4-nano` on 2026-06-08, and
+copilot chat moved to nano too after an A/B.**
+Direct OpenAI is no longer used except as a TTS fallback. **Embeddings stay on
+Cohere-embed-v3-multilingual permanently** — an ultimate A/B (2026-06-08; 96
+multilingual utterances, 30-doc RAG corpus, 22 queries) showed Cohere beats
+`text-embedding-3-large` on every metric for our use, decisively on
+cross-lingual retrieval (top-1 **90% vs 40%**) and dedup (100% vs 96.9%), while
+being 3× smaller (1024 vs 3072) and faster. All 3-large configs were verified
+healthy (unit-norm, 3072 and reduced-1024) so it was a true model gap, not a
+config issue. The only remaining *target* item is the low-confidence escalation
+path (`gpt-5.4-mini`), pending its quota.
 
 Done at cutover:
 1. ✅ `client.ts` (api + wa-bot) targets Azure AI Foundry when `AZURE_AI_KEY` +
