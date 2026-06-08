@@ -51,7 +51,7 @@ import {
   handleStop,
 } from './flows/help.ts';
 import { handleLinkCommand, rePrompt } from './flows/link.ts';
-import { detectSettingsIntent } from './flows/settings.ts';
+import { detectSettingsIntent, wantsLanguageMenu } from './flows/settings.ts';
 import { hasNativePack, getMessages } from './messages/index.ts';
 import {
   buildLanguageMenuTier1,
@@ -210,6 +210,16 @@ async function dispatch(session: Session, message: IncomingMessage): Promise<Dis
   const settings = await detectSettingsIntent(session, message.body);
   if (settings) {
     return { text: settings.text, speakable: false };
+  }
+
+  // "Change language" / "which languages do you support" / a bare "language" —
+  // the user wants to choose a language but didn't name one. Show the tappable
+  // picker (tier 1). (A NAMED target like "change to Malayalam" was already
+  // handled directly by detectSettingsIntent above.)
+  if (wantsLanguageMenu(message.body)) {
+    updateSession(session.phone, { state: 'AWAITING_LANGUAGE' });
+    const menu = await languageMenu(session, 1);
+    return { text: menu.text, speakable: false, interactive: menu.interactive };
   }
 
   // Multi-step budget.

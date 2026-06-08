@@ -81,6 +81,28 @@ function detectLanguage(text: string): Language | null {
   return null;
 }
 
+/** Question/command words that, with a "language" word, mean "show the menu". */
+const LANGUAGE_MENU_VERB =
+  /\b(change|switch|set|choose|select|pick|which|what|list|show|see|available|supported|supports?|options?|change to|switch to)\b/i;
+
+/**
+ * True when the user wants to CHOOSE/CHANGE/SEE languages but did NOT name a
+ * specific target — e.g. "change language", "switch language", "which
+ * languages do you support", or a bare "language" / "भाषा". When a specific
+ * language IS named ("change to Malayalam") this returns false so the caller
+ * switches directly instead of re-showing the menu.
+ */
+export function wantsLanguageMenu(text: string): boolean {
+  const raw = (text ?? '').trim();
+  if (!raw || /\d/.test(raw)) return false;
+  if (detectLanguage(raw)) return false; // a concrete target → direct switch
+  if (!LANGUAGE_WORD.test(raw)) return false; // must mention language/भाषा/मொழி…
+  const lower = raw.toLowerCase();
+  const wordCount = raw.split(/\s+/).filter(Boolean).length;
+  // "change language", "which languages supported", or just "language"/"भाषा".
+  return LANGUAGE_MENU_VERB.test(lower) || wordCount <= 2;
+}
+
 async function linkEmail(session: Session, email: string): Promise<SettingsOutcome> {
   const m = getMessages(session.language);
   try {
