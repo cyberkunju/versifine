@@ -29,13 +29,34 @@ const CURRENCY_PATTERN = CURRENCY_KEYS.map(escapeForRegex).join('|');
 
 /**
  * Scale-multiplier words that may trail a digit amount ("18k", "1.5 lakh",
- * "22 hazaar"). Includes English and romanised Indic words. Ordered with the
- * longer variants first so the alternation doesn't stop on a prefix, and every
- * use is paired with a `(?![a-z])` lookahead so a bare "k" never devours the
- * first letter of the NEXT word ("180 kharch" must stay 180, not 180000).
+ * "22 hazaar", "80 हज़ार", "60 ಸಾವಿರ", "10 vela"). Includes English, romanised
+ * Indic, and native-script words across all 11 supported languages. Ordered
+ * with the longer variants first so the alternation doesn't stop on a prefix,
+ * and every use is paired with a `(?![a-z])` lookahead so a bare "k" never
+ * devours the first letter of the NEXT word ("180 kharch" must stay 180).
+ * Native scripts are unaffected by the `[a-z]` lookahead.
  */
-const SCALE_SUFFIX =
-  'k|thousands|thousand|lakhs|lakh|lac|crores|crore|hazaar|hazar';
+const THOUSAND_WORDS = [
+  'k', 'thousands', 'thousand', 'hazaar', 'hazar', 'hajaar', 'hajar',
+  'aayiram', 'ayiram', 'saavira', 'savira', 'sahasra', 'vela',
+  'हज़ार', 'हजार', 'হাজার', 'ਹਜ਼ਾਰ', 'હજાર', 'ஆயிரம்', 'వేల', 'వెల', 'ಸಾವಿರ', 'ഹജാർ', 'ହଜାର',
+];
+const LAKH_WORDS = [
+  'lakhs', 'lakh', 'lac', 'laksh', 'laksham',
+  'लाख', 'ਲੱਖ', 'લાખ', 'ಲಕ್ಷ', 'లక్ష', 'லட்சம்', 'ലക്ഷം', 'ଲକ୍ଷ',
+];
+const CRORE_WORDS = [
+  'crores', 'crore', 'koti', 'kodi',
+  'करोड़', 'करोड', 'कोटि', 'ਕਰੋੜ', 'કરોડ', 'ಕೋಟಿ', 'కోటి', 'கோடி', 'കോടി', 'କୋଟି',
+];
+const THOUSAND_SET = new Set(THOUSAND_WORDS.map((w) => w.trim().toLowerCase()));
+const LAKH_SET = new Set(LAKH_WORDS.map((w) => w.trim().toLowerCase()));
+const CRORE_SET = new Set(CRORE_WORDS.map((w) => w.trim().toLowerCase()));
+const SCALE_SUFFIX = [...THOUSAND_WORDS, ...LAKH_WORDS, ...CRORE_WORDS]
+  .map((w) => w.trim())
+  .sort((a, b) => b.length - a.length)
+  .map(escapeForRegex)
+  .join('|');
 
 const SPLIT_RE =
   /\b(?:split(?:\s+(?:with|among))?|divide(?:d)?\s+(?:by|with|among)|share(?:d)?\s+(?:with|among))\s+(\d{1,2})\b/i;
@@ -110,9 +131,40 @@ function normalizeIndicDigits(text: string): string {
   return out;
 }
 
+/**
+ * Indian shorthand "1.5L" / "2L" / "50L" means lakh. Rewrite a number glued to
+ * an uppercase "L" (no space, end of token) into "<n> lakh" so the scale-word
+ * machinery handles it. Deliberately uppercase-and-glued only, so "litres",
+ * "2 l of milk", and lowercase "l" are never swept in.
+ */
+function normalizeLakhLetter(text: string): string {
+  return text.replace(/\b(\d+(?:\.\d+)?)L\b/g, '$1 lakh');
+}
+
+/**
+ * Blank out digit runs that are NOT spendable amounts before extraction:
+ * URLs, email addresses, and long (11+ digit) sequences that are phone
+ * numbers, card numbers, account/order/invoice IDs. A real rupee amount is
+ * never 11+ digits, so this can't eat a legitimate spend — but it stops the
+ * bot mining "₹43,210" from a phone number or "₹99,999" from a card. Indian
+ * comma amounts ("1,00,000") survive because the comma breaks the run.
+ */
+function stripNumericNoise(text: string): string {
+  let s = text
+    .replace(/https?:\/\/\S+/gi, ' ')
+    .replace(/\bwww\.\S+/gi, ' ')
+    .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, ' ');
+  s = s.replace(/[+(]?\d[\d\s().-]{9,}\d/g, (run) =>
+    run.replace(/\D/g, '').length >= 11 ? ' ' : run,
+  );
+  return s;
+}
+
 export function extractAmount(text: string): AmountExtraction {
   if (!text) return { amount: null, currency: null };
-  const cleaned = normalizeDigitTypos(normalizeIndicDigits(text.replace(/[\u00a0]/g, ' ')));
+  const cleaned = stripNumericNoise(
+    normalizeLakhLetter(normalizeDigitTypos(normalizeIndicDigits(text.replace(/[\u00a0]/g, ' ')))),
+  );
 
   // 1) Currency followed by amount: "₹450", "Rs 450", "USD 50", "$50".
   const leading = new RegExp(
@@ -195,7 +247,14 @@ function pickBareAmount(text: string): number | null {
     });
   }
   if (candidates.length === 0) return null;
-  if (candidates.length === 1) return candidates[0]!.value;
+  if (candidates.length === 1) {
+    // A lone number that is immediately a QUANTITY ("3 days", "2 years",
+    // "5 people") and is NOT introduced by a price marker is a count, not a
+    // spend — don't mine it. This stops "headache for 3 days" → ₹3.
+    const only = candidates[0]!;
+    if (only.beforeQuantityUnit && !only.afterPriceMarker) return null;
+    return only.value;
+  }
 
   const maxValue = Math.max(...candidates.map((c) => c.value));
   let best: BareCandidate | null = null;
@@ -221,11 +280,10 @@ function parseAmount(numberToken: string, suffix: string | null): number | null 
   if (!Number.isFinite(base) || base <= 0) return null;
   let multiplier = 1;
   if (suffix) {
-    const s = suffix.toLowerCase();
-    if (s === 'k' || s === 'thousand' || s === 'thousands' || s === 'hazaar' || s === 'hazar')
-      multiplier = 1_000;
-    else if (s === 'lakh' || s === 'lakhs' || s === 'lac') multiplier = 100_000;
-    else if (s === 'crore' || s === 'crores') multiplier = 10_000_000;
+    const s = suffix.trim().toLowerCase();
+    if (THOUSAND_SET.has(s)) multiplier = 1_000;
+    else if (LAKH_SET.has(s)) multiplier = 100_000;
+    else if (CRORE_SET.has(s)) multiplier = 10_000_000;
   }
   return Math.round(base * multiplier * 100) / 100;
 }

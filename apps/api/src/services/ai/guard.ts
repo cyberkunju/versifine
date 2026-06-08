@@ -149,6 +149,12 @@ const CRISIS_PATTERNS: RegExp[] = [
   /\bwhat'?s the point (any\s?more|of (it all|living|trying|going on|life))\b/i,
   /\b(no way out|don'?t see (a|any) way out|no point (in|of) living|nothing to live for|no hope left)\b/i,
   /\bcan'?t (take|do|handle|bear) (it|this|life|anymore)\b[^.\n]{0,12}\b(any\s?more|any longer)?\b/i,
+  // Indirect "I won't be here" euphemisms — only when paired with a finality
+  // cue ("much longer", "anymore") so benign travel talk ("won't be around
+  // next week") is NOT caught.
+  /\b(won'?t|will not|might not|may not|won'?t\s+really)\b[^.\n]{0,12}\bbe\s+(around|here|alive)\b[^.\n]{0,18}\b(much longer|any\s?more|for long|to see|long enough)\b/i,
+  /\bdon'?t\s+want\s+to\s+(wake up(\s+tomorrow)?|be here|be alive|exist|live any\s?more|go on any\s?more)\b/i,
+  /\b(tired of (living|being alive)|done with (life|living)|sick of being alive|don'?t want to keep going)\b/i,
 ];
 
 const INJECTION_PATTERNS: RegExp[] = [

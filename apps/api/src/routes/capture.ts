@@ -484,6 +484,28 @@ async function routeMoneyMovement(
   return null;
 }
 
+/**
+ * Detects pasted structured data or code that must never be parsed into an
+ * expense: a JSON object/array, an SQL statement, a code stack trace. These
+ * carry stray digits ("amount":99999, line:42) the parser would otherwise
+ * mine into a junk transaction. A real bank SMS ("debited by Rs.500") is NOT
+ * caught here — it has no JSON/SQL/code shape — so it still parses normally.
+ */
+function looksLikeStructuredPaste(text: string): boolean {
+  const t = text.trim();
+  if (!t) return false;
+  // JSON object/array literal.
+  if (/^[[{][\s\S]*[\]}]$/.test(t) && /["'][\w]+["']\s*:/.test(t)) return true;
+  // SQL statement.
+  if (/\b(select\s+.*\s+from|insert\s+into|update\s+\w+\s+set|delete\s+from|drop\s+table|alter\s+table)\b/i.test(t))
+    return true;
+  if (/;\s*--/.test(t)) return true;
+  // Code stack trace / exception.
+  if (/\b\w*(Error|Exception):/.test(t) && /\bat\s+\w/.test(t)) return true;
+  if (/\.\w+:\d+:\d+/.test(t)) return true;
+  return false;
+}
+
 async function runTextPipeline(input: RunPipelineInput) {
   const { c, text, origin, locale } = input;
   const user = c.get('user');
@@ -500,6 +522,21 @@ async function runTextPipeline(input: RunPipelineInput) {
   const screen = screenInput(text);
   if (screen.verdict === 'crisis') {
     traceLog.info('CAPTURE_SCREENED', { verdict: screen.verdict, reason: screen.reason, origin });
+    return c.json(
+      ok({
+        intent: 'chat' as const,
+        needsConfirmation: false,
+        copilotStreamUrl: '/copilot/chat',
+        echo: text,
+      }),
+    );
+  }
+
+  // Pasted JSON / SQL / code / stack trace must never be mined into an
+  // expense. Route it to chat (the guarded copilot treats it as inert text)
+  // instead of letting the parser harvest a stray digit as an amount.
+  if (looksLikeStructuredPaste(text)) {
+    traceLog.info('CAPTURE_PASTE_BLOCKED', { origin, inputSize: summarizeForLog(text) });
     return c.json(
       ok({
         intent: 'chat' as const,

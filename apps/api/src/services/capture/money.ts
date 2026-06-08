@@ -109,7 +109,7 @@ export async function handleLendBorrow(args: {
 
 // "ravi paid me back", "returned my money", "I paid mom back", "settled with X"
 const REPAY_RE =
-  /\b(paid\s+(?:me\s+)?back|paid\s+back|pay(?:ing)?\s+back|payback|returned|repaid|repay|gave\s+back|settled|cleared|got\s+back|wapas|वापस|लौटा|चुका|തിരികെ|തിരിച്ച|മടക്കി|திரும்ப|வாபஸ்|తిరిగి|వాపసు|ವಾಪಸ್|ಹಿಂತಿರುಗಿ)\b/i;
+  /\b(paid\s+(?:\w+\s+)?back|pay(?:ing)?\s+back|payback|returned|repaid|repay|gave\s+back|settled|cleared|got\s+back|wapas|वापस|लौटा|चुका|തിരികെ|തിരിച്ച|മടക്കി|திரும்ப|வாபஸ்|తిరిగి|వాపసు|ವಾಪಸ್|ಹಿಂತಿರುಗಿ)\b/i;
 // Signals the OTHER person returned money to me → settle a `lent` entry.
 const THEY_PAID_ME = /\b(paid\s+me|me\s+back|got\s+back|returned\s+to\s+me|gave\s+me\s+back|i\s+got)\b/i;
 // Signals I returned money → settle a `borrowed` entry.
