@@ -59,7 +59,7 @@ import {
   isMoreLanguagesRequest,
 } from './languageMenu.ts';
 import type { InteractiveListSpec } from '../types.ts';
-import { getSession, setReplyMode, updateSession, preloadSession, persistSession } from './state.ts';
+import { getSession, setReplyMode, setState, updateSession, preloadSession, persistSession } from './state.ts';
 
 interface DispatchOutcome {
   /** Localized text from the flow handler (still in the *engine's source language*, en for ta/te/kn). */
@@ -217,8 +217,8 @@ async function dispatch(session: Session, message: IncomingMessage): Promise<Dis
   // picker (tier 1). (A NAMED target like "change to Malayalam" was already
   // handled directly by detectSettingsIntent above.)
   if (wantsLanguageMenu(message.body)) {
-    updateSession(session.phone, { state: 'AWAITING_LANGUAGE' });
-    const menu = await languageMenu(session, 1);
+    setState(session.phone, 'AWAITING_LANGUAGE');
+    const menu = await languageMenu(getSession(session.phone), 1);
     return { text: menu.text, speakable: false, interactive: menu.interactive };
   }
 
@@ -406,6 +406,7 @@ export async function runEngine(message: IncomingMessage): Promise<OutgoingReply
     if (!first.proceed) {
       // New user — show the tappable language menu (tier 1).
       const menu = await languageMenu(getSession(session.phone), 1);
+      await persistSession(session.phone);
       return { text: menu.text, interactive: menu.interactive, state: getSession(session.phone).state };
     }
     welcomePrefix = first.welcomePrefix;
@@ -417,11 +418,13 @@ export async function runEngine(message: IncomingMessage): Promise<OutgoingReply
     // User tapped / typed "More languages" → show tier 2.
     if (isMoreLanguagesRequest(body)) {
       const menu = await languageMenu(getSession(session.phone), 2);
+      await persistSession(session.phone);
       return { text: menu.text, interactive: menu.interactive, state: getSession(session.phone).state };
     }
 
     const picked = await handleLanguagePick(getSession(session.phone), body);
     const text = await localize(picked.text, getSession(session.phone).language);
+    await persistSession(session.phone);
     return { text, state: getSession(session.phone).state };
   }
 
@@ -429,6 +432,7 @@ export async function runEngine(message: IncomingMessage): Promise<OutgoingReply
     const stepped = await handleEmailStep(getSession(session.phone), message.body);
     if (stepped.consumed) {
       const text = await localize(stepped.text, getSession(session.phone).language);
+      await persistSession(session.phone);
       return { text, state: getSession(session.phone).state };
     }
     // Not consumed: the user typed a real action at the email prompt.
