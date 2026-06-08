@@ -506,6 +506,25 @@ function looksLikeStructuredPaste(text: string): boolean {
   return false;
 }
 
+/**
+ * Decide a message should be handled by the guarded copilot rather than the
+ * expense parser — because parsing it would mine a junk amount or mishandle a
+ * sensitive request:
+ *   - pasted JSON / SQL / code / stack traces,
+ *   - secret/credential shares ("store my password 1234", "my CVV is 123") —
+ *     the copilot warns instead of harvesting the digits,
+ *   - messages whose ONLY number lives inside a URL ("…/pay?amt=999") — never
+ *     a real spend. A legit "paid 500, link …" keeps a number outside the URL,
+ *     so extractAmount still finds it and we don't defer.
+ */
+function shouldDeferToChat(text: string): boolean {
+  if (looksLikeStructuredPaste(text)) return true;
+  if (/\b(password|passcode|pass\s?code|netbanking|net[\s-]?banking|cvv|cvc|otp|one[\s-]?time[\s-]?password|aadhaar|aadhar|\bpin\b)\b/i.test(text))
+    return true;
+  if (/https?:\/\/|\bwww\./i.test(text) && extractAmount(text).amount === null) return true;
+  return false;
+}
+
 async function runTextPipeline(input: RunPipelineInput) {
   const { c, text, origin, locale } = input;
   const user = c.get('user');
@@ -532,11 +551,11 @@ async function runTextPipeline(input: RunPipelineInput) {
     );
   }
 
-  // Pasted JSON / SQL / code / stack trace must never be mined into an
-  // expense. Route it to chat (the guarded copilot treats it as inert text)
-  // instead of letting the parser harvest a stray digit as an amount.
-  if (looksLikeStructuredPaste(text)) {
-    traceLog.info('CAPTURE_PASTE_BLOCKED', { origin, inputSize: summarizeForLog(text) });
+  // Pasted JSON / SQL / code / a secret-share / a URL-only number must never
+  // be mined into an expense. Route to chat (the guarded copilot treats it as
+  // inert text and warns on credentials) instead of harvesting a stray digit.
+  if (shouldDeferToChat(text)) {
+    traceLog.info('CAPTURE_DEFERRED_CHAT', { origin, inputSize: summarizeForLog(text) });
     return c.json(
       ok({
         intent: 'chat' as const,
