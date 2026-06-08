@@ -53,6 +53,12 @@ import {
 import { handleLinkCommand, rePrompt } from './flows/link.ts';
 import { detectSettingsIntent } from './flows/settings.ts';
 import { hasNativePack, getMessages } from './messages/index.ts';
+import {
+  buildLanguageMenuTier1,
+  buildLanguageMenuTier2,
+  isMoreLanguagesRequest,
+} from './languageMenu.ts';
+import type { InteractiveListSpec } from '../types.ts';
 import { getSession, setReplyMode, updateSession, preloadSession, persistSession } from './state.ts';
 
 interface DispatchOutcome {
@@ -62,6 +68,24 @@ interface DispatchOutcome {
   state?: ConversationState;
   /** Whether the engine should attempt voice synthesis for this reply. */
   speakable?: boolean;
+  /** Optional tappable interactive list (rendered on the Cloud API path). */
+  interactive?: InteractiveListSpec;
+}
+
+/**
+ * Build the (localized) tappable language picker plus its plain-text fallback.
+ * Tier 1 is the most-spoken languages + a "More" row; tier 2 is the rest.
+ */
+async function languageMenu(
+  session: Session,
+  tier: 1 | 2,
+): Promise<{ text: string; interactive: InteractiveListSpec }> {
+  const m = getMessages(session.language);
+  const prompt = tier === 2 ? 'More languages — tap to choose:' : 'Please choose your language:';
+  const body = await localize(prompt, session.language);
+  const interactive = tier === 2 ? buildLanguageMenuTier2(body) : buildLanguageMenuTier1(body);
+  // Fallback text for transports without interactive support: the numbered menu.
+  return { text: m.greeting, interactive };
 }
 
 /**
@@ -99,12 +123,24 @@ async function dispatch(session: Session, message: IncomingMessage): Promise<Dis
       case 'STATUS':
         return { text: handleStatus(session).text, speakable: false };
       case 'RESET':
-      case 'BACK':
-        return { text: handleReset(session).text, speakable: false };
+      case 'BACK': {
+        const resetText = handleReset(session).text;
+        // After RESET the user is in AWAITING_LANGUAGE — serve the tappable
+        // tier-1 menu right away so they don't need to send a second message.
+        const resetMenu = await languageMenu(getSession(session.phone), 1);
+        return {
+          text: resetText,
+          speakable: false,
+          interactive: resetMenu.interactive,
+        };
+      }
       case 'STOP':
         return { text: handleStop(session).text, speakable: false };
-      case 'LANGUAGE':
-        return { text: handleLanguageSwitch(session).text, speakable: false };
+      case 'LANGUAGE': {
+        handleLanguageSwitch(session); // drops into AWAITING_LANGUAGE
+        const menu = await languageMenu(session, 1);
+        return { text: menu.text, speakable: false, interactive: menu.interactive };
+      }
       case 'HUMAN':
         return { text: handleHelp(session).text, speakable: false };
       case 'UNDO':
@@ -347,35 +383,46 @@ export async function runEngine(message: IncomingMessage): Promise<OutgoingReply
   // Before normal dispatch we make sure the account is resolved. RESET/STOP
   // are allowed through so a user is never trapped. Otherwise:
   //   - first contact (not yet resolved) → whoami: returning user proceeds
-  //     (we keep their message), new user gets the language menu;
-  //   - AWAITING_LANGUAGE → provision the account, then drop into the main flow.
+  //     (we keep their message), new user gets the tappable language menu;
+  //   - AWAITING_LANGUAGE → handle the tap/typed language choice, or if the
+  //     user tapped "More languages" send tier 2;
+  //   - AWAITING_EMAIL → optional email step.
   const onboardCmd = parseUniversal(message.body)?.command;
   const onboardingExempt = onboardCmd === 'RESET' || onboardCmd === 'STOP';
   let welcomePrefix: string | undefined;
+
   if (!onboardingExempt && (session.state === 'GREETING' || !session.accountResolved)) {
     const first = await resolveFirstContact(session, message.body);
     if (!first.proceed) {
-      const text = await localize(
-        first.reply ?? getMessages(session.language).greeting,
-        session.language,
-      );
-      return { text, state: getSession(session.phone).state };
+      // New user — show the tappable language menu (tier 1).
+      const menu = await languageMenu(getSession(session.phone), 1);
+      return { text: menu.text, interactive: menu.interactive, state: getSession(session.phone).state };
     }
     welcomePrefix = first.welcomePrefix;
   }
+
   if (!onboardingExempt && getSession(session.phone).state === 'AWAITING_LANGUAGE') {
-    const picked = await handleLanguagePick(getSession(session.phone), message.body);
+    const body = message.body.trim();
+
+    // User tapped / typed "More languages" → show tier 2.
+    if (isMoreLanguagesRequest(body)) {
+      const menu = await languageMenu(getSession(session.phone), 2);
+      return { text: menu.text, interactive: menu.interactive, state: getSession(session.phone).state };
+    }
+
+    const picked = await handleLanguagePick(getSession(session.phone), body);
     const text = await localize(picked.text, getSession(session.phone).language);
     return { text, state: getSession(session.phone).state };
   }
+
   if (!onboardingExempt && getSession(session.phone).state === 'AWAITING_EMAIL') {
     const stepped = await handleEmailStep(getSession(session.phone), message.body);
     if (stepped.consumed) {
       const text = await localize(stepped.text, getSession(session.phone).language);
       return { text, state: getSession(session.phone).state };
     }
-    // Not consumed: the user typed a real action at the email prompt. The
-    // account is now provisioned — fall through and dispatch the message.
+    // Not consumed: the user typed a real action at the email prompt.
+    // The account is now provisioned — fall through and dispatch the message.
   }
 
   // Re-read the session: onboarding may have changed language/state/linkage.
@@ -422,6 +469,8 @@ export async function runEngine(message: IncomingMessage): Promise<OutgoingReply
     text: withTranscript,
     state: getSession(active.phone).state,
     ...(voicePromise ? { voicePromise } : {}),
+    // Propagate an interactive list (e.g. language picker) from dispatch outcomes.
+    ...(outcome.interactive ? { interactive: outcome.interactive } : {}),
   };
 
   return final;

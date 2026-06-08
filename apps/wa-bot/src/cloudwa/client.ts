@@ -74,6 +74,44 @@ export async function sendTextMessage(to: string, text: string): Promise<boolean
 }
 
 /**
+ * Send an interactive list message (tappable menu). WhatsApp caps a list at
+ * 10 rows total across all sections, so callers must pre-split larger menus.
+ * Titles are ≤24 chars, descriptions ≤72, the button label ≤20, body ≤1024.
+ */
+export async function sendInteractiveList(
+  to: string,
+  spec: {
+    body: string;
+    button: string;
+    footer?: string;
+    sections: Array<{ title?: string; rows: Array<{ id: string; title: string; description?: string }> }>;
+  },
+): Promise<CloudSendResult> {
+  const result = await postMessage({
+    to,
+    type: 'interactive',
+    interactive: {
+      type: 'list',
+      body: { text: spec.body.slice(0, 1024) },
+      ...(spec.footer ? { footer: { text: spec.footer.slice(0, 60) } } : {}),
+      action: {
+        button: spec.button.slice(0, 20),
+        sections: spec.sections.map((s) => ({
+          ...(s.title ? { title: s.title.slice(0, 24) } : {}),
+          rows: s.rows.map((r) => ({
+            id: r.id.slice(0, 200),
+            title: r.title.slice(0, 24),
+            ...(r.description ? { description: r.description.slice(0, 72) } : {}),
+          })),
+        })),
+      },
+    },
+  });
+  if (result.ok) log.info('WHATSAPP_SEND_LIST_SUCCESS', { to, messageId: result.messageId });
+  return result;
+}
+
+/**
  * Send an approved template (the only way to message outside the 24h window).
  * Requires the template to be approved in the Meta dashboard.
  */

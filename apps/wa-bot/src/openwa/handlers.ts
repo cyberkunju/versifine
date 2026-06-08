@@ -68,6 +68,7 @@ async function resolveSenderPhone(rawId: string): Promise<string> {
 
 export async function dispatchToEngine(message: IncomingMessage): Promise<void> {
   const reply = await runEngine(message);
+  // openwa can't render interactive lists — fall through to text delivery.
   if (!reply.text) return; // STOP state — silent.
   await deliver(message.phone, reply.text, reply.voicePromise, reply.state);
 }
@@ -107,7 +108,14 @@ export async function dispatchSimulator(
       voiceSpoken = null;
     }
   }
-  return { text: reply.text, state: reply.state, voiceSpoken };
+  return {
+    text: reply.text,
+    state: reply.state,
+    voiceSpoken,
+    // Expose the interactive spec for test tooling — the simulator itself
+    // just delivers the plain-text fallback.
+    ...(reply.interactive ? { interactive: reply.interactive } : {}),
+  };
 }
 
 let pendingClient: WhatsAppLikeClient | null = null;

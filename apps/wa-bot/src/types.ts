@@ -85,6 +85,34 @@ export interface OutgoingReply {
   voicePromise?: Promise<OutgoingVoice | null>;
   /** Convenience snapshot of the state the engine ended in. */
   state: ConversationState;
+  /**
+   * Optional WhatsApp interactive list. When present, the official Cloud API
+   * transport renders this tappable menu and skips the plain `text` bubble;
+   * the whatsapp-web.js transport (no interactive support) falls back to
+   * sending `text`. Used for the tappable language picker.
+   */
+  interactive?: InteractiveListSpec;
+}
+
+/** One tappable row in a WhatsApp interactive list. */
+export interface InteractiveRow {
+  /** Stable id echoed back on tap (used when no title match). */
+  id: string;
+  /** Visible label, ≤24 chars. Echoed back as the message body on tap. */
+  title: string;
+  /** Optional secondary line, ≤72 chars. */
+  description?: string;
+}
+
+/** A WhatsApp interactive list message (max 10 rows total across sections). */
+export interface InteractiveListSpec {
+  /** Body text shown above the list button, ≤1024 chars. */
+  body: string;
+  /** Label on the button that opens the list, ≤20 chars. */
+  button: string;
+  /** Optional footer line, ≤60 chars. */
+  footer?: string;
+  sections: Array<{ title?: string; rows: InteractiveRow[] }>;
 }
 
 /**

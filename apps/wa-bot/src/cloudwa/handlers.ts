@@ -9,11 +9,25 @@ import { runEngine } from '../conversations/engine.ts';
 import { log, maskPhone } from '../utils/logger.ts';
 import { normalizePhone } from '../utils/phone.ts';
 import { chunkText } from '../utils/text.ts';
-import { sendTextMessage, uploadAudio, sendVoiceMessage } from './client.ts';
+import { sendTextMessage, sendInteractiveList, uploadAudio, sendVoiceMessage } from './client.ts';
 import type { RelayedWebhookPayload } from './types.ts';
 
 export async function dispatchToEngine(message: IncomingMessage): Promise<void> {
   const reply = await runEngine(message);
+  if (reply.interactive) {
+    // Tappable menu (e.g. the language picker). Render the list; the body text
+    // lives inside the list, so we don't also send the plain-text bubble.
+    try {
+      await sendInteractiveList(message.phone, reply.interactive);
+      return;
+    } catch (err) {
+      log.warn('DELIVER_LIST_FAIL', {
+        phone: maskPhone(message.phone),
+        error: err instanceof Error ? err.message.slice(0, 200) : String(err),
+      });
+      // Fall through to the plain-text fallback below.
+    }
+  }
   if (!reply.text) return; // STOP state — silent.
   await deliver(message.phone, reply.text, reply.voicePromise, reply.state);
 }
