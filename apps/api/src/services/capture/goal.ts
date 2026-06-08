@@ -24,7 +24,7 @@ export type GoalResult =
 // "for a trip", "for my wedding", "to buy a bike", "emergency fund".
 const PURPOSE_RE =
   /\b(?:for|towards?|to\s+buy|to\s+get)\s+(?:a\s+|an\s+|my\s+|the\s+)?([\p{L}][\p{L}\s&'-]{1,38}?)(?:\s+by\b|\s+before\b|\s+in\s+\d|[.,!?]|$)/iu;
-const FUND_RE = /\b([\p{L}][\p{L}\s'-]{1,30}?\s+(?:fund|goal))\b/iu;
+const FUND_RE = /\b([\p{L}][\p{L}\s'-]{2,30}?\s+fund)\b/iu;
 
 const MONTHS: Record<string, number> = {
   january: 1, jan: 1, february: 2, feb: 2, march: 3, mar: 3, april: 4, apr: 4,
@@ -81,7 +81,8 @@ function extractGoalName(text: string): string {
     if (n.length >= 2 && !/^(it|this|that|now|later)$/i.test(n)) return titleCase(n).slice(0, 80);
   }
   const fund = FUND_RE.exec(text);
-  if (fund?.[1]) return titleCase(fund[1]).slice(0, 80);
+  if (fund?.[1] && !/^(set|a|an|the|my|save|create)\b/i.test(fund[1].trim()))
+    return titleCase(fund[1]).slice(0, 80);
   return 'Savings goal';
 }
 

@@ -195,6 +195,30 @@ function stripNumericNoise(text: string): string {
   return s;
 }
 
+/**
+ * True when the text carries NO real amount but DOES contain a temporal-prefixed
+ * year-band number ("log my expense from 1850", "in 3024 …"). Used by the LLM
+ * merge to discard a model-mined year — the deterministic extractor already
+ * returns null for these, but the LLM may still hallucinate the year as an
+ * amount, so we drop it rather than logging ₹1,850.
+ */
+export function looksLikeYearNoise(text: string): boolean {
+  if (!text) return false;
+  const cleaned = stripNumericNoise(
+    normalizeLakhLetter(normalizeDigitTypos(normalizeIndicDigits(text.replace(/[\u00a0]/g, ' ')))),
+  );
+  if (pickBareAmount(cleaned) !== null) return false;
+  const re = /(\d{4})(?![\d.,])/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(cleaned)) !== null) {
+    const before = cleaned.slice(0, m.index);
+    const v = Number(m[1]);
+    const inBand = (v >= 1800 && v <= 2099) || (v >= 3000 && v <= 3099);
+    if (inBand && !PRICE_MARKER.test(before) && TEMPORAL_PREFIX.test(before)) return true;
+  }
+  return false;
+}
+
 export function extractAmount(text: string): AmountExtraction {
   if (!text) return { amount: null, currency: null };
   const cleaned = stripNumericNoise(

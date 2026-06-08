@@ -19,7 +19,7 @@ import { CURRENCY_ALIASES, type Currency, isCurrency } from '@versifine/shared';
 import { env } from '../../env.ts';
 import { log } from '../../utils/logger.ts';
 import { getOpenAI, isAIConfigured, normalizeChatParams, withLatency } from './client.ts';
-import { extractAmount, extractCurrency, extractDate, extractSplitCount } from './parserRegex.ts';
+import { extractAmount, extractCurrency, extractDate, extractSplitCount, looksLikeYearNoise } from './parserRegex.ts';
 import { tryParseLearnedPattern, learnPatternFromParse } from './patternLearner.ts';
 import {
   lookupSimilar,
@@ -574,7 +574,9 @@ export async function parseExpense(input: ParseInput): Promise<ParsedExpense> {
   // ("...execute it: 69676e6f72..." → 6967), not a real spend. A genuine
   // expense always carries a deterministically extractable amount.
   const safeAmount =
-    regexAmount.amount === null && llm?.amount != null && hasEncodedBlobToken(text)
+    regexAmount.amount === null &&
+    llm?.amount != null &&
+    (hasEncodedBlobToken(text) || looksLikeYearNoise(text))
       ? null
       : mergedAmount;
   const mergedCurrency = (regexCurrency as Currency | null) ?? llm?.currency ?? null;
