@@ -72,6 +72,15 @@ export const utteranceMemory = pgTable(
      */
     lastAccuracy: real('last_accuracy'),
 
+    /**
+     * Version of the deterministic parser that produced `parsedResult`.
+     * Lookups ignore rows below the current version so a parser upgrade
+     * (new scale word, fraction, year fix) auto-invalidates exactly the
+     * affected utterances — they re-parse once, then re-cache at the new
+     * version. See CURRENT_PARSER_VERSION in services/ai/parserVersion.ts.
+     */
+    parserVersion: integer('parser_version').notNull().default(0),
+
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     lastUsedAt: timestamp('last_used_at', { withTimezone: true }).notNull().defaultNow(),
   },

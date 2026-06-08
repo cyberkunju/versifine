@@ -73,6 +73,10 @@ function renderCaptureResponse(session: Session, response: CaptureResponseShape)
       const text = m.ledgerLogged(qr.ledger as LedgerView);
       return { text, speakable: text };
     }
+    if (moneyKind === 'ledgerBatch' && Array.isArray(qr?.entries)) {
+      const text = m.ledgerBatchLogged(qr.entries as LedgerView[]);
+      return { text, speakable: text };
+    }
     if (moneyKind === 'settle' && qr?.ledger) {
       const ledger = qr.ledger as LedgerView;
       const text = m.ledgerSettled({

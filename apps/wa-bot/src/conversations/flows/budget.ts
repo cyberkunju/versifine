@@ -129,6 +129,27 @@ async function submitBudget(
   }
 }
 
+async function submitOverallBudget(session: Session, amount: number): Promise<BudgetResult> {
+  const m = getMessages(session.language);
+  try {
+    await createBudget(session.phone, {
+      name: 'Monthly budget',
+      recurrence: 'monthly',
+      overallLimit: amount,
+    });
+    setState(session.phone, 'LINKED_MAIN');
+    updateSession(session.phone, { pending: {} });
+    return { text: m.budgetSetOverall(amount), done: true };
+  } catch (err) {
+    log.warn('BUDGET_CREATE_FAIL', {
+      phone: session.phone,
+      error: err instanceof ApiClientError ? `${err.code}:${err.message}` : String(err),
+    });
+    setState(session.phone, 'LINKED_MAIN');
+    return { text: m.error, done: true };
+  }
+}
+
 export async function handleBudget(session: Session, body: string): Promise<BudgetResult> {
   const m = getMessages(session.language);
   const text = body.trim();
@@ -148,7 +169,13 @@ export async function handleBudget(session: Session, body: string): Promise<Budg
       updateSession(session.phone, { pending: { budgetCategory: category } });
       return { text: m.budgetAskAmount(category), done: false };
     }
-    // No category yet — start the multi-step ask.
+    // No category but an amount → an OVERALL (all-spending) cap. "set a monthly
+    // budget 30000", "overall budget 30k". Useful and least-surprising rather
+    // than interrogating for a category the user didn't give.
+    if (!category && amount) {
+      return submitOverallBudget(session, amount);
+    }
+    // Nothing concrete yet — start the multi-step ask.
     setState(session.phone, 'SET_BUDGET_CATEGORY');
     return { text: m.budgetAskCategory, done: false };
   }

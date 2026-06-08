@@ -27,7 +27,7 @@ import { validate } from '../middleware/validate.ts';
 import { classifyIntent } from '../services/ai/intent.ts';
 import { screenInput } from '../services/ai/guard.ts';
 import {
-  handleLendBorrow,
+  handleLendBorrowSmart,
   handleTransfer,
   handleDebtQuery,
   detectDebtQuery,
@@ -351,6 +351,15 @@ function moneyResponse(
           echo,
         }),
       );
+    case 'ledgerBatch':
+      return c.json(
+        ok({
+          intent: result.intent,
+          needsConfirmation: false,
+          queryResult: { kind: 'ledgerBatch', entries: result.entries },
+          echo,
+        }),
+      );
     case 'settle':
       return c.json(
         ok({
@@ -482,10 +491,10 @@ async function routeMoneyMovement(
     }
   }
 
-  // 3. Lend / borrow statement.
+  // 3. Lend / borrow statement (multi-leg aware).
   if (intent === 'lend' || intent === 'borrow') {
     try {
-      const result = await handleLendBorrow({
+      const result = await handleLendBorrowSmart({
         userId: user.id,
         spaceId: user.activeSpaceId,
         baseCurrency: user.baseCurrency,

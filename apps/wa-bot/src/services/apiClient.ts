@@ -323,7 +323,8 @@ export async function phoneLinkConfirm(
 export interface BudgetCreatePayload {
   name: string;
   recurrence: 'monthly' | 'custom';
-  allocations: Record<string, number>;
+  allocations?: Record<string, number>;
+  overallLimit?: number;
   warnThreshold?: number;
   exceedThreshold?: number;
   periodStart?: string;

@@ -174,6 +174,9 @@ export interface MessagePack {
   /** Lend/borrow recorded → a ledger entry was created. */
   ledgerLogged: (v: LedgerView) => string;
 
+  /** Multiple lend/borrow entries recorded from one message. */
+  ledgerBatchLogged: (entries: ReadonlyArray<LedgerView>) => string;
+
   /** A repayment settled (fully or partially) a ledger entry. */
   ledgerSettled: (v: LedgerSettledView) => string;
 
@@ -190,6 +193,8 @@ export interface MessagePack {
   budgetAskCategory: string;
   budgetAskAmount: (category: string) => string;
   budgetSet: (category: string, amount: number) => string;
+  /** Confirmation for an overall (all-spending) monthly cap. */
+  budgetSetOverall: (amount: number) => string;
 
   /** Correction applied. */
   correctApplied: (newCategory: string) => string;

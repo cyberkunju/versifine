@@ -8,6 +8,7 @@ import {
   date,
   index,
   jsonb,
+  numeric,
   pgTable,
   smallint,
   timestamp,
@@ -29,6 +30,12 @@ export const budgets = pgTable(
     periodStart: date('period_start'),
     periodEnd: date('period_end'),
     allocations: jsonb('allocations').notNull(),
+    /**
+     * A single spending cap across ALL categories for the period. Set when the
+     * user creates a budget with no category ("monthly budget 30000"). Null
+     * when the budget is purely per-category. A budget may carry both.
+     */
+    overallLimit: numeric('overall_limit', { precision: 14, scale: 2 }),
     warnThreshold: smallint('warn_threshold').notNull().default(80),
     exceedThreshold: smallint('exceed_threshold').notNull().default(100),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

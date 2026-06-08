@@ -48,6 +48,7 @@ export interface TransferView {
 
 export type MoneyResult =
   | { kind: 'ledger'; intent: 'lend' | 'borrow'; ledger: LedgerView }
+  | { kind: 'ledgerBatch'; intent: 'lend' | 'borrow'; entries: LedgerView[] }
   | { kind: 'settle'; intent: 'settle_debt'; ledger: LedgerView; settledAmount: number; cleared: boolean }
   | { kind: 'debts'; intent: 'query_debts'; debts: DebtsView }
   | { kind: 'transfer'; intent: 'transfer'; transfer: TransferView }
@@ -101,6 +102,116 @@ export async function handleLendBorrow(args: {
       status: row.status as LedgerView['status'],
     },
   };
+}
+
+/* ------------------------------------------------------------------ *
+ * 1b. Multi-leg lend / borrow — "lent ravi 2000 and borrowed 500 from mom"
+ * ------------------------------------------------------------------ */
+
+// Direction verbs (English + romanised Indic). Deliberately exclude bare
+// "paid" so a repayment clause isn't read as a fresh loan.
+const LEND_VERB =
+  /\b(lent|loaned|gave|giving|give|udhaar\s+di|udhar\s+di|kadan\s+kud|kadam\s+kod|saala\s+kot|appu\s+ich|kodu|diya|diye|dii)\b/i;
+const BORROW_VERB =
+  /\b(borrowed|borrow|took|taken|udhaar\s+li|udhar\s+li|vaangi|liya|liye|vatrakam|appu\s+thes)\b/i;
+const CLAUSE_SPLIT = /\s*(?:,|;|&|\band\b|\bthen\b|\baur\b|\bplus\b|\balso\b)\s+/i;
+
+interface MoneyLeg {
+  direction: 'lent' | 'borrowed';
+  amount: number;
+  counterparty: string;
+  currency: string;
+}
+
+/**
+ * Split a money message into lend/borrow legs. Returns [] when there's only a
+ * single leg (the caller then uses the single-entry path). A clause that is a
+ * REPAYMENT is skipped, never turned into a phantom loan; a clause with no
+ * amount is dropped; a clause with no direction verb inherits the previous
+ * leg's direction, and a clause with no name inherits the previous name
+ * ("lent ravi 2000 and 3000" → both to Ravi).
+ */
+async function parseMoneyLegs(
+  text: string,
+  fallbackDir: 'lent' | 'borrowed',
+  locale?: string,
+): Promise<MoneyLeg[]> {
+  const clauses = text.split(CLAUSE_SPLIT).map((s) => s.trim()).filter(Boolean);
+  if (clauses.length < 2) return [];
+
+  const legs: MoneyLeg[] = [];
+  let lastDir: 'lent' | 'borrowed' = fallbackDir;
+  let lastName: string | null = null;
+  for (const clause of clauses) {
+    if (REPAY_RE.test(clause)) continue; // never fabricate a loan from a repayment
+    const dir: 'lent' | 'borrowed' | null = LEND_VERB.test(clause)
+      ? 'lent'
+      : BORROW_VERB.test(clause)
+        ? 'borrowed'
+        : null;
+    const debt = await extractDebt(clause, locale);
+    if (debt.amount === null) continue;
+    const direction: 'lent' | 'borrowed' = dir ?? lastDir;
+    const counterparty: string = debt.counterparty ?? lastName ?? 'someone';
+    lastDir = direction;
+    lastName = counterparty;
+    legs.push({ direction, amount: debt.amount, counterparty, currency: debt.currency ?? 'INR' });
+  }
+  return legs.length >= 2 ? legs : [];
+}
+
+/** Create every leg as a ledger entry and return them as a batch result. */
+async function handleMoneyBatch(args: {
+  userId: string;
+  spaceId: string;
+  baseCurrency: string;
+  legs: MoneyLeg[];
+}): Promise<MoneyResult> {
+  const { userId, spaceId, baseCurrency, legs } = args;
+  const entries: LedgerView[] = [];
+  for (const leg of legs) {
+    const row = await createEntry(userId, spaceId, baseCurrency, {
+      direction: leg.direction,
+      counterpartyName: leg.counterparty,
+      amount: leg.amount,
+      currency: leg.currency as never,
+      date: TODAY(),
+    });
+    entries.push({
+      direction: leg.direction,
+      counterparty: row.counterpartyName,
+      amount: Number(row.amount),
+      currency: row.currency,
+      outstanding: Number(row.outstanding),
+      status: row.status as LedgerView['status'],
+    });
+  }
+  return { kind: 'ledgerBatch', intent: entries[0]!.direction === 'lent' ? 'lend' : 'borrow', entries };
+}
+
+/**
+ * Smart lend/borrow entry point: records MULTIPLE legs when the message has
+ * them ("lent ravi 2000 and borrowed 500 from mom"), otherwise the single
+ * entry. This is what the capture route calls for a lend/borrow intent.
+ */
+export async function handleLendBorrowSmart(args: {
+  userId: string;
+  spaceId: string;
+  baseCurrency: string;
+  text: string;
+  direction: 'lent' | 'borrowed';
+  locale?: string;
+}): Promise<MoneyResult> {
+  const legs = await parseMoneyLegs(args.text, args.direction, args.locale);
+  if (legs.length >= 2) {
+    return handleMoneyBatch({
+      userId: args.userId,
+      spaceId: args.spaceId,
+      baseCurrency: args.baseCurrency,
+      legs,
+    });
+  }
+  return handleLendBorrow(args);
 }
 
 /* ------------------------------------------------------------------ *

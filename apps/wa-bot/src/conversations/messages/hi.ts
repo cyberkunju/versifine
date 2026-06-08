@@ -185,6 +185,15 @@ export const hi: MessagePack = {
       : `✅ नोट कर लिया — आप पर ${v.counterparty} के ${amt} बाकी हैं। जब तक चुक न जाएँ, मैं याद रखूँगा।`;
   },
 
+  ledgerBatchLogged: (entries) => {
+    const lines = entries.map((e) =>
+      e.direction === 'lent'
+        ? `• ${e.counterparty} पर आपके ${formatAmount(e.amount, e.currency)} बाकी हैं`
+        : `• आप पर ${e.counterparty} के ${formatAmount(e.amount, e.currency)} बाकी हैं`,
+    );
+    return `✅ ${entries.length} एंट्री नोट कीं:\n${lines.join('\n')}\nमैं सबका हिसाब रखूँगा।`;
+  },
+
   ledgerSettled: (v: LedgerSettledView) => {
     const paid = formatAmount(v.settledAmount, v.currency);
     const left = formatAmount(v.outstanding, v.currency);
@@ -232,6 +241,8 @@ export const hi: MessagePack = {
   budgetAskAmount: (category) => `${category} के लिए हर महीने कितना?`,
   budgetSet: (category, amount) =>
     `📊 बजट सेट: ${category} → ${formatAmount(amount, 'INR')}/महीना। 80% पर alert कर दूँगा।`,
+  budgetSetOverall: (amount) =>
+    `📊 महीने का बजट सेट: ${formatAmount(amount, 'INR')} (सभी खर्च मिलाकर)। 80% पर alert कर दूँगा।`,
 
   correctApplied: (newCategory) =>
     `✅ बदल दिया। पिछला transaction अब ${newCategory} है। आगे similar entries भी इसी कैटेगरी में जाएँगी।`,

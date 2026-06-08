@@ -189,6 +189,15 @@ export const ml: MessagePack = {
       : `✅ കുറിച്ചുവെച്ചു — നിങ്ങൾ ${v.counterparty}-ന് ${amt} കൊടുക്കാനുണ്ട്. തീരുന്നതുവരെ ഞാൻ ഓർത്തുവെക്കാം.`;
   },
 
+  ledgerBatchLogged: (entries) => {
+    const lines = entries.map((e) =>
+      e.direction === 'lent'
+        ? `• ${e.counterparty} നിങ്ങൾക്ക് ${formatAmount(e.amount, e.currency)} തരാനുണ്ട്`
+        : `• നിങ്ങൾ ${e.counterparty}-ന് ${formatAmount(e.amount, e.currency)} കൊടുക്കാനുണ്ട്`,
+    );
+    return `✅ ${entries.length} എൻട്രികൾ കുറിച്ചു:\n${lines.join('\n')}\nഎല്ലാം ഞാൻ ഓർത്തുവെക്കാം.`;
+  },
+
   ledgerSettled: (v: LedgerSettledView) => {
     const paid = formatAmount(v.settledAmount, v.currency);
     const left = formatAmount(v.outstanding, v.currency);
@@ -236,6 +245,8 @@ export const ml: MessagePack = {
   budgetAskAmount: (category) => `${category}-നു ഓരോ മാസവും എത്ര?`,
   budgetSet: (category, amount) =>
     `📊 ബജറ്റ് സെറ്റ്: ${category} → ${formatAmount(amount, 'INR')}/മാസം. 80%-ൽ ഞാൻ alert ചെയ്യാം.`,
+  budgetSetOverall: (amount) =>
+    `📊 മാസ ബജറ്റ് സെറ്റ്: ${formatAmount(amount, 'INR')} (എല്ലാ ചെലവും ചേർത്ത്). 80%-ൽ ഞാൻ alert ചെയ്യാം.`,
 
   correctApplied: (newCategory) =>
     `✅ മാറ്റി. അവസാനത്തെ transaction ഇപ്പോൾ ${newCategory} ആണ്. ഇതേപോലെ വരുന്ന entries-ഉം ഇനി ഈ category-യിലേക്ക് വരും.`,

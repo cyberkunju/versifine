@@ -89,6 +89,7 @@ export async function createBudget(spaceId: string, input: BudgetCreateInput): P
       periodStart: input.periodStart ?? null,
       periodEnd: input.periodEnd ?? null,
       allocations: input.allocations,
+      overallLimit: input.overallLimit != null ? input.overallLimit.toFixed(2) : null,
       warnThreshold: input.warnThreshold,
       exceedThreshold: input.exceedThreshold,
     })
@@ -103,6 +104,7 @@ export async function updateBudget(
   patch: {
     name?: string;
     allocations?: Record<string, number>;
+    overallLimit?: number | null;
     warnThreshold?: number;
     exceedThreshold?: number;
   },
@@ -112,6 +114,8 @@ export async function updateBudget(
   const updates: Partial<typeof budgets.$inferInsert> = { updatedAt: new Date() };
   if (patch.name !== undefined) updates.name = patch.name;
   if (patch.allocations !== undefined) updates.allocations = patch.allocations;
+  if (patch.overallLimit !== undefined)
+    updates.overallLimit = patch.overallLimit === null ? null : patch.overallLimit.toFixed(2);
   if (patch.warnThreshold !== undefined) updates.warnThreshold = patch.warnThreshold;
   if (patch.exceedThreshold !== undefined) updates.exceedThreshold = patch.exceedThreshold;
   const [row] = await db
@@ -158,8 +162,10 @@ export async function computeBudgetProgress(
     .groupBy(transactions.category);
 
   const spentByCategory = new Map<string, number>();
+  let totalPeriodSpend = 0;
   for (const r of rows) {
     if (r.category) spentByCategory.set(r.category, Number(r.total));
+    totalPeriodSpend += Number(r.total);
   }
 
   const allocations = (budget.allocations ?? {}) as Record<string, number>;
@@ -184,11 +190,27 @@ export async function computeBudgetProgress(
     totalSpent += spent;
   }
 
+  // Overall (all-category) cap, when set. Measured against EVERY expense in the
+  // period, not just allocated categories.
+  let overall: BudgetProgress['overall'] = null;
+  if (budget.overallLimit != null) {
+    const limit = Number(budget.overallLimit);
+    const percentage = limit > 0 ? (totalPeriodSpend / limit) * 100 : 0;
+    overall = {
+      limit: round2(limit),
+      spent: round2(totalPeriodSpend),
+      remaining: round2(limit - totalPeriodSpend),
+      percentage: round2(percentage),
+      status: statusFor(percentage, warn, exceed),
+    };
+  }
+
   return {
     budgetId: budget.id,
     periodStart: period.start,
     periodEnd: period.end,
     perCategory,
+    overall,
     totals: {
       allocated: round2(totalAllocated),
       spent: round2(totalSpent),
@@ -211,7 +233,10 @@ export async function recomputeAffectedBudgets(
   const all = await listBudgets(spaceId);
   for (const budget of all) {
     const allocations = (budget.allocations ?? {}) as Record<string, number>;
-    if (affectedCategory && !(affectedCategory in allocations)) continue;
+    const hasOverall = budget.overallLimit != null;
+    // A per-category budget only needs recompute when the affected category is
+    // one it allocates; an overall budget is touched by ANY expense.
+    if (affectedCategory && !hasOverall && !(affectedCategory in allocations)) continue;
     let progress: BudgetProgress;
     try {
       progress = await computeBudgetProgress(spaceId, budget);
@@ -219,6 +244,43 @@ export async function recomputeAffectedBudgets(
       continue;
     }
     const period = { start: progress.periodStart, end: progress.periodEnd };
+
+    // Overall-cap crossing alerts (category key '__overall__').
+    if (progress.overall) {
+      const key = alertCacheKey(budget.id, '__overall__', period);
+      const prior = alertCache.get(key);
+      const status = progress.overall.status;
+      alertCache.set(key, { category: '__overall__', status });
+      if (prior?.status !== status) {
+        if (status === 'warn' && (prior?.status ?? 'ok') === 'ok') {
+          emit(userId, {
+            type: 'budget.warning',
+            entityId: budget.id,
+            data: {
+              budgetId: budget.id,
+              category: 'Overall',
+              allocated: progress.overall.limit,
+              spent: progress.overall.spent,
+              percentage: progress.overall.percentage,
+            },
+          });
+        }
+        if (status === 'exceeded' && prior?.status !== 'exceeded') {
+          emit(userId, {
+            type: 'budget.exceeded',
+            entityId: budget.id,
+            data: {
+              budgetId: budget.id,
+              category: 'Overall',
+              allocated: progress.overall.limit,
+              spent: progress.overall.spent,
+              overBy: round2(progress.overall.spent - progress.overall.limit),
+            },
+          });
+        }
+      }
+    }
+
     for (const [category, info] of Object.entries(progress.perCategory)) {
       if (!info) continue;
       const key = alertCacheKey(budget.id, category, period);

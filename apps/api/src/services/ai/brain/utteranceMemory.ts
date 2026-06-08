@@ -19,11 +19,12 @@
  * rows even if the user formats it differently.
  */
 import crypto from 'node:crypto';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, gte, sql } from 'drizzle-orm';
 import { db } from '../../../db/client.ts';
 import { utteranceMemory } from '../../../db/schema/utteranceMemory.ts';
 import { log } from '../../../utils/logger.ts';
 import { embed } from '../embed.ts';
+import { CURRENT_PARSER_VERSION } from '../parserVersion.ts';
 import type { ParsedExpense } from '../parser.ts';
 
 /** Cosine similarity ≥ this → return cached parse directly (Tier 0 hit). */
@@ -74,7 +75,13 @@ export async function lookupSimilar(
     const exactRows = await db
       .select()
       .from(utteranceMemory)
-      .where(and(eq(utteranceMemory.spaceId, spaceId), eq(utteranceMemory.textHash, hash)))
+      .where(
+        and(
+          eq(utteranceMemory.spaceId, spaceId),
+          eq(utteranceMemory.textHash, hash),
+          gte(utteranceMemory.parserVersion, CURRENT_PARSER_VERSION),
+        ),
+      )
       .limit(1);
 
     if (exactRows.length > 0) {
@@ -127,6 +134,7 @@ export async function lookupSimilar(
           1 - (embedding <=> ${vectorLiteral}::vector) AS similarity
         FROM utterance_memory
         WHERE space_id = ${spaceId}
+          AND parser_version >= ${CURRENT_PARSER_VERSION}
           AND (1 - (embedding <=> ${vectorLiteral}::vector)) >= ${PRIOR_THRESHOLD}
         ORDER BY embedding <=> ${vectorLiteral}::vector
         LIMIT 1
@@ -196,11 +204,13 @@ export async function recordUtterance(
         textHash: hash,
         embedding: vector,
         parsedResult: parsedResult as unknown as Record<string, unknown>,
+        parserVersion: CURRENT_PARSER_VERSION,
       })
       .onConflictDoUpdate({
         target: [utteranceMemory.spaceId, utteranceMemory.textHash],
         set: {
           parsedResult: parsedResult as unknown as Record<string, unknown>,
+          parserVersion: CURRENT_PARSER_VERSION,
           lastUsedAt: new Date(),
         },
       });

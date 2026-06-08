@@ -36,6 +36,7 @@ function serializeBudget(b: Budget) {
     periodStart: b.periodStart,
     periodEnd: b.periodEnd,
     allocations: b.allocations,
+    overallLimit: b.overallLimit != null ? Number(b.overallLimit) : null,
     warnThreshold: b.warnThreshold,
     exceedThreshold: b.exceedThreshold,
     createdAt: b.createdAt.toISOString(),

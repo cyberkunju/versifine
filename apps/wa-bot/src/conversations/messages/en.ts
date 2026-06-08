@@ -194,6 +194,15 @@ export const en: MessagePack = {
       : `✅ Noted — you owe ${v.counterparty} ${amt}. I'll keep track until it's cleared.`;
   },
 
+  ledgerBatchLogged: (entries) => {
+    const lines = entries.map((e) =>
+      e.direction === 'lent'
+        ? `• ${e.counterparty} owes you ${formatAmount(e.amount, e.currency)}`
+        : `• You owe ${e.counterparty} ${formatAmount(e.amount, e.currency)}`,
+    );
+    return `✅ Noted ${entries.length} entries:\n${lines.join('\n')}\nI'll keep track of all of them.`;
+  },
+
   ledgerSettled: (v: LedgerSettledView) => {
     const paid = formatAmount(v.settledAmount, v.currency);
     const left = formatAmount(v.outstanding, v.currency);
@@ -241,6 +250,8 @@ export const en: MessagePack = {
   budgetAskAmount: (category) => `How much per month for ${category}?`,
   budgetSet: (category, amount) =>
     `📊 Budget set: ${category} → ${formatAmount(amount, 'INR')}/month. I'll warn at 80%.`,
+  budgetSetOverall: (amount) =>
+    `📊 Monthly budget set: ${formatAmount(amount, 'INR')} across all spending. I'll warn at 80%.`,
 
   correctApplied: (newCategory) =>
     `✅ Updated. The last transaction is now ${newCategory}. Future similar entries will use this category too.`,
