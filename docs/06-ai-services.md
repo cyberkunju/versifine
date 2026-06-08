@@ -6,15 +6,18 @@
 
 The same map in three places (env defaults, design.md, and this file). Source of truth is `apps/api/src/env.ts`.
 
-| Job | Default model | Env var | Where it runs |
+| Job | Live model | Env var | Where it runs |
 | --- | --- | --- | --- |
-| Voice → text | `gpt-4o-transcribe` (fallback `whisper-1`) | `OPENAI_TRANSCRIPTION_MODEL` | API + bot (bot calls directly for latency) |
-| Receipt vision | `gpt-4o` | `OPENAI_VISION_MODEL` | API |
-| Expense parse | `gpt-5-mini` | `OPENAI_PARSE_MODEL` | API |
-| Intent classify | `gpt-4o-mini` | `OPENAI_NLU_MODEL` | API |
-| Copilot chat | `gpt-4o-mini` | `OPENAI_CHAT_MODEL` | API (streaming) |
-| Translate | `gpt-4o-mini` | `OPENAI_TRANSLATE_MODEL` | API + bot |
-| Embeddings | `text-embedding-3-small` | `OPENAI_EMBED_MODEL` | API (1536-dim) |
+| Voice → text | `MAI-Transcribe-1.5` (en) / Sarvam `saaras:v3` (Indic); `gpt-4o-transcribe` fallback | `OPENAI_TRANSCRIPTION_MODEL` | API + bot (bot calls directly for latency) |
+| Receipt vision | `gpt-5.4-nano` | `OPENAI_VISION_MODEL` | API |
+| Expense parse | `gpt-5.4-nano` | `OPENAI_PARSE_MODEL` | API |
+| Intent classify | `gpt-5.4-nano` | `OPENAI_NLU_MODEL` | API |
+| Copilot chat | `gpt-5-mini` | `OPENAI_CHAT_MODEL` | API (streaming) |
+| Translate | `gpt-5.4-nano` (Sarvam Mayura primary in bot) | `OPENAI_TRANSLATE_MODEL` | API + bot |
+| Embeddings | `Cohere-embed-v3-multilingual` | `OPENAI_EMBED_MODEL` | API (1024-dim) |
+
+> Models route through Azure AI Foundry (the `OPENAI_*_MODEL` values are Azure
+> deployment names). See `docs/17-model-stack.md` for the full target/live stack.
 | TTS en/hi/kn/te | `gpt-4o-mini-tts` (fallback `tts-1`) | `OPENAI_TTS_MODEL` | bot |
 | TTS ta/ml combined | `gpt-4o-audio-preview` | `OPENAI_AUDIO_MODEL` | bot |
 

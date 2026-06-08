@@ -71,18 +71,17 @@ Runtime validation. Used in three places:
 
 The complete model map (mirrors the design doc):
 
-| Job | Model env var | Default |
+| Job | Model env var | Live (Azure deployment) |
 | --- | --- | --- |
-| Voice transcription | `OPENAI_TRANSCRIPTION_MODEL` | `gpt-4o-transcribe`, falls back to `whisper-1` |
-| Receipt vision | `OPENAI_VISION_MODEL` | `gpt-4o` |
-| Expense parser | `OPENAI_PARSE_MODEL` | `gpt-5-mini` |
-| Intent NLU | `OPENAI_NLU_MODEL` | `gpt-4o-mini` |
-| Copilot chat | `OPENAI_CHAT_MODEL` | `gpt-4o-mini` |
-| Translate | `OPENAI_TRANSLATE_MODEL` | `gpt-4o-mini` |
-| Embeddings | `OPENAI_EMBED_MODEL` | `text-embedding-3-small` (1536-dim) |
-| TTS (en/hi/kn/te) | `OPENAI_TTS_MODEL` | `gpt-4o-mini-tts` |
-| TTS (ta/ml combined) | `OPENAI_AUDIO_MODEL` | `gpt-4o-audio-preview` |
-| TTS voice | `OPENAI_TTS_VOICE` / `OPENAI_AUDIO_VOICE` | `nova` / `shimmer` |
+| Voice transcription | `OPENAI_TRANSCRIPTION_MODEL` | MAI-Transcribe-1.5 (en) / Sarvam `saaras:v3` (Indic); `gpt-4o-transcribe` fallback |
+| Receipt vision | `OPENAI_VISION_MODEL` | `gpt-5.4-nano` |
+| Expense parser | `OPENAI_PARSE_MODEL` | `gpt-5.4-nano` |
+| Intent NLU | `OPENAI_NLU_MODEL` | `gpt-5.4-nano` |
+| Copilot chat | `OPENAI_CHAT_MODEL` | `gpt-5-mini` |
+| Translate | `OPENAI_TRANSLATE_MODEL` | `gpt-5.4-nano` (Sarvam Mayura primary in bot) |
+| Embeddings | `OPENAI_EMBED_MODEL` | `Cohere-embed-v3-multilingual` (1024-dim) |
+| TTS (all languages) | `SARVAM_TTS_MODEL` | Sarvam `bulbul:v3` (speaker `kabir`) |
+| TTS fallback | `OPENAI_TTS_MODEL` / `OPENAI_AUDIO_MODEL` | `gpt-4o-mini-tts` / `gpt-4o-audio-preview` |
 
 ### `@huggingface/transformers` 3.3.3
 

@@ -133,18 +133,28 @@ End-to-end audio test pending a real voice sample at wiring time.
 
 ## Environment variable mapping
 
-| Env var | Target | Interim |
+| Env var | Target | **Live now** |
 | --- | --- | --- |
-| `OPENAI_NLU_MODEL` | gpt-5.4-nano | gpt-5-mini |
-| `OPENAI_PARSE_MODEL` | gpt-5.4-nano | gpt-5-mini |
-| `OPENAI_TRANSLATE_MODEL` | gpt-5.4-nano | gpt-5-mini |
-| `OPENAI_VISION_MODEL` | gpt-5.4-nano | gpt-5-mini |
+| `OPENAI_NLU_MODEL` | gpt-5.4-nano | **gpt-5.4-nano** ✅ (approved + cutover 2026-06-08) |
+| `OPENAI_PARSE_MODEL` | gpt-5.4-nano | **gpt-5.4-nano** ✅ |
+| `OPENAI_TRANSLATE_MODEL` | gpt-5.4-nano | **gpt-5.4-nano** ✅ (api + wa-bot) |
+| `OPENAI_VISION_MODEL` | gpt-5.4-nano | **gpt-5.4-nano** ✅ |
 | `OPENAI_CHAT_MODEL` | gpt-5-mini | gpt-5-mini |
-| `OPENAI_ESCALATION_MODEL` *(new)* | gpt-5.4-mini | gpt-5-mini |
-| `OPENAI_EMBED_MODEL` | text-embedding-3-large | Cohere-embed-v3-multilingual |
+| `OPENAI_ESCALATION_MODEL` *(new)* | gpt-5.4-mini | not wired (⏳ needs gpt-5.4-mini quota) |
+| `OPENAI_EMBED_MODEL` | text-embedding-3-large | Cohere-embed-v3-multilingual (⏳ 3-large quota pending + bulk re-embed) |
 | `OPENAI_TRANSCRIPTION_MODEL` | MAI-Transcribe-1.5 | MAI-Transcribe-1.5 |
 | `SARVAM_STT_MODEL` *(new)* | saaras:v3 | saaras:v3 |
-| `SARVAM_TTS_MODEL` *(new)* | bulbul:v3 | bulbul:v3 |
+| `SARVAM_TTS_MODEL` *(new)* | bulbul:v3 | bulbul:v3 (speaker `kabir`) |
+
+> **gpt-5.4-nano cutover (2026-06-08):** nano quota was approved and the four
+> workhorse stages (intent, parse, translate, vision) were switched from the
+> interim `gpt-5-mini` to `gpt-5.4-nano` on the live server — a pure env swap,
+> no code change (`normalizeChatParams` already maps the `gpt-5*` family to
+> `max_completion_tokens` + `reasoning_effort: minimal`). Verified live: valid
+> JSON intent/parse, multilingual fraction parse (`ढाई सौ`→₹250, `सवा लाख`→₹1,25,000),
+> Hindi translate, and image input — 0 failures, ~350ms vs gpt-5-mini's ~1.5–2.3s.
+> Still on the interim tier: copilot chat (`gpt-5-mini`), embeddings (Cohere v3),
+> and the low-confidence escalation path (needs `gpt-5.4-mini` quota).
 
 > Azure uses *deployment names* (chosen at deploy time) + a Foundry endpoint +
 > `api-version`, not the raw OpenAI base URL. `client.ts` switches to the Azure
@@ -180,17 +190,20 @@ STT ≈ ₹0.13/note, TTS ≈ ₹0.60/reply. (List prices; Azure deployment type
 
 ## Open integration tasks (when keys land)
 
-**STATUS: the interim Azure/Sarvam stack is LIVE in production (cutover 2026-06-06).**
-Direct OpenAI is no longer used except as a TTS fallback. Remaining work is the
-*target* upgrade (nano/mini/3-large) once quota is approved — a pure env swap.
+**STATUS: the interim Azure/Sarvam stack is LIVE in production (cutover 2026-06-06);
+the four workhorse stages were upgraded to `gpt-5.4-nano` on 2026-06-08.**
+Direct OpenAI is no longer used except as a TTS fallback. Remaining *target*
+work is the embeddings upgrade (text-embedding-3-large + bulk re-embed) and the
+low-confidence escalation path (`gpt-5.4-mini`), both pending their own quota.
 
 Done at cutover:
 1. ✅ `client.ts` (api + wa-bot) targets Azure AI Foundry when `AZURE_AI_KEY` +
    `AZURE_AI_ENDPOINT` are set (baseURL `<endpoint>/models`, `api-key` header,
    `api-version` query); chat + embeddings both route through it.
-2. ✅ Env remapped on the server: NLU/parse/translate/vision/chat → `gpt-5-mini`,
+2. ✅ Env remapped on the server: NLU/parse/translate/vision → `gpt-5.4-nano`
+   (upgraded from interim `gpt-5-mini` on 2026-06-08), chat → `gpt-5-mini`,
    embeddings → `Cohere-embed-v3-multilingual`.
-3. ⏳ nano→gpt-5.4-mini escalation — pending target stack.
+3. ⏳ nano→gpt-5.4-mini escalation — pending `gpt-5.4-mini` quota.
 4. ✅ STT router in `transcribe.ts`: `en` → MAI-Transcribe-1.5 (Azure Speech),
    Indic → Sarvam Saarika `saarika:v2.5`.
 5. ✅ Sarvam Bulbul TTS wired (`bulbulSpeech.ts`) for all languages; OpenAI TTS
