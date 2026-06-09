@@ -669,3 +669,59 @@ describe('textHasForeignCurrencyToken — long-tail world currencies', () => {
     });
   }
 });
+
+// --- deterministic explicit ISO-code currency extraction ---------------
+// No-caveat requirement: a user who writes an explicit ISO code must get that
+// currency DETERMINISTICALLY (no LLM dependence), for the whole world set —
+// while all-caps names/words that happen to be codes are never mis-tagged.
+describe('extractAmount — explicit ISO-4217 code (deterministic)', () => {
+  const positives: Array<[string, number, string]> = [
+    ['500 ZAR', 500, 'ZAR'],
+    ['spent 500 ZAR on shopping', 500, 'ZAR'],
+    ['ZAR 500', 500, 'ZAR'],
+    ['spent 100 BRL on dinner', 100, 'BRL'],
+    ['200 THB for food', 200, 'THB'],
+    ['5000 KRW', 5000, 'KRW'],
+    ['100 CNY', 100, 'CNY'],
+    ['CHF 200', 200, 'CHF'],
+    ['500 TRY in istanbul', 500, 'TRY'], // number-first works even for word-like code
+    ['2.5k CHF', 2500, 'CHF'], // scale suffix + code
+    ['paid 50 SGD', 50, 'SGD'], // SGD is also an alias; either path → SGD
+    ['NPR 800', 800, 'NPR'], // neighbour currency
+  ];
+  for (const [input, amount, currency] of positives) {
+    test(`"${input}" → ${amount} ${currency}`, () => {
+      expect(extractAmount(input)).toEqual({ amount, currency });
+    });
+  }
+
+  // Collision safety — these must NOT be tagged with a currency.
+  const noCurrency: Array<[string, number]> = [
+    ['lent BOB 500', 500], // BOB is a name after a person verb
+    ['paid BOB 500', 500],
+    ['gave BOB 200', 200],
+    ['TOP 500 songs', 500], // TOP blocklisted (rankings, not Tongan)
+    ['ALL 500 of them', 500], // ALL blocklisted
+    ['MAD 500 today', 500], // MAD blocklisted (not Moroccan dirham)
+    ['bought a PEN 50', 50], // PEN blocklisted (a pen, not Peruvian sol)
+    ['spent 500 all of it', 500], // lowercase "all" never matches
+    ['500 ZARA dress', 500], // ZARA brand, not ZAR + A
+    ['CUP 200 of coffee', 200], // CUP blocklisted
+  ];
+  for (const [input, amount] of noCurrency) {
+    test(`collision-safe: "${input}" → ${amount}, null`, () => {
+      expect(extractAmount(input)).toEqual({ amount, currency: null });
+    });
+  }
+
+  // Aliases and INR are unaffected by the new ISO passes.
+  test('alias $ still wins', () => {
+    expect(extractAmount('$50 lunch')).toEqual({ amount: 50, currency: 'USD' });
+  });
+  test('₹ still INR', () => {
+    expect(extractAmount('₹120 coffee')).toEqual({ amount: 120, currency: 'INR' });
+  });
+  test('plain rupee number has no currency code', () => {
+    expect(extractAmount('spent 500 on lunch')).toEqual({ amount: 500, currency: null });
+  });
+});

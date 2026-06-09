@@ -49,17 +49,30 @@ const FOREIGN_CURRENCY_RE = new RegExp(
 );
 
 /**
- * The full set of non-INR ISO-4217 codes the FX layer can convert. A user who
- * names an exotic currency by its CODE ("100 BRL", "500 ZAR", "200 THB") must
- * be honoured — the merge guard would otherwise force INR. Matched UPPERCASE
- * only (`\b[A-Z]{3}\b`, no `i` flag): people write currency codes in caps, and
- * this avoids lowercase English words that collide with codes ("all"→ALL,
- * "try"→TRY) weakening the hallucination guard.
+ * The full set of non-INR ISO-4217 codes. Used by the foreign-currency GUARD
+ * (textHasForeignCurrencyToken) which stays GENEROUS — it must never strip a
+ * currency the LLM legitimately identified, even a word-like code, because the
+ * model has the surrounding context to judge ("spent 100 ALL" vs "TOP 500").
  */
-const FOREIGN_ISO_SET: ReadonlySet<string> = new Set(
-  CURRENCIES.filter((c) => c !== 'INR'),
-);
+const FOREIGN_ISO_SET: ReadonlySet<string> = new Set(CURRENCIES.filter((c) => c !== 'INR'));
 const ISO_CODE_TOKEN_RE = /\b[A-Z]{3}\b/g;
+
+/**
+ * ISO codes that double as common English UPPERCASE words/names, so they are
+ * excluded from DETERMINISTIC regex extraction (they'd mis-tag "TOP 500 songs"
+ * as Tongan paʻanga, "lent BOB 500" as Bolivian boliviano, "MAD 500" as
+ * Moroccan dirham). For these the LLM decides using context, and the generous
+ * guard above keeps the result if the model judged it a currency. Every common
+ * traveller/NRI currency (USD/EUR/GBP/AED/SGD/JPY/ZAR/BRL/THB/CNY/CHF/KRW/SAR/
+ * QAR/KWD/NPR/LKR/BDT/PKR/…) is NOT here and is fully deterministic.
+ */
+const ISO_CODE_BLOCKLIST: ReadonlySet<string> = new Set([
+  'ALL', 'TOP', 'CUP', 'PEN', 'GEL', 'BOB', 'COP', 'AMD', 'MAD', 'RON', 'BAM',
+]);
+/** Conservative set used for deterministic amount-adjacent code extraction. */
+const FOREIGN_ISO_EXTRACT: ReadonlySet<string> = new Set(
+  CURRENCIES.filter((c) => c !== 'INR' && !ISO_CODE_BLOCKLIST.has(c)),
+);
 
 /**
  * Common foreign currency WORDS not already in CURRENCY_ALIASES, so "200 baht",
@@ -314,6 +327,47 @@ export function looksLikeYearNoise(text: string): boolean {
   return false;
 }
 
+/**
+ * Person/counterparty verbs that take a NAME as their object. Used to veto the
+ * code-FIRST ISO pass so an all-caps name that is also a valid ISO code
+ * ("lent BOB 500" → Bolivian boliviano) is never read as money. Number-first
+ * ("500 BOB") is unaffected — a name never trails its own amount.
+ */
+const PERSON_VERB_BEFORE =
+  /(?:lent|lend|gave|give|gives|given|owe|owes|owed|paid|pay|pays|sent|send|sends|borrowed|repaid|repay|returned|return)\s+$/i;
+
+/** Amount → explicit UPPERCASE ISO code: "500 ZAR", "100BRL", "2.5k CHF". */
+const ISO_TRAIL_RE = new RegExp(
+  `(\\d[\\d,]*(?:\\.\\d+)?)\\s*(${SCALE_SUFFIX})?(?![a-z])\\s*([A-Z]{3})\\b`,
+);
+/** Explicit UPPERCASE ISO code → amount: "ZAR 500", "CHF 200". */
+const ISO_LEAD_RE = new RegExp(
+  `(^|[^A-Za-z])([A-Z]{3})\\s+(\\d[\\d,]*(?:\\.\\d+)?)\\s*(${SCALE_SUFFIX})?(?![a-z])`,
+);
+
+/**
+ * Deterministic extraction of an amount tagged with an explicit foreign ISO
+ * code written next to it. Returns null when there is no such pair, so the
+ * caller falls through to the bare-number / worded passes. Only codes in
+ * FOREIGN_ISO_EXTRACT (non-INR, non-word-collision) qualify.
+ */
+function extractIsoAttachedAmount(cleaned: string): AmountExtraction | null {
+  const trail = ISO_TRAIL_RE.exec(cleaned);
+  if (trail && FOREIGN_ISO_EXTRACT.has(trail[3]!)) {
+    const amt = parseAmount(trail[1]!, trail[2] ?? null);
+    if (amt !== null) return { amount: amt, currency: trail[3] as Currency };
+  }
+  const lead = ISO_LEAD_RE.exec(cleaned);
+  if (lead && FOREIGN_ISO_EXTRACT.has(lead[2]!)) {
+    const beforeCode = cleaned.slice(0, lead.index + lead[1]!.length);
+    if (!PERSON_VERB_BEFORE.test(beforeCode)) {
+      const amt = parseAmount(lead[3]!, lead[4] ?? null);
+      if (amt !== null) return { amount: amt, currency: lead[2] as Currency };
+    }
+  }
+  return null;
+}
+
 export function extractAmount(text: string): AmountExtraction {
   if (!text) return { amount: null, currency: null };
   const cleaned = stripNumericNoise(
@@ -345,6 +399,15 @@ export function extractAmount(text: string): AmountExtraction {
       return { amount: amt, currency: normalizeCurrencyToken(trail[3]!) };
     }
   }
+
+  // 2b/2c) Explicit UPPERCASE ISO-4217 code adjacent to the amount, so the full
+  //   world currency set ("500 ZAR", "ZAR 500", "100 BRL", "200 THB", "500 TRY")
+  //   converts DETERMINISTICALLY without depending on the LLM. Case-sensitive
+  //   (uppercase-only) so lowercase words never match; restricted to codes that
+  //   aren't common English words (ISO_CODE_BLOCKLIST); and the code-first form
+  //   is vetoed after a person/counterparty verb so "lent BOB 500" stays a name.
+  const isoAttached = extractIsoAttachedAmount(cleaned);
+  if (isoAttached) return isoAttached;
 
   // 3) No currency attached — score every bare number and pick the price.
   const amt = pickBareAmount(cleaned);
