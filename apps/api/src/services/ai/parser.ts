@@ -531,9 +531,21 @@ export async function parseExpense(input: ParseInput): Promise<ParsedExpense> {
       // for returning users without a DB migration or cache wipe.
       const cached: ParsedExpense = { ...memHit.parsedResult };
       const fresh = extractAmount(text);
-      if (fresh.amount !== null && fresh.amount !== cached.amount) {
-        cached.amount = fresh.amount;
-        if (fresh.currency) cached.currency = fresh.currency;
+      // The deterministic extractors are versionless truth. Refresh BOTH amount
+      // AND currency from them: a semantically-similar cache hit can match a
+      // DIFFERENT currency (e.g. "100 CNY" hitting a cached "100 BRL" — same
+      // amount, same shape), so currency must be re-derived independently of the
+      // amount, and the original*/conversion fields kept consistent with it.
+      if (fresh.amount !== null) cached.amount = fresh.amount;
+      if (fresh.currency && fresh.currency !== cached.currency) {
+        cached.currency = fresh.currency;
+        if (fresh.currency === 'INR') {
+          cached.originalAmount = null;
+          cached.originalCurrency = null;
+        } else {
+          cached.originalAmount = fresh.amount ?? cached.amount;
+          cached.originalCurrency = fresh.currency;
+        }
       }
       // Self-heal a stale hallucinated foreign currency the same way the live
       // merge does: if the cached row carries a non-INR currency but the text
