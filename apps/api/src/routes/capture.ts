@@ -630,19 +630,38 @@ async function runTextPipeline(input: RunPipelineInput) {
   // is the fix for "log 250 → 'sorry 230 ayirunnu' double-logged" — corrections
   // are now understood in every language instead of an English regex list.
   if (input.recentContext && intentResult.intent === 'correct_last') {
-    traceLog.info('CAPTURE_CORRECT_LAST', { amount: intentResult.amount, category: intentResult.category });
-    return c.json(
-      ok({
-        intent: 'correct_last' as const,
-        needsConfirmation: false,
-        queryResult: {
-          kind: 'correct_last',
-          amount: intentResult.amount,
-          category: intentResult.category,
-        },
-        echo: text,
-      }),
-    );
+    // INDEPENDENT DETERMINISTIC GUARD: a ledger mutation must never fire on the
+    // classifier's word alone (defends against a hijacked/hallucinated
+    // correction). For an AMOUNT correction, the deterministic extractor must
+    // independently find the SAME number in the message. Category-only
+    // corrections are reversible + non-financial, so they pass on the validated
+    // enum. If the amount doesn't concur, we DON'T mutate — fall through to
+    // normal handling (which will draft/ask rather than silently edit).
+    const claimedAmount = intentResult.amount;
+    const detAmount = extractAmount(text).amount;
+    const amountConcurs =
+      claimedAmount == null || (detAmount != null && Math.abs(detAmount - claimedAmount) < 0.005);
+    if (amountConcurs) {
+      traceLog.info('CAPTURE_CORRECT_LAST', {
+        amount: claimedAmount,
+        category: intentResult.category,
+        grounded: detAmount != null,
+      });
+      return c.json(
+        ok({
+          intent: 'correct_last' as const,
+          needsConfirmation: false,
+          queryResult: {
+            kind: 'correct_last',
+            amount: claimedAmount,
+            category: intentResult.category,
+          },
+          echo: text,
+        }),
+      );
+    }
+    traceLog.info('CAPTURE_CORRECT_LAST_REJECTED', { reason: 'amount_not_grounded', claimedAmount });
+    // fall through to normal routing below
   }
 
   // Money movement — lend / borrow / repayment / debt question / transfer.
