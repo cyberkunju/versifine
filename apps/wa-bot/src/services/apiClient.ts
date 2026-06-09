@@ -159,13 +159,17 @@ export async function captureText(
   text: string,
   locale?: string,
   history?: Array<{ role: 'user' | 'assistant'; content: string }>,
+  recentContext?: string,
 ): Promise<CaptureResponseShape> {
   const loc = normalizeLocale(locale);
+  const body: Record<string, unknown> = { text, history };
+  if (loc) body.locale = loc;
+  if (recentContext) body.recentContext = recentContext;
   return await call<CaptureResponseShape>({
     method: 'POST',
     path: '/capture/text',
     phone,
-    body: loc ? { text, locale: loc, history } : { text, history },
+    body,
   });
 }
 

@@ -24,6 +24,7 @@ import {
 } from '../../services/apiClient.ts';
 import { log } from '../../utils/logger.ts';
 import { translateChatAnswer } from '../../services/ai/translate.ts';
+import { applyParsedCorrection } from './correct.ts';
 import { getMessages } from '../messages/index.ts';
 import type { QuerySummaryView, LedgerView, LedgerSettledView, DebtsView, TransferView } from '../messages/types.ts';
 import { setState, updateSession } from '../state.ts';
@@ -34,6 +35,41 @@ export interface CaptureResult {
   speakable?: string;
   /** Set when the API returned a draft pending confirmation. */
   pendingDraftId?: string;
+}
+
+/**
+ * Persist a one-line summary of the just-logged transaction onto the session
+ * (merged into `pending`, preserving history) plus its id. This is what the
+ * API's context-aware classifier reads back as `recentContext` so a follow-up
+ * like "sorry it was 230" (in ANY language) is recognised as a correction of
+ * THIS entry instead of being logged as a brand-new one.
+ */
+function rememberLastTransaction(
+  session: Session,
+  tx: { id?: string; amount?: number; description?: string; category?: string | null; type?: string },
+): void {
+  if (!tx.id) return;
+  const pending = { ...(session.pending ?? {}) };
+  pending.lastTx = {
+    amount: typeof tx.amount === 'number' ? tx.amount : null,
+    description: tx.description ?? null,
+    category: tx.category ?? null,
+    type: tx.type ?? 'expense',
+  };
+  updateSession(session.phone, { lastTransactionId: tx.id, pending });
+}
+
+/** Build the `recentContext` string sent to the API for correction detection. */
+function buildRecentContext(session: Session): string | undefined {
+  if (!session.lastTransactionId) return undefined;
+  const last = session.pending?.lastTx as
+    | { amount?: number | null; description?: string | null; category?: string | null; type?: string }
+    | undefined;
+  if (!last || typeof last.amount !== 'number') return undefined;
+  const desc = last.description ? ` "${last.description}"` : '';
+  const cat = last.category ? ` (${last.category})` : '';
+  const kind = last.type && last.type !== 'expense' ? last.type : 'expense';
+  return `₹${last.amount}${desc}${cat} ${kind}`.slice(0, 200);
 }
 
 function summarizeQueryResult(result: Record<string, unknown> | undefined): string {
@@ -135,7 +171,7 @@ function renderCaptureResponse(session: Session, response: CaptureResponseShape)
       if (Array.isArray(txs) && txs.length > 0) {
         const last = txs[txs.length - 1];
         if (last?.id) {
-          updateSession(session.phone, { lastTransactionId: last.id });
+          rememberLastTransaction(session, last);
         }
         const total =
           typeof response.queryResult?.total === 'number'
@@ -155,6 +191,8 @@ function renderCaptureResponse(session: Session, response: CaptureResponseShape)
             amount: number;
             currency: string;
             category: string | null;
+            description?: string;
+            type?: string;
             baseAmount?: number;
             baseCurrency?: string;
           }
@@ -164,7 +202,7 @@ function renderCaptureResponse(session: Session, response: CaptureResponseShape)
         // <category>" correction flow can patch it. Without this the
         // correction flow always reports "nothing to correct".
         if (tx.id) {
-          updateSession(session.phone, { lastTransactionId: tx.id });
+          rememberLastTransaction(session, tx);
         }
         const text = m.captureLogged(
           tx.amount,
@@ -303,7 +341,18 @@ export async function handleCapture(
     }
     if (message.body && message.body.trim()) {
       const history = (session.pending.history as any[]) || [];
-      const response = await captureText(session.phone, message.body, locale, history);
+      const recentContext = buildRecentContext(session);
+      const response = await captureText(session.phone, message.body, locale, history, recentContext);
+      // Context-aware correction: the API resolved a fix to the last entry from
+      // any language ("sorry it was 230", "actually groceries"). Apply it to the
+      // remembered transaction instead of logging a new one.
+      const qr = response.queryResult as Record<string, unknown> | undefined;
+      if (qr?.kind === 'correct_last') {
+        return await applyParsedCorrection(session, {
+          amount: typeof qr.amount === 'number' ? qr.amount : null,
+          category: typeof qr.category === 'string' ? qr.category : null,
+        });
+      }
       // Free-form question → answer inline with the guarded copilot instead
       // of nudging the user to the website. The API screens for scope +
       // prompt-injection server-side; we just relay the finished answer.

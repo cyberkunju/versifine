@@ -23,6 +23,15 @@ export interface IntentInput {
   locale?: string;
   /** Optional state hint, e.g. "confirming-draft:abc". Reserved. */
   context?: string;
+  /**
+   * One-line summary of the user's MOST RECENT logged transaction — present
+   * ONLY when there is one to amend (the bot sets it right after a capture).
+   * This is what makes correction/undo detection language-agnostic: "sorry it
+   * was 230", "actually groceries", "delete that" — in ANY language — resolve
+   * against this recent entry instead of being mis-logged as a brand-new one.
+   * When absent, the classifier behaves exactly as before (no correction path).
+   */
+  recentContext?: string;
 }
 
 export interface IntentResult {
@@ -155,7 +164,11 @@ const CACHE_MAX = 500;
 const cache = new Map<string, CacheEntry>();
 
 function cacheKey(input: IntentInput): string {
-  return `${input.locale ?? '_'}::${input.text.trim().toLowerCase()}`;
+  // recentContext changes the correct an answer (a correction only exists
+  // relative to a prior transaction), so it MUST be part of the key — otherwise
+  // "sorry 230" would cache one verdict and reuse it when there's nothing to fix.
+  const ctx = input.recentContext ? `::${input.recentContext.trim().toLowerCase()}` : '';
+  return `${input.locale ?? '_'}::${input.text.trim().toLowerCase()}${ctx}`;
 }
 
 function readCache(key: string): IntentResult | null {
@@ -351,6 +364,27 @@ export async function classifyIntent(input: IntentInput): Promise<IntentResult> 
   }
 
   try {
+    const contextMessages: Array<{ role: 'system' | 'user'; content: string }> = [
+      { role: 'system', content: SYSTEM_PROMPT },
+    ];
+    if (input.recentContext && input.recentContext.trim()) {
+      contextMessages.push({
+        role: 'system',
+        content:
+          `CONTEXT — the user's most recent logged transaction is: ${input.recentContext.trim()}. ` +
+          `If THIS message is a CORRECTION or UNDO of that transaction — adjusting its amount ` +
+          `("sorry it was 230", "make it 250", "230 not 250", "no 500"), changing its category ` +
+          `("actually groceries", "that was transport not food"), or REMOVING it ("delete that", ` +
+          `"no cancel it", "undo", "remove the last one", "that's wrong") — in ANY language or ` +
+          `script, classify it as correct_last (put the NEW amount in "amount" and/or the NEW ` +
+          `category name in "category") or delete_last. A message describing a DIFFERENT new spend ` +
+          `(a new item or merchant) is NOT a correction — classify it normally as expense/etc.`,
+      });
+    }
+    contextMessages.push({
+      role: 'user',
+      content: input.locale ? `[locale=${input.locale}] ${text}` : text,
+    });
     const completion = await withLatency('intent.classify', () =>
       client.chat.completions.create(
         normalizeChatParams({
@@ -358,13 +392,7 @@ export async function classifyIntent(input: IntentInput): Promise<IntentResult> 
           temperature: 0,
           max_tokens: 200,
           response_format: { type: 'json_object' },
-          messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
-            {
-              role: 'user',
-              content: input.locale ? `[locale=${input.locale}] ${text}` : text,
-            },
-          ],
+          messages: contextMessages,
         }),
       ),
     );

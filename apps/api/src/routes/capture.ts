@@ -203,6 +203,9 @@ interface RunPipelineInput {
   locale: Language | undefined;
   source: 'whatsapp_text' | 'whatsapp_voice' | 'whatsapp_image' | 'manual_web';
   history?: MessageTurn[];
+  /** One-line summary of the user's last logged transaction, for correction
+   *  detection. Present only when the bot has a recent transaction to amend. */
+  recentContext?: string;
 }
 
 interface ParsedBatchItem {
@@ -610,7 +613,7 @@ async function runTextPipeline(input: RunPipelineInput) {
     );
   }
 
-  const intentResult = await classifyIntent({ text, locale });
+  const intentResult = await classifyIntent({ text, locale, recentContext: input.recentContext });
   traceLog.info('CAPTURE_INTENT', {
     origin,
     intent: intentResult.intent,
@@ -618,6 +621,29 @@ async function runTextPipeline(input: RunPipelineInput) {
     sourceType: intentResult.source,
     inputSize: summarizeForLog(text),
   });
+
+  // Correction / undo of the most recent transaction. Only reachable when the
+  // bot supplied `recentContext` (i.e. there IS a recent entry to amend), so a
+  // bare "sorry it was 230" can't fire with nothing to fix. The classifier has
+  // already resolved the new amount/category from any language; we return a
+  // structured directive and the bot applies it to its lastTransactionId. This
+  // is the fix for "log 250 → 'sorry 230 ayirunnu' double-logged" — corrections
+  // are now understood in every language instead of an English regex list.
+  if (input.recentContext && intentResult.intent === 'correct_last') {
+    traceLog.info('CAPTURE_CORRECT_LAST', { amount: intentResult.amount, category: intentResult.category });
+    return c.json(
+      ok({
+        intent: 'correct_last' as const,
+        needsConfirmation: false,
+        queryResult: {
+          kind: 'correct_last',
+          amount: intentResult.amount,
+          category: intentResult.category,
+        },
+        echo: text,
+      }),
+    );
+  }
 
   // Money movement — lend / borrow / repayment / debt question / transfer.
   // Runs before the expense/batch/chat routing because these are NOT spends:
@@ -1035,6 +1061,10 @@ app.post('/text', requireUserOrBot, captureLimit, validate('json', captureTextIn
   const { text, locale } = c.req.valid('json');
   const body = await c.req.json().catch(() => ({}));
   const history = body.history;
+  const recentContext =
+    typeof body.recentContext === 'string' && body.recentContext.trim()
+      ? body.recentContext.trim().slice(0, 200)
+      : undefined;
   const sourceTag: 'whatsapp_text' | 'manual_web' = c.req.header('x-bot-secret')
     ? 'whatsapp_text'
     : 'manual_web';
@@ -1045,6 +1075,7 @@ app.post('/text', requireUserOrBot, captureLimit, validate('json', captureTextIn
     locale: maybeLanguage(locale),
     source: sourceTag,
     history,
+    recentContext,
   });
 });
 

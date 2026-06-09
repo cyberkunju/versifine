@@ -128,39 +128,54 @@ export function looksLikeCorrection(text: string): boolean {
 }
 
 export async function handleCorrection(session: Session, body: string): Promise<{ text: string }> {
+  const parsed = parseCorrection(body);
+  return applyParsedCorrection(session, parsed);
+}
+
+/**
+ * Apply an ALREADY-RESOLVED correction to the user's last transaction. Shared
+ * by the English regex path (handleCorrection → parseCorrection) and the
+ * language-agnostic LLM path (the API's context-aware classifier resolves the
+ * new amount/category from any language and the bot hands them straight here).
+ * Accepts loose input (number|null, string|null) and validates internally.
+ */
+export async function applyParsedCorrection(
+  session: Session,
+  fields: { amount?: number | null; category?: string | null; description?: string | null },
+): Promise<{ text: string }> {
   const m = getMessages(session.language);
   if (!session.lastTransactionId) {
     return { text: m.correctNotPossible };
   }
-  const parsed = parseCorrection(body);
-  if (parsed.amount === undefined && !parsed.category && !parsed.description) {
+  const amount =
+    typeof fields.amount === 'number' && Number.isFinite(fields.amount) && fields.amount > 0
+      ? fields.amount
+      : undefined;
+  const category =
+    fields.category && isCategory(fields.category) ? (fields.category as Category) : undefined;
+  const description = fields.description?.trim() ? fields.description.trim() : undefined;
+  if (amount === undefined && !category && !description) {
     return { text: m.correctNotPossible };
   }
 
   try {
-    // Category goes through the dedicated endpoint (audit + override learning).
-    if (parsed.category && parsed.amount === undefined && !parsed.description) {
-      await patchTransactionCategory(session.phone, session.lastTransactionId, parsed.category);
-      return { text: m.correctApplied(parsed.category) };
+    // Category-only change goes through the dedicated endpoint (audit + override learning).
+    if (category && amount === undefined && !description) {
+      await patchTransactionCategory(session.phone, session.lastTransactionId, category);
+      return { text: m.correctApplied(category) };
     }
 
-    // Amount and/or description (optionally with category) → general PATCH.
-    const fields: { amount?: number; description?: string; category?: string } = {};
-    if (parsed.amount !== undefined) fields.amount = parsed.amount;
-    if (parsed.description) fields.description = parsed.description;
-    if (parsed.category) fields.category = parsed.category;
+    const patch: { amount?: number; description?: string; category?: string } = {};
+    if (amount !== undefined) patch.amount = amount;
+    if (description) patch.description = description;
+    if (category) patch.category = category;
 
-    const { transaction } = await patchTransaction(
-      session.phone,
-      session.lastTransactionId,
-      fields,
-    );
+    const { transaction } = await patchTransaction(session.phone, session.lastTransactionId, patch);
 
-    // Build a short summary of what the entry now is.
     const parts: string[] = [];
-    if (parsed.amount !== undefined) parts.push(`₹${transaction.amount.toLocaleString('en-IN')}`);
-    if (parsed.description) parts.push(`"${transaction.description}"`);
-    if (parsed.category) parts.push(transaction.category ?? parsed.category);
+    if (amount !== undefined) parts.push(`₹${transaction.amount.toLocaleString('en-IN')}`);
+    if (description) parts.push(`"${transaction.description}"`);
+    if (category) parts.push(transaction.category ?? category);
     return { text: m.correctUpdated(parts.join(' · ')) };
   } catch (err) {
     log.warn('CORRECT_FAIL', {
