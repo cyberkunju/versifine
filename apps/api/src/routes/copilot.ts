@@ -95,7 +95,7 @@ app.post('/chat', requireUser, copilotLimit, async (c) => {
         success: false,
         error: {
           code: 'UPSTREAM_AI',
-          message: 'Copilot requires OPENAI_API_KEY to be set on the server.',
+          message: 'Copilot requires AZURE_AI_KEY to be set on the server.',
         },
       },
       503,
@@ -107,7 +107,7 @@ app.post('/chat', requireUser, copilotLimit, async (c) => {
     return c.json(
       {
         success: false,
-        error: { code: 'UPSTREAM_AI', message: 'OpenAI client not initialised.' },
+        error: { code: 'UPSTREAM_AI', message: 'Azure AI client not initialised.' },
       },
       503,
     );

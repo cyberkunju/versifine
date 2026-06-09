@@ -1,19 +1,18 @@
 /**
- * Voice → text. Tries the modern transcription endpoint first; if it
- * trips up on the audio (codec quirks, language detection failure) we
- * fall back to whisper-1, which is older but more forgiving on Indian
- * accents and short utterances.
- *
- * Important: `toFile` consumes its source, so on retry we MUST rebuild
- * the file handle from the original buffer. That's why this module
- * keeps the buffer around and creates the upload twice when needed.
+ * Voice → text. Azure/Sarvam only — NO OpenAI, NO fallbacks (policy 2026-06-08).
+ *   - Indic languages → Sarvam Saaras (`/speech-to-text-translate`), primary.
+ *   - English (and anything without a Sarvam key) → Azure MAI-Transcribe-1.5.
+ * If the chosen primary fails we return an empty transcript (the capture route
+ * then asks the user to type it) rather than silently retrying a second
+ * provider. The spoken language is inferred from the SCRIPT of the returned
+ * text, with the caller's hint as a last resort.
  */
-import { toFile } from 'openai/uploads';
+import { detectScript, LANGUAGES, LANGUAGE_META, isLanguage } from '@versifine/shared';
 import { env } from '../../env.ts';
 import { log } from '../../utils/logger.ts';
-import { getOpenAI, isAIConfigured, withLatency } from './client.ts';
+import { withLatency } from './client.ts';
 
-export type TranscribeSource = 'gpt-4o-transcribe' | 'whisper-1' | 'mock';
+export type TranscribeSource = 'sarvam' | 'mai' | 'mock';
 
 export interface TranscribeResult {
   text: string;
@@ -21,15 +20,14 @@ export interface TranscribeResult {
   source: TranscribeSource;
 }
 
-interface TranscribeOptions {
-  /** Optional BCP-47 hint, e.g. `en-IN`, `ml-IN`. The OpenAI APIs accept
-   *  the bare language tag like `en` or `ml` — we strip the region. */
-  language?: string;
-}
+/** Indic session languages routed to Sarvam (every supported lang but English). */
+const SARVAM_LANGS: ReadonlySet<string> = new Set(LANGUAGES.filter((l) => l !== 'en'));
+const ROMANISABLE_LANGS: ReadonlySet<string> = new Set(LANGUAGES.filter((l) => l !== 'en'));
 
 const FILENAME_BY_MIME: Record<string, string> = {
   'audio/ogg': 'voice.ogg',
   'audio/oga': 'voice.ogg',
+  'audio/opus': 'voice.ogg',
   'audio/mpeg': 'voice.mp3',
   'audio/mp3': 'voice.mp3',
   'audio/mp4': 'voice.m4a',
@@ -52,92 +50,107 @@ function bareLanguageHint(language?: string): string | undefined {
   return tag && tag.length === 2 ? tag : undefined;
 }
 
+function maiLocales(lang: string | undefined): string[] {
+  if (lang && isLanguage(lang) && lang !== 'en') return [LANGUAGE_META[lang].bcp47, 'en-IN'];
+  return ['en-IN', 'en-US'];
+}
+
+function resolveLanguage(text: string, fallback: string | undefined): string {
+  const byScript = detectScript(text);
+  if (byScript && byScript !== 'en') return byScript;
+  if (byScript === 'en') {
+    const fb = bareLanguageHint(fallback);
+    return fb && ROMANISABLE_LANGS.has(fb) ? fb : 'en';
+  }
+  return bareLanguageHint(fallback) ?? 'en';
+}
+
+/** Sarvam Saaras speech-to-text-translate (Indic). Returns null on any failure. */
+async function transcribeSarvam(
+  audio: Buffer,
+  mimetype: string,
+  fallback: string | undefined,
+): Promise<TranscribeResult | null> {
+  if (!env.SARVAM_API_KEY) return null;
+  const cleanMime = (mimetype.split(';')[0] || 'audio/ogg').trim();
+  try {
+    const result = await withLatency('transcribe.sarvam', async () => {
+      const fd = new FormData();
+      fd.append('file', new Blob([new Uint8Array(audio)], { type: cleanMime }), filenameFor(cleanMime));
+      fd.append('model', env.SARVAM_STT_MODEL);
+      const res = await fetch(`${env.SARVAM_API_URL.replace(/\/+$/, '')}/speech-to-text-translate`, {
+        method: 'POST',
+        headers: { 'api-subscription-key': env.SARVAM_API_KEY as string },
+        body: fd,
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text().catch(() => '')).slice(0, 160)}`);
+      return (await res.json()) as { transcript?: string };
+    });
+    const text = (result.transcript ?? '').trim();
+    if (!text) return null;
+    return { text, language: fallback ?? 'en', source: 'sarvam' };
+  } catch (err) {
+    log.warn('SARVAM_STT_FAIL', { error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
+    return null;
+  }
+}
+
+/** Azure AI Speech — MAI-Transcribe-1.5 fast transcription (English). */
+async function transcribeMai(
+  audio: Buffer,
+  mimetype: string,
+  lang: string | undefined,
+): Promise<TranscribeResult | null> {
+  if (!env.AZURE_SPEECH_KEY || !env.AZURE_SPEECH_ENDPOINT) return null;
+  const speechKey = env.AZURE_SPEECH_KEY;
+  const speechEndpoint = env.AZURE_SPEECH_ENDPOINT;
+  try {
+    const result = await withLatency('transcribe.mai', async () => {
+      const fd = new FormData();
+      fd.append('audio', new Blob([new Uint8Array(audio)], { type: mimetype }), filenameFor(mimetype));
+      fd.append('definition', JSON.stringify({ locales: maiLocales(lang) }));
+      const url = `${speechEndpoint.replace(/\/+$/, '')}/speechtotext/transcriptions:transcribe?api-version=2024-11-15`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Ocp-Apim-Subscription-Key': speechKey },
+        body: fd,
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text().catch(() => '')).slice(0, 160)}`);
+      return (await res.json()) as { combinedPhrases?: Array<{ text?: string }> };
+    });
+    const text = (result.combinedPhrases?.[0]?.text ?? '').trim();
+    if (!text) return null;
+    return { text, language: resolveLanguage(text, lang), source: 'mai' };
+  } catch (err) {
+    log.warn('MAI_STT_FAIL', { error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
+    return null;
+  }
+}
+
 /**
- * Transcribe a buffer of speech audio. Returns a uniform shape regardless
- * of which model answered. When the API key is absent we return a marker
- * mock string instead of crashing — capture flows can still be exercised
- * end to end in development.
+ * Transcribe a buffer of speech audio. Indic → Sarvam, English → MAI; primary
+ * only. Returns an empty/mock result on failure so capture flows degrade to a
+ * "couldn't hear that — type it" prompt instead of crashing.
  */
 export async function transcribe(
   audio: Buffer,
   mimetype: string,
   language?: string,
 ): Promise<TranscribeResult> {
-  if (!isAIConfigured()) {
-    log.warn('AI_TRANSCRIBE_MOCK', { reason: 'no_api_key', mimetype });
-    return {
-      text: '[transcription unavailable: OPENAI_API_KEY not configured]',
-      language: bareLanguageHint(language) ?? 'en',
-      source: 'mock',
-    };
+  const fallback = bareLanguageHint(language);
+
+  if (env.SARVAM_API_KEY && fallback && SARVAM_LANGS.has(fallback)) {
+    const sv = await transcribeSarvam(audio, mimetype, fallback);
+    if (sv) return sv;
+    return { text: '', language: fallback ?? 'en', source: 'mock' };
   }
 
-  const client = getOpenAI();
-  if (!client) {
-    return {
-      text: '[transcription unavailable]',
-      language: bareLanguageHint(language) ?? 'en',
-      source: 'mock',
-    };
+  if (env.AZURE_SPEECH_KEY) {
+    const mai = await transcribeMai(audio, mimetype, fallback);
+    if (mai) return mai;
+    return { text: '', language: fallback ?? 'en', source: 'mock' };
   }
 
-  const filename = filenameFor(mimetype);
-  const hint = bareLanguageHint(language);
-
-  // Primary attempt: gpt-4o-transcribe. Recreate the file each call —
-  // toFile consumes its iterable source.
-  try {
-    const file = await toFile(audio, filename, { type: mimetype });
-    const result = await withLatency('transcribe.primary', () =>
-      client.audio.transcriptions.create({
-        file,
-        model: env.OPENAI_TRANSCRIPTION_MODEL,
-        language: hint,
-        response_format: 'json',
-      }),
-    );
-    return {
-      text: (result.text ?? '').trim(),
-      language: hint ?? 'en',
-      source: 'gpt-4o-transcribe',
-    };
-  } catch (err) {
-    log.warn('AI_TRANSCRIBE_FALLBACK', {
-      from: env.OPENAI_TRANSCRIPTION_MODEL,
-      to: 'whisper-1',
-      error: err instanceof Error ? err.message.slice(0, 240) : String(err),
-    });
-  }
-
-  // Fallback attempt: whisper-1 with verbose JSON so we can echo back the
-  // detected language even when the user didn't supply a hint.
-  try {
-    const file = await toFile(audio, filename, { type: mimetype });
-    const result = await withLatency('transcribe.fallback', () =>
-      client.audio.transcriptions.create({
-        file,
-        model: 'whisper-1',
-        language: hint,
-        response_format: 'verbose_json',
-      }),
-    );
-    const detected =
-      typeof (result as { language?: unknown }).language === 'string'
-        ? ((result as { language: string }).language as string)
-        : (hint ?? 'en');
-    return {
-      text: (result.text ?? '').trim(),
-      language: detected,
-      source: 'whisper-1',
-    };
-  } catch (err) {
-    log.error('AI_TRANSCRIBE_FAIL', {
-      error: err instanceof Error ? err.message.slice(0, 240) : String(err),
-    });
-    return {
-      text: '',
-      language: hint ?? 'en',
-      source: 'mock',
-    };
-  }
+  log.warn('AI_TRANSCRIBE_UNAVAILABLE', { mimetype });
+  return { text: '', language: fallback ?? 'en', source: 'mock' };
 }

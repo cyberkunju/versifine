@@ -19,20 +19,13 @@
 import { LANGUAGE_META, SIBLING_SCRIPTS, type Language } from '@versifine/shared';
 import { env } from '../../config.ts';
 import { log } from '../../utils/logger.ts';
-import { getOpenAI, isAIConfigured, withLatency } from './client.ts';
+import { withLatency } from './client.ts';
 
 /** Languages with hand-translated packs — never translated at runtime. */
 const NATIVE_PACK_LANGS: ReadonlySet<Language> = new Set(['en', 'hi', 'ml']);
 
 const TARGET_SCRIPT_THRESHOLD = 0.3;
 const SIBLING_CONTAMINATION_LIMIT = 0.05;
-
-const PRESERVE_BLOCK = `Preserve verbatim, do NOT translate:
-- emojis (😀 🎉 ₹ etc)
-- markdown markers (*, **, _, \`, \`\`\`, >)
-- numbered list markers (1. 2. 3.)
-- the SAME numeric digits the user wrote (do not localize numerals)
-- Latin uppercase command keywords like MENU, BACK, RESET, LINK, HELP, STATUS, UNDO, LANGUAGE, HUMAN, STOP`;
 
 interface CacheEntry {
   text: string;
@@ -140,46 +133,8 @@ async function sarvamTranslate(text: string, target: Language): Promise<string |
 }
 
 /* ------------------------------------------------------------------ *
- * Provider 2 — OpenAI chat (generic per-language fallback)
+ * Translation (Sarvam Mayura only — no OpenAI fallback, policy 2026-06-08)
  * ------------------------------------------------------------------ */
-
-function openAiPrompt(target: Language, sharp: boolean): string {
-  const meta = LANGUAGE_META[target];
-  const head = sharp
-    ? `Your previous reply used the wrong script. Translate the message into ${meta.englishName} (${meta.nativeName}) and output ONLY ${meta.englishName} in its native script — not a single character of any other Indian script.`
-    : `You translate financial chat messages from English (or any source) into ${meta.englishName} (native script: ${meta.nativeName}).
-Output ONLY the translated text in ${meta.englishName} script. Do not output any other script.`;
-  return `${head}\n${PRESERVE_BLOCK}`;
-}
-
-async function openAiTranslate(
-  text: string,
-  target: Language,
-  sharp: boolean,
-): Promise<string | null> {
-  const client = getOpenAI();
-  if (!client) return null;
-  try {
-    const completion = await withLatency(`translate.${target}`, () =>
-      client.chat.completions.create({
-        model: env.OPENAI_TRANSLATE_MODEL,
-        temperature: sharp ? 0 : 0.2,
-        max_tokens: Math.max(256, Math.min(1024, text.length * 4)),
-        messages: [
-          { role: 'system', content: openAiPrompt(target, sharp) },
-          { role: 'user', content: text },
-        ],
-      }),
-    );
-    return completion.choices[0]?.message?.content?.trim() ?? null;
-  } catch (err) {
-    log.warn('AI_TRANSLATE_FAIL', {
-      target,
-      error: err instanceof Error ? err.message.slice(0, 240) : String(err),
-    });
-    return null;
-  }
-}
 
 /**
  * Translate a user's native-language message INTO English for the
@@ -261,20 +216,8 @@ export async function translateChatAnswer(text: string, target: Language): Promi
     writeCache(key, viaSarvam);
     return viaSarvam;
   }
-  // Fall back to the OpenAI translator (handles the case where Sarvam is down).
-  if (isAIConfigured()) {
-    const first = await openAiTranslate(text, target, false);
-    if (first && passesValidation(first, target)) {
-      writeCache(key, first);
-      return first;
-    }
-    const second = await openAiTranslate(text, target, true);
-    if (second && passesValidation(second, target)) {
-      writeCache(key, second);
-      return second;
-    }
-  }
-  // Last resort: return whatever Sarvam gave (even if mixed), else English.
+  // No second provider (Sarvam-only policy). Return whatever Sarvam produced
+  // even if mixed, else the English source — never a confidently-wrong guess.
   return viaSarvam ?? text;
 }
 
@@ -295,31 +238,13 @@ export async function translateForUser(text: string, targetLanguage: Language): 
   const cached = readCache(key);
   if (cached) return cached;
 
-  // 1) Sarvam Mayura — primary.
+  // 1) Sarvam Mayura — the only translator (no OpenAI fallback).
   const viaSarvam = await sarvamTranslate(text, targetLanguage);
   if (viaSarvam && passesValidation(viaSarvam, targetLanguage)) {
     writeCache(key, viaSarvam);
     return viaSarvam;
   }
-  // If Sarvam under-translated (left English frame words), fall through to the
-  // OpenAI fallback which tends to translate the whole sentence — cleaner than
-  // returning a half-translated, code-mixed line.
-
-  // 2) OpenAI — fallback (two attempts: normal, then sharp).
-  if (isAIConfigured()) {
-    const first = await openAiTranslate(text, targetLanguage, false);
-    if (first && passesValidation(first, targetLanguage)) {
-      writeCache(key, first);
-      return first;
-    }
-    log.warn('AI_TRANSLATE_VALIDATION', { target: targetLanguage, attempt: 1 });
-    const second = await openAiTranslate(text, targetLanguage, true);
-    if (second && passesValidation(second, targetLanguage)) {
-      writeCache(key, second);
-      return second;
-    }
-    log.warn('AI_TRANSLATE_VALIDATION', { target: targetLanguage, attempt: 2 });
-  }
-
+  // Sarvam unavailable or under-translated → return the English source rather
+  // than a wrong-script guess (primary-only policy).
   return text;
 }

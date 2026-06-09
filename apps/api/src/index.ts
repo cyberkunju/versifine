@@ -135,7 +135,7 @@ log.info('API_LISTENING', {
   host: server.hostname,
   port: server.port,
   env: env.NODE_ENV,
-  openaiConfigured: Boolean(env.OPENAI_API_KEY),
+  azureAiConfigured: Boolean(env.AZURE_AI_KEY),
   ws: '/ws',
 });
 

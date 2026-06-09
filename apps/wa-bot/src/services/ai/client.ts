@@ -1,8 +1,11 @@
 /**
- * Lazy OpenAI client for the bot. Same shape as the API's client.ts but
- * keyed on the bot's env. Without a key, every AI surface degrades to a
- * deterministic mock so a developer can still pair their phone, drive
- * the simulator, and exercise the conversation engine end-to-end.
+ * Bot AI client — Azure AI Foundry ONLY.
+ *
+ * Policy (set 2026-06-08): no direct OpenAI API, no fallbacks. The bot's
+ * language model surface routes through the API (copilot) and Sarvam
+ * (translate/STT/TTS); the only thing kept here is the latency wrapper every
+ * provider call funnels through. `getOpenAI` is retained as an Azure-only
+ * accessor in case a future bot path needs a direct Foundry chat call.
  */
 import OpenAI from 'openai';
 import { env } from '../../config.ts';
@@ -10,6 +13,7 @@ import { log } from '../../utils/logger.ts';
 
 let cached: OpenAI | null | undefined;
 
+/** Azure AI Foundry chat client, or null when Azure isn't configured. */
 export function getOpenAI(): OpenAI | null {
   if (cached !== undefined) return cached;
   if (env.AZURE_AI_KEY && env.AZURE_AI_ENDPOINT) {
@@ -23,38 +27,12 @@ export function getOpenAI(): OpenAI | null {
     });
     return cached;
   }
-  if (!env.OPENAI_API_KEY) {
-    cached = null;
-    return cached;
-  }
-  cached = new OpenAI({
-    apiKey: env.OPENAI_API_KEY,
-    maxRetries: 2,
-    timeout: 30_000,
-  });
+  cached = null;
   return cached;
 }
 
 export function isAIConfigured(): boolean {
-  return Boolean((env.AZURE_AI_KEY && env.AZURE_AI_ENDPOINT) || env.OPENAI_API_KEY);
-}
-
-let cachedTts: OpenAI | null | undefined;
-
-/**
- * Dedicated OpenAI-direct client for TTS fallback ONLY. TTS primary is Sarvam
- * Bulbul; this stays pinned to OpenAI (never Azure) because Azure's /models
- * inference endpoint doesn't host audio.speech. Returns null without a key, so
- * voice degrades to text-only rather than erroring.
- */
-export function getOpenAITTS(): OpenAI | null {
-  if (cachedTts !== undefined) return cachedTts;
-  if (!env.OPENAI_API_KEY) {
-    cachedTts = null;
-    return cachedTts;
-  }
-  cachedTts = new OpenAI({ apiKey: env.OPENAI_API_KEY, maxRetries: 1, timeout: 30_000 });
-  return cachedTts;
+  return Boolean(env.AZURE_AI_KEY && env.AZURE_AI_ENDPOINT);
 }
 
 export async function withLatency<T>(label: string, fn: () => Promise<T>): Promise<T> {

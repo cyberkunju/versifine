@@ -1,8 +1,8 @@
 /**
- * Lazy OpenAI client.
+ * Lazy Azure AI client.
  *
- * The whole AI surface is opt-in: when `OPENAI_API_KEY` is empty every
- * service degrades to a deterministic mock so the API still boots and
+ * The whole AI surface is opt-in: when Azure AI Foundry isn't configured
+ * every service degrades to a deterministic mock so the API still boots and
  * tests in environments without keys. We construct the client at most
  * once per process and reuse the same instance everywhere.
  *
@@ -17,13 +17,13 @@ import { log } from '../../utils/logger.ts';
 let cached: OpenAI | null | undefined;
 
 /**
- * The shared AI client. Prefers Azure AI Foundry when AZURE_AI_KEY +
- * AZURE_AI_ENDPOINT are set (production target): the OpenAI SDK is pointed at
- * `<endpoint>/models` with the `api-key` header and `api-version` query, which
- * is the OpenAI-compatible Azure Model Inference surface. Both chat completions
- * and embeddings route through it; the model field carries the Azure deployment
- * name. Falls back to OpenAI direct when only OPENAI_API_KEY is set (dev), and
- * to a deterministic mock when neither is configured.
+ * AI client — Azure AI Foundry ONLY (policy 2026-06-08: no direct OpenAI).
+ *
+ * The OpenAI SDK is pointed at `<endpoint>/models` with the `api-key` header
+ * and `api-version` query — the OpenAI-compatible Azure Model Inference
+ * surface. Chat completions and embeddings both route through it; the `model`
+ * field carries the Azure deployment name. Returns null (→ deterministic mock)
+ * only when Azure isn't configured, so local dev/tests still boot.
  */
 export function getOpenAI(): OpenAI | null {
   if (cached !== undefined) return cached;
@@ -38,22 +38,12 @@ export function getOpenAI(): OpenAI | null {
     });
     return cached;
   }
-  if (!env.OPENAI_API_KEY) {
-    cached = null;
-    return cached;
-  }
-  cached = new OpenAI({
-    apiKey: env.OPENAI_API_KEY,
-    // The SDK retries 429s and connection errors twice by default; give it
-    // a short total budget so a stuck request can't park a capture call.
-    maxRetries: 2,
-    timeout: 30_000,
-  });
+  cached = null;
   return cached;
 }
 
 export function isAIConfigured(): boolean {
-  return Boolean((env.AZURE_AI_KEY && env.AZURE_AI_ENDPOINT) || env.OPENAI_API_KEY);
+  return Boolean(env.AZURE_AI_KEY && env.AZURE_AI_ENDPOINT);
 }
 
 /**

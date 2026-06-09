@@ -50,15 +50,9 @@ const schema = z.object({
   DEMO_ALLOWLIST_FILE: z.string().optional(),
   HEADLESS: z.coerce.boolean().default(true),
 
-  OPENAI_API_KEY: z
-    .string()
-    .transform((v) => (v && v.length > 0 ? v : undefined))
-    .pipe(z.string().min(10).optional())
-    .optional(),
-
   /**
    * Azure AI Foundry — mirrors the API. When set, the bot's LLM calls
-   * (ta/te/kn translation) target Azure gpt-5-mini instead of OpenAI direct.
+   * (ta/te/kn translation) target Azure gpt-5.4-nano.
    */
   AZURE_AI_ENDPOINT: z
     .string()
@@ -70,18 +64,11 @@ const schema = z.object({
     .optional(),
   AZURE_AI_API_VERSION: z.string().default('2024-05-01-preview'),
 
-  OPENAI_TRANSCRIPTION_MODEL: z.string().default('gpt-4o-transcribe'),
-  OPENAI_TTS_MODEL: z.string().default('gpt-4o-mini-tts'),
-  OPENAI_TTS_VOICE: z.string().default('nova'),
-  OPENAI_AUDIO_MODEL: z.string().default('gpt-4o-audio-preview'),
-  OPENAI_AUDIO_VOICE: z.string().default('shimmer'),
-  OPENAI_TRANSLATE_MODEL: z.string().default('gpt-4o-mini'),
-
   /**
    * Sarvam AI — SOTA for Indic speech. When SARVAM_API_KEY is set, voice
    * notes whose session language is Indic (hi/ml/ta/te/kn) are transcribed
-   * with Saarika instead of gpt-4o-transcribe (which mishears Indic words,
-   * e.g. Malayalam "പിന്നെ"→"പിള്ളെ"). Falls back to OpenAI on any failure.
+   * with Saaras. No OpenAI/fallback (policy 2026-06-08) — on failure the bot
+   * asks the user to type the message.
    */
   SARVAM_API_KEY: z
     .string()
@@ -96,7 +83,7 @@ const schema = z.object({
   /**
    * Azure AI Speech — MAI-Transcribe-1.5 fast transcription for English STT.
    * When AZURE_SPEECH_KEY is set, non-Indic (English) voice notes transcribe
-   * here instead of gpt-4o-transcribe. Accepts WhatsApp OGG/Opus directly.
+   * here. Accepts WhatsApp OGG/Opus directly.
    */
   AZURE_SPEECH_ENDPOINT: z
     .string()

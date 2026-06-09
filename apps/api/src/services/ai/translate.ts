@@ -36,11 +36,6 @@ Output ONLY the translated text in ${meta.englishName} script. Do not output any
 ${PRESERVE_BLOCK}`;
 }
 
-function sharpRetryPrompt(target: Language): string {
-  const meta = LANGUAGE_META[target];
-  return `Your previous reply contained the wrong script. Translate the user's message into ${meta.englishName} — and ONLY ${meta.englishName}, written in its own native script (${meta.nativeName}). Do not output a single character of any other Indian script.`;
-}
-
 interface CacheEntry {
   text: string;
   expiresAt: number;
@@ -143,10 +138,9 @@ async function callTranslate(
 /**
  * Translate `text` into the user's target language for display.
  *
- * Returns the source text unchanged when:
- *   - target language has a native message pack (en/hi/ml)
- *   - the API key is missing
- *   - the model failed validation twice
+ * Single Azure call, no retry/fallback (policy 2026-06-08). Returns the source
+ * text unchanged when: target has a native pack (en/hi/ml), Azure isn't
+ * configured, or the one attempt failed validation.
  */
 export async function translateForUser(text: string, targetLanguage: Language): Promise<string> {
   if (!text.trim()) return text;
@@ -158,44 +152,12 @@ export async function translateForUser(text: string, targetLanguage: Language): 
   const cached = readCache(key);
   if (cached) return cached;
 
-  const first = await callTranslate(text, target, translatePrompt(target));
-  if (first && passesValidation(first, target)) {
-    writeCache(key, first);
-    return first;
+  const out = await callTranslate(text, target, translatePrompt(target));
+  if (out && passesValidation(out, target)) {
+    writeCache(key, out);
+    return out;
   }
-
-  log.warn('AI_TRANSLATE_VALIDATION', { target, attempt: 1 });
-
-  // Second pass: sharper prompt, lower temperature implicit via the rephrase.
-  const retryClient = getOpenAI();
-  if (!retryClient) return text;
-  try {
-    const completion = await withLatency(`translate.${target}.retry`, () =>
-      retryClient.chat.completions.create(
-        normalizeChatParams({
-          model: env.OPENAI_TRANSLATE_MODEL,
-          temperature: 0,
-          max_tokens: Math.max(256, Math.min(1024, text.length * 4)),
-          messages: [
-            { role: 'system', content: sharpRetryPrompt(target) },
-            { role: 'user', content: text },
-          ],
-        }),
-      ),
-    );
-    const second = completion.choices[0]?.message?.content?.trim() ?? '';
-    if (second && passesValidation(second, target)) {
-      writeCache(key, second);
-      return second;
-    }
-    log.warn('AI_TRANSLATE_VALIDATION', { target, attempt: 2 });
-  } catch (err) {
-    log.warn('AI_TRANSLATE_RETRY_FAIL', {
-      target,
-      error: err instanceof Error ? err.message.slice(0, 240) : String(err),
-    });
-  }
-
+  log.warn('AI_TRANSLATE_VALIDATION', { target });
   return text;
 }
 

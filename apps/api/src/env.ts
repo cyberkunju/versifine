@@ -52,15 +52,14 @@ const schema = z.object({
     .string()
     .transform((v) => (v && v.length > 0 ? v : undefined))
     .pipe(z.string().min(10).optional())
-    .optional(),
+    .optional()
+    .describe('deprecated — no direct OpenAI; retained as optional no-op'),
 
   /**
-   * Azure AI Foundry (Model Inference API). When AZURE_AI_KEY + AZURE_AI_ENDPOINT
-   * are set, the AI client targets Azure instead of OpenAI direct: baseURL is
-   * `<endpoint>/models`, auth is the `api-key` header, and the `api-version`
-   * query is appended. The `OPENAI_*_MODEL` values then carry the Azure
-   * *deployment names* (e.g. gpt-5-mini, Cohere-embed-v3-multilingual). Both
-   * chat and embeddings route through this one endpoint.
+   * Azure AI Foundry (Model Inference API). AZURE_AI_KEY + AZURE_AI_ENDPOINT
+   * are REQUIRED in production — the entire LLM + embeddings surface routes
+   * here (no OpenAI-direct fallback). `OPENAI_*_MODEL` values carry the Azure
+   * *deployment names* (e.g. gpt-5.4-nano, Cohere-embed-v3-multilingual).
    */
   AZURE_AI_ENDPOINT: z
     .string()
@@ -72,17 +71,30 @@ const schema = z.object({
     .optional(),
   AZURE_AI_API_VERSION: z.string().default('2024-05-01-preview'),
 
-  OPENAI_TRANSCRIPTION_MODEL: z.string().default('gpt-4o-transcribe'),
+  /** Azure AI Speech (MAI-Transcribe-1.5) — English STT. */
+  AZURE_SPEECH_KEY: z
+    .string()
+    .transform((v) => (v && v.length > 0 ? v : undefined))
+    .optional(),
+  AZURE_SPEECH_ENDPOINT: z
+    .string()
+    .transform((v) => (v && v.length > 0 ? v.replace(/\/+$/, '') : undefined))
+    .optional(),
+
+  /** Sarvam — Indic STT (Saaras). */
+  SARVAM_API_KEY: z
+    .string()
+    .transform((v) => (v && v.length > 0 ? v : undefined))
+    .optional(),
+  SARVAM_API_URL: z.string().default('https://api.sarvam.ai'),
+  SARVAM_STT_MODEL: z.string().default('saaras:v3'),
+
   OPENAI_VISION_MODEL: z.string().default('gpt-4o'),
   OPENAI_PARSE_MODEL: z.string().default('gpt-4o-mini'),
   OPENAI_NLU_MODEL: z.string().default('gpt-4o-mini'),
   OPENAI_CHAT_MODEL: z.string().default('gpt-4o-mini'),
   OPENAI_TRANSLATE_MODEL: z.string().default('gpt-4o-mini'),
   OPENAI_EMBED_MODEL: z.string().default('text-embedding-3-small'),
-  OPENAI_TTS_MODEL: z.string().default('gpt-4o-mini-tts'),
-  OPENAI_TTS_VOICE: z.string().default('nova'),
-  OPENAI_AUDIO_MODEL: z.string().default('gpt-4o-audio-preview'),
-  OPENAI_AUDIO_VOICE: z.string().default('shimmer'),
 
   TTS_ENABLED: z.coerce.boolean().default(true),
   TTS_MAX_CHARS: z.coerce.number().int().positive().default(600),
