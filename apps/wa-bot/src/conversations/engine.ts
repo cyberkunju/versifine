@@ -40,6 +40,11 @@ import { chunkText, parseLinkCommand, parseUniversal } from '../utils/text.ts';
 import { handleBudget, looksLikeBudgetTrigger, pickCategory, pickAmount } from './flows/budget.ts';
 import { handleCapture, handleConfirm } from './flows/capture.ts';
 import { handleCorrection, looksLikeCorrection } from './flows/correct.ts';
+import {
+  handleReferenceCommand,
+  looksLikeReferenceCommand,
+  tryResolvePendingPick,
+} from './flows/reference.ts';
 import { handleUndo } from './flows/undo.ts';
 import { handleLanguagePick, handleEmailStep, resolveFirstContact } from './flows/identity.ts';
 import {
@@ -274,6 +279,24 @@ async function dispatch(session: Session, message: IncomingMessage): Promise<Dis
   // capture rather than being mistaken for a correction.
   if (session.lastTransactionId && looksLikeCorrection(message.body)) {
     const out = await handleCorrection(session, message.body);
+    return { text: out.text, speakable: true };
+  }
+
+  // Pending "which one?" pick from a previous reference command. Only fires
+  // when there's a stashed candidate list AND the body looks like a numeric/
+  // ordinal pick or CANCEL — never hijacks a fresh expense.
+  const pick = await tryResolvePendingPick(session, message.body);
+  if (pick) {
+    return { text: pick.text, speakable: true };
+  }
+
+  // Reference command — "delete the coffee one", "change yesterday's lunch
+  // to 350", "remove last 2". Targets a SPECIFIC older entry (not the last
+  // one, which already has its own flow). Detection is conservative: must
+  // carry a delete/change verb AND a specific referent (the X / yesterday's
+  // X / last N / a number-anchored phrase).
+  if (looksLikeReferenceCommand(message.body, Boolean(session.lastTransactionId))) {
+    const out = await handleReferenceCommand(session, message.body);
     return { text: out.text, speakable: true };
   }
 

@@ -408,6 +408,34 @@ export async function deleteTransaction(
   });
 }
 
+export interface ResolvedTxCandidate {
+  id: string;
+  amount: number;
+  currency: string;
+  description: string;
+  category: string | null;
+  date: string;
+  confidence: number;
+}
+
+/**
+ * Resolve a natural-language reference ("the coffee one", "yesterday's uber",
+ * "last 3") to up to 3 candidate transactions. Used by the bot for corrections
+ * and deletes on non-last entries — the resolver runs structural → keyword →
+ * semantic strategies and returns the best matches scoped to the user's space.
+ */
+export async function resolveTxReference(
+  phone: string,
+  query: string,
+): Promise<{ candidates: ResolvedTxCandidate[] }> {
+  return await call<{ candidates: ResolvedTxCandidate[] }>({
+    method: 'POST',
+    path: '/capture/resolve-ref',
+    phone,
+    body: { query },
+  });
+}
+
 export interface DbSession {
   phone: string;
   language: string;
