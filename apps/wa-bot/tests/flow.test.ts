@@ -104,6 +104,8 @@ mock.module('../src/services/ai/indicSpeech.ts', () => ({
 }));
 mock.module('../src/services/ai/translate.ts', () => ({
   translateForUser: async (text: string) => text,
+  translateChatAnswer: async (text: string) => text,
+  translateToEnglish: async (text: string) => text,
 }));
 
 // Lazy import so the mocks resolve first.

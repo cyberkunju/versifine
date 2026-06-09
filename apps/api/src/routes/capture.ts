@@ -646,7 +646,7 @@ async function runTextPipeline(input: RunPipelineInput) {
     // INDEPENDENT DETERMINISTIC GUARD: a ledger mutation must never fire on the
     // classifier's word alone (defends against a hijacked/hallucinated
     // correction). For an AMOUNT correction, the deterministic extractor must
-    // independently find the SAME number in the message. Category-only
+    // independently find the SAME number in the message. Category/currency-only
     // corrections are reversible + non-financial, so they pass on the validated
     // enum. If the amount doesn't concur, we DON'T mutate — fall through to
     // normal handling (which will draft/ask rather than silently edit).
@@ -654,10 +654,17 @@ async function runTextPipeline(input: RunPipelineInput) {
     const detAmount = extractAmount(text).amount;
     const amountConcurs =
       claimedAmount == null || (detAmount != null && Math.abs(detAmount - claimedAmount) < 0.005);
+    // Currency: validate the LLM-emitted code against our enum. An invalid
+    // string is dropped rather than passed through (PATCH would reject it).
+    const claimedCurrency =
+      intentResult.currency && /^[A-Z]{3}$/.test(intentResult.currency)
+        ? intentResult.currency
+        : null;
     if (amountConcurs) {
       traceLog.info('CAPTURE_CORRECT_LAST', {
         amount: claimedAmount,
         category: intentResult.category,
+        currency: claimedCurrency,
         grounded: detAmount != null,
       });
       return c.json(
@@ -668,6 +675,7 @@ async function runTextPipeline(input: RunPipelineInput) {
             kind: 'correct_last',
             amount: claimedAmount,
             category: intentResult.category,
+            currency: claimedCurrency,
           },
           echo: text,
         }),

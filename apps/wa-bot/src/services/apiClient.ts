@@ -361,17 +361,19 @@ export async function patchTransactionCategory(
 }
 
 /**
- * General partial update of a transaction (amount / description / category).
- * Used by the correction flow for "it was 500 not 50" (amount) and
- * "change last to dinner" (description), not just category swaps.
+ * General partial update of a transaction (amount / description / category /
+ * currency). Used by the correction flow for "it was 500 not 50" (amount),
+ * "change last to dinner" (description), and "its OMR not INR" (currency).
+ * The API recomputes baseAmount from the wallet's currency when amount or
+ * currency change.
  */
 export async function patchTransaction(
   phone: string,
   transactionId: string,
-  fields: { amount?: number; description?: string; category?: string },
-): Promise<{ transaction: { id: string; amount: number; description: string; category: string | null } }> {
+  fields: { amount?: number; description?: string; category?: string; currency?: string },
+): Promise<{ transaction: { id: string; amount: number; currency: string; description: string; category: string | null } }> {
   return await call<{
-    transaction: { id: string; amount: number; description: string; category: string | null };
+    transaction: { id: string; amount: number; currency: string; description: string; category: string | null };
   }>({
     method: 'PATCH',
     path: `/transactions/${transactionId}`,

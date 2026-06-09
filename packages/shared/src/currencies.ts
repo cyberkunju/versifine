@@ -252,6 +252,39 @@ export const CURRENCY_ALIASES: Record<string, Currency> = {
   '¥': 'JPY',
   myr: 'MYR',
   rm: 'MYR',
+  // --- Gulf currencies (high-volume for Indian users abroad) -----------
+  // "riyal"/"rial" defaults to SAR (Saudi) — by far the most common Indian-Gulf
+  // usage. Users who actually mean Omani/Qatari/Yemeni Rial type the ISO code
+  // ("OMR 5", "QAR 50") which the uppercase-ISO path resolves deterministically.
+  riyal: 'SAR',
+  riyals: 'SAR',
+  rial: 'SAR',
+  rials: 'SAR',
+  sar: 'SAR',
+  // "dinar" defaults to KWD (Kuwait) — most common Indian-Gulf usage.
+  // BHD/IQD/JOD/LYD/TND speakers type the code or say "kuwaiti dinar" etc.,
+  // which the LLM resolves with full context.
+  dinar: 'KWD',
+  dinars: 'KWD',
+  kwd: 'KWD',
+  omr: 'OMR',
+  qar: 'QAR',
+  bhd: 'BHD',
+  // --- Other high-volume codes that aren't already aliased -------------
+  thb: 'THB',
+  baht: 'THB',
+  cny: 'CNY',
+  yuan: 'CNY',
+  rmb: 'CNY',
+  krw: 'KRW',
+  hkd: 'HKD',
+  chf: 'CHF',
+  zar: 'ZAR',
+  brl: 'BRL',
+  npr: 'NPR',
+  lkr: 'LKR',
+  pkr: 'PKR',
+  bdt: 'BDT',
 };
 
 export function normalizeCurrency(input: string | null | undefined): Currency {

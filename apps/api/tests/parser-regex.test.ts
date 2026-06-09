@@ -725,3 +725,54 @@ describe('extractAmount — explicit ISO-4217 code (deterministic)', () => {
     expect(extractAmount('spent 500 on lunch')).toEqual({ amount: 500, currency: null });
   });
 });
+
+
+// --- Production regressions: rendara + riyal --------------------------
+// Real WhatsApp voice note: "ഇന്ന് ഞാൻ രണ്ടര riyal-inu ഊണ് കഴിച്ചു"
+// (today I had lunch for 2.5 riyal). Both the Malayalam fraction "രണ്ടര"
+// (2.5) and the gulf-currency word "riyal" (SAR by default) were missing,
+// so the bot mined ₹2 / ₹30 INR instead of SAR 2.5.
+describe('extractAmount — Malayalam രണ്ടര (2.5) and riyal default', () => {
+  // Fractions compose with a count/scale word — same convention as dhai/dedh.
+  // A BARE "rendara" or "randar" alone is intentionally null (false-positive
+  // guard mirrors `dhai`, `dedh`, `sava` from the existing test set).
+  test('Malayalam രണ്ടര നൂറ് = 250', () => {
+    expect(extractAmount('രണ്ടര നൂറ്').amount).toBe(250);
+  });
+
+  test('Romanised "rendara sau" = 250', () => {
+    expect(extractAmount('rendara sau').amount).toBe(250);
+  });
+
+  test('"randara" / "randar" alternative spellings compose with hundred → 250', () => {
+    expect(extractAmount('randara sau').amount).toBe(250);
+    expect(extractAmount('randar sau').amount).toBe(250);
+  });
+
+  test('Malayalam രണ്ടര with thousand scale → 2500', () => {
+    expect(extractAmount('രണ്ടര ആയിരം').amount).toBe(2500);
+  });
+
+  test('"4 riyal" → 4 SAR', () => {
+    expect(extractAmount('4 riyal')).toEqual({ amount: 4, currency: 'SAR' });
+  });
+
+  test('"50 riyals" → 50 SAR', () => {
+    expect(extractAmount('50 riyals')).toEqual({ amount: 50, currency: 'SAR' });
+  });
+
+  test('"100 rial" → 100 SAR (Indian-Gulf default)', () => {
+    expect(extractAmount('100 rial')).toEqual({ amount: 100, currency: 'SAR' });
+  });
+
+  test('explicit OMR / SAR / QAR / KWD codes still resolve deterministically', () => {
+    expect(extractAmount('5 OMR coffee')).toEqual({ amount: 5, currency: 'OMR' });
+    expect(extractAmount('SAR 200 dinner')).toEqual({ amount: 200, currency: 'SAR' });
+    expect(extractAmount('QAR 50 lunch')).toEqual({ amount: 50, currency: 'QAR' });
+    expect(extractAmount('KWD 10 cab')).toEqual({ amount: 10, currency: 'KWD' });
+  });
+
+  test('"50 dinar" defaults to KWD', () => {
+    expect(extractAmount('50 dinar')).toEqual({ amount: 50, currency: 'KWD' });
+  });
+});

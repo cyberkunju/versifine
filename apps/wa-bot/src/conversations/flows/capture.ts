@@ -47,12 +47,13 @@ export interface CaptureResult {
  */
 function rememberLastTransaction(
   session: Session,
-  tx: { id?: string; amount?: number; description?: string; category?: string | null; type?: string },
+  tx: { id?: string; amount?: number; currency?: string; description?: string; category?: string | null; type?: string },
 ): void {
   if (!tx.id) return;
   const pending = { ...(session.pending ?? {}) };
   pending.lastTx = {
     amount: typeof tx.amount === 'number' ? tx.amount : null,
+    currency: typeof tx.currency === 'string' ? tx.currency : 'INR',
     category: tx.category ?? null,
     type: tx.type ?? 'expense',
     ts: Date.now(),
@@ -74,13 +75,15 @@ const RECENT_TX_TTL_MS = 30 * 60_000;
 function buildRecentContext(session: Session): string | undefined {
   if (!session.lastTransactionId) return undefined;
   const last = session.pending?.lastTx as
-    | { amount?: number | null; category?: string | null; type?: string; ts?: number }
+    | { amount?: number | null; currency?: string | null; category?: string | null; type?: string; ts?: number }
     | undefined;
   if (!last || typeof last.amount !== 'number') return undefined;
   if (last.ts && Date.now() - last.ts > RECENT_TX_TTL_MS) return undefined;
   const cat = last.category ? ` in ${last.category}` : '';
   const kind = last.type && last.type !== 'expense' ? last.type : 'expense';
-  return `₹${last.amount} ${kind}${cat}`.slice(0, 120);
+  const cur = (last.currency ?? 'INR').toUpperCase();
+  const amt = cur === 'INR' ? `₹${last.amount}` : `${cur} ${last.amount}`;
+  return `${amt} ${kind}${cat}`.slice(0, 140);
 }
 
 function summarizeQueryResult(result: Record<string, unknown> | undefined): string {
@@ -388,18 +391,19 @@ export async function handleCapture(
       // remembered transaction instead of logging a new one.
       const qr = response.queryResult as Record<string, unknown> | undefined;
       if (qr?.kind === 'correct_last') {
+        const lastTxBefore = (session.pending?.lastTx as Record<string, unknown> | undefined) ?? {};
         const prevAmount =
-          typeof (session.pending?.lastTx as Record<string, unknown> | undefined)?.amount ===
-          'number'
-            ? ((session.pending!.lastTx as Record<string, unknown>).amount as number)
-            : null;
+          typeof lastTxBefore.amount === 'number' ? (lastTxBefore.amount as number) : null;
+        const prevCurrency =
+          typeof lastTxBefore.currency === 'string' ? (lastTxBefore.currency as string) : null;
         const result = await applyParsedCorrection(
           session,
           {
             amount: typeof qr.amount === 'number' ? qr.amount : null,
             category: typeof qr.category === 'string' ? qr.category : null,
+            currency: typeof qr.currency === 'string' ? qr.currency : null,
           },
-          { previousAmount: prevAmount },
+          { previousAmount: prevAmount, previousCurrency: prevCurrency },
         );
         // Keep recentContext in sync with the corrected value (+ reset TTL) so a
         // SECOND follow-up corrects the new amount, not the original.
@@ -410,6 +414,7 @@ export async function handleCapture(
             ...lastTx,
             amount: typeof qr.amount === 'number' ? qr.amount : lastTx.amount,
             category: typeof qr.category === 'string' ? qr.category : lastTx.category,
+            currency: typeof qr.currency === 'string' ? qr.currency : lastTx.currency,
             ts: Date.now(),
           },
         };

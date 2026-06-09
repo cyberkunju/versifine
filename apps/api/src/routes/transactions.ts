@@ -32,6 +32,7 @@ import { requireUserOrBot } from '../middleware/authEither.ts';
 import { recomputeAffectedBudgets } from '../services/budgets/index.ts';
 import { safeNormalizeMerchant, safeUpsertOverride } from '../services/categorize/_safe.ts';
 import { emit } from '../services/events/bus.ts';
+import { getRate } from '../services/fx/client.ts';
 import { createTransaction, emitCreated } from '../services/transactions/create.ts';
 import { recordMutation, snapshotTx, undoLastMutation } from '../services/transactions/mutations.ts';
 import {
@@ -41,6 +42,7 @@ import {
 } from '../services/transactions/query.ts';
 import { ok } from '../utils/envelope.ts';
 import { errors } from '../utils/errors.ts';
+import { log } from '../utils/logger.ts';
 
 const app = new Hono();
 app.use('*', requireUserOrBot);
@@ -163,15 +165,55 @@ app.patch('/:id', zValidator('json', transactionUpdateInput), async (c) => {
     changedFields.push(key);
   }
 
-  if (body.amount !== undefined) {
-    updates.amount = body.amount.toFixed(2);
-    // Keep baseAmount (the base-currency value that queries, summaries and
-    // budgets actually sum) in lockstep, preserving the original FX rate.
-    const oldAmount = Number(existing.amount);
-    const rate = oldAmount > 0 ? Number(existing.baseAmount) / oldAmount : 1;
-    updates.baseAmount = (body.amount * rate).toFixed(2);
-  }
+  // The wallet IS the row's base-currency boundary (createTransaction uses the
+  // destination wallet's currency as the base for FX conversion). When the
+  // user changes amount OR currency we recompute baseAmount so reports stay
+  // correct — fetching a fresh FX rate ONLY when the currency actually flips.
+  const targetWalletId = body.walletId ?? existing.walletId;
+  const [targetWallet] = await db
+    .select({ id: wallets.id, currency: wallets.currency })
+    .from(wallets)
+    .where(and(eq(wallets.id, targetWalletId), eq(wallets.spaceId, u.activeSpaceId)))
+    .limit(1);
+  const baseCcy = (targetWallet?.currency ?? 'INR').toUpperCase();
+  const oldAmount = Number(existing.amount);
+  const oldCurrency = (existing.currency ?? baseCcy).toUpperCase();
+  const newCurrency = body.currency ? body.currency.toUpperCase() : oldCurrency;
+  const newAmount = body.amount !== undefined ? body.amount : oldAmount;
+
+  if (body.amount !== undefined) updates.amount = body.amount.toFixed(2);
   if (body.currency !== undefined) updates.currency = body.currency;
+
+  if (body.amount !== undefined || body.currency !== undefined) {
+    if (newCurrency === baseCcy) {
+      // Same-currency: amount equals baseAmount; rate is identity.
+      updates.baseAmount = newAmount.toFixed(2);
+      updates.fxRate = '1.00000000';
+    } else if (body.currency !== undefined) {
+      // Currency changed: must fetch a fresh rate (the old fxRate was for the
+      // OLD currency pair). FX outage is non-fatal: degrade to identity and
+      // log so the row stays editable; the user can correct again later.
+      let fxRate = 1;
+      try {
+        fxRate = await getRate(newCurrency, baseCcy);
+      } catch (err) {
+        log.warn('FX_PATCH_FALLBACK', {
+          transactionId: id,
+          from: newCurrency,
+          to: baseCcy,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        fxRate = 1;
+      }
+      updates.baseAmount = (newAmount * fxRate).toFixed(2);
+      updates.fxRate = fxRate.toFixed(8);
+    } else {
+      // Amount only changed — preserve the existing FX rate so the row's
+      // historical conversion is unchanged.
+      const rate = oldAmount > 0 ? Number(existing.baseAmount) / oldAmount : 1;
+      updates.baseAmount = (newAmount * rate).toFixed(2);
+    }
+  }
   if (body.date !== undefined) updates.date = body.date;
   if (body.description !== undefined) updates.description = body.description;
   if (body.walletId !== undefined) updates.walletId = body.walletId;

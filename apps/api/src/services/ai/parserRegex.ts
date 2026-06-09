@@ -879,6 +879,13 @@ const WORDED_FRACTIONS: Record<string, { whole?: number; offset?: number }> = {
   আড়াই: { whole: 2.5 },
   ਢਾਈ: { whole: 2.5 }, // Punjabi
   ଅଢେଇ: { whole: 2.5 }, // Odia
+  // Malayalam രണ്ടര = "two-and-a-half". Common in voice notes — was missing,
+  // so "ഇന്ന് ഞാൻ രണ്ടര riyal …" mis-extracted as ₹2 / ₹30.
+  rendara: { whole: 2.5 },
+  randara: { whole: 2.5 },
+  randar: { whole: 2.5 },
+  രണ്ടര: { whole: 2.5 },
+  രണ്ടരക: { whole: 2.5 },
   // ── 1.5  "one and a half" ──────────────────────────────────────────
   dedh: { whole: 1.5 },
   ded: { whole: 1.5 },
