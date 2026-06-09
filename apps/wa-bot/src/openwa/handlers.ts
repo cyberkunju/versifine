@@ -10,6 +10,7 @@ import { env } from '../config.ts';
 import { runEngine } from '../conversations/engine.ts';
 import { addToAllowlist, isDemoRequest, isDynamicallyAllowed } from '../services/allowlist.ts';
 import { log, maskPhone } from '../utils/logger.ts';
+import { runExclusive } from '../utils/mutex.ts';
 import { isAllowed, normalizePhone } from '../utils/phone.ts';
 import { chunkText } from '../utils/text.ts';
 import { extractMedia, buildIncoming } from './media.ts';
@@ -226,7 +227,7 @@ export async function onMessage(raw: RawMessageLike): Promise<void> {
   });
 
   try {
-    await dispatchToEngine(incoming);
+    await runExclusive(phone, () => dispatchToEngine(incoming));
   } catch (err) {
     log.error('ENGINE_DISPATCH_FAIL', {
       phone: maskPhone(phone),

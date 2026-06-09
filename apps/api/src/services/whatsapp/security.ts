@@ -14,6 +14,9 @@
  *    message that was in-flight at the moment of restart.)
  */
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { lt, sql } from 'drizzle-orm';
+import { db } from '../../db/client.ts';
+import { processedMessages } from '../../db/schema/processedMessages.ts';
 import { env } from '../../env.ts';
 
 /**
@@ -65,4 +68,37 @@ export function seenMessage(messageId: string | undefined): boolean {
 export function _resetSeen(): void {
   seenSet.clear();
   seenOrder.length = 0;
+}
+
+// ---- durable idempotency (survives restart) ----
+const PRUNE_PROBABILITY = 0.02;
+const RETENTION_DAYS = 3;
+
+/**
+ * Durable dedup: atomically claim a message id. Returns true when the id was
+ * ALREADY processed (insert hit the primary-key conflict) so the caller skips
+ * it — even across a process restart, unlike the in-memory ring. On any DB
+ * error we fail OPEN (return false → process): a rare duplicate is a smaller
+ * harm than silently dropping a real message, and the in-memory ring still
+ * guards in-process retries.
+ */
+export async function alreadyProcessedDurable(messageId: string | undefined): Promise<boolean> {
+  if (!messageId) return false;
+  try {
+    const inserted = await db
+      .insert(processedMessages)
+      .values({ messageId })
+      .onConflictDoNothing()
+      .returning({ id: processedMessages.messageId });
+    // Opportunistically prune old rows so the table never grows unbounded.
+    if (Math.random() < PRUNE_PROBABILITY) {
+      void db
+        .delete(processedMessages)
+        .where(lt(processedMessages.createdAt, sql`now() - interval '${sql.raw(String(RETENTION_DAYS))} days'`))
+        .catch(() => undefined);
+    }
+    return inserted.length === 0;
+  } catch {
+    return false;
+  }
 }

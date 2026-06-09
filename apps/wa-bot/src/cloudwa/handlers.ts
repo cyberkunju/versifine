@@ -10,6 +10,7 @@ import { log, maskPhone } from '../utils/logger.ts';
 import { normalizePhone } from '../utils/phone.ts';
 import { chunkText } from '../utils/text.ts';
 import { sendTextMessage, sendInteractiveList, uploadAudio, sendVoiceMessage } from './client.ts';
+import { runExclusive } from '../utils/mutex.ts';
 import type { RelayedWebhookPayload } from './types.ts';
 
 export async function dispatchToEngine(message: IncomingMessage): Promise<void> {
@@ -108,8 +109,10 @@ export async function onRelayedMessage(payload: RelayedWebhookPayload): Promise<
     bodyChars: incoming.body.length,
   });
 
+  // Serialize per phone so two relayed messages from the same number can't
+  // interleave their session-state mutations (correction racing a capture).
   try {
-    await dispatchToEngine(incoming);
+    await runExclusive(phone, () => dispatchToEngine(incoming));
   } catch (err) {
     log.error('ENGINE_DISPATCH_FAIL', {
       phone: maskPhone(phone),

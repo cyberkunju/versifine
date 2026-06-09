@@ -12,6 +12,7 @@ export * from './wallets.ts';
 export * from './transactions.ts';
 export * from './overrides.ts';
 export * from './mutations.ts';
+export * from './processedMessages.ts';
 export * from './embeddings.ts';
 export * from './budgets.ts';
 export * from './goals.ts';

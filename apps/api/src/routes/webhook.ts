@@ -19,7 +19,7 @@ import { Hono } from 'hono';
 import { env } from '../env.ts';
 import { log } from '../utils/logger.ts';
 import { downloadMedia, isCloudApiConfigured, markRead } from '../services/whatsapp/graph.ts';
-import { seenMessage, verifySignature } from '../services/whatsapp/security.ts';
+import { seenMessage, verifySignature, alreadyProcessedDurable } from '../services/whatsapp/security.ts';
 import type {
   MetaInboundMessage,
   MetaWebhookEnvelope,
@@ -134,6 +134,12 @@ async function relayToBot(payload: RelayPayload): Promise<void> {
 async function processMessage(m: MetaInboundMessage): Promise<void> {
   if (seenMessage(m.id)) {
     log.debug('WA_MESSAGE_DUPLICATE_SKIPPED', { messageId: m.id });
+    return;
+  }
+  // Durable dedup — survives a restart between Meta's original delivery and a
+  // retry, so a redelivery after a deploy can't double-log/correct/delete.
+  if (await alreadyProcessedDurable(m.id)) {
+    log.debug('WA_MESSAGE_DUPLICATE_SKIPPED_DURABLE', { messageId: m.id });
     return;
   }
 
