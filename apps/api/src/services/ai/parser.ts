@@ -19,7 +19,7 @@ import { CURRENCY_ALIASES, type Currency, isCurrency } from '@versifine/shared';
 import { env } from '../../env.ts';
 import { log } from '../../utils/logger.ts';
 import { getOpenAI, isAIConfigured, normalizeChatParams, withLatency } from './client.ts';
-import { extractAmount, extractCurrency, extractDate, extractSplitCount, looksLikeYearNoise } from './parserRegex.ts';
+import { extractAmount, extractCurrency, extractDate, extractSplitCount, looksLikeYearNoise, textHasForeignCurrencyToken } from './parserRegex.ts';
 import { tryParseLearnedPattern, learnPatternFromParse } from './patternLearner.ts';
 import {
   lookupSimilar,
@@ -535,6 +535,15 @@ export async function parseExpense(input: ParseInput): Promise<ParsedExpense> {
         cached.amount = fresh.amount;
         if (fresh.currency) cached.currency = fresh.currency;
       }
+      // Self-heal a stale hallucinated foreign currency the same way the live
+      // merge does: if the cached row carries a non-INR currency but the text
+      // names no foreign token, it was a model artifact — reset to INR and drop
+      // the phantom conversion fields.
+      if (cached.currency && cached.currency !== 'INR' && !textHasForeignCurrencyToken(text)) {
+        cached.currency = null;
+        cached.originalAmount = null;
+        cached.originalCurrency = null;
+      }
       return { ...cached, needs: computeNeeds(cached) };
     }
 
@@ -580,6 +589,15 @@ export async function parseExpense(input: ParseInput): Promise<ParsedExpense> {
       ? null
       : mergedAmount;
   const mergedCurrency = (regexCurrency as Currency | null) ?? llm?.currency ?? null;
+  // Deterministic foreign-currency guard: gpt-class models intermittently
+  // hallucinate a foreign code (JPY/USD/…) for a plain rupee message ("500
+  // रुपये" → ¥500 → ₹298). Honour a non-INR currency ONLY when the raw text
+  // explicitly names a foreign token; otherwise force INR (null defaults to INR
+  // at persist time). The regex extractor never invents a foreign currency, so
+  // this only ever strips an LLM hallucination — it can't drop a real one.
+  const hasForeignToken = textHasForeignCurrencyToken(text);
+  const guardedCurrency: string | null =
+    mergedCurrency && mergedCurrency !== 'INR' && !hasForeignToken ? null : mergedCurrency;
   const mergedDate = regexDate ?? llm?.date ?? null;
   const mergedSplit = regexSplit ?? llm?.splitPeople ?? null;
 
@@ -600,12 +618,14 @@ export async function parseExpense(input: ParseInput): Promise<ParsedExpense> {
   const mergedWalletHint = llm?.walletHint ?? null;
 
   // Foreign-currency mirroring: if the LLM didn't surface originalCurrency
-  // but the regex caught a non-INR currency, mirror it.
-  let originalAmount = llm?.originalAmount ?? null;
-  let originalCurrency = llm?.originalCurrency ?? null;
-  if (!originalAmount && !originalCurrency && mergedCurrency && mergedCurrency !== 'INR') {
+  // but the regex caught a non-INR currency, mirror it. When the text has NO
+  // explicit foreign token, any model-supplied original* is a hallucinated
+  // conversion — clear it so we never show a phantom "¥500 (₹298)".
+  let originalAmount = hasForeignToken ? (llm?.originalAmount ?? null) : null;
+  let originalCurrency = hasForeignToken ? (llm?.originalCurrency ?? null) : null;
+  if (!originalAmount && !originalCurrency && guardedCurrency && guardedCurrency !== 'INR') {
     originalAmount = safeAmount;
-    originalCurrency = mergedCurrency;
+    originalCurrency = guardedCurrency;
   }
 
   const baseConfidence = llm?.confidence ?? (fallbackDescription ? 0.5 : 0);
@@ -618,7 +638,7 @@ export async function parseExpense(input: ParseInput): Promise<ParsedExpense> {
   const draft: Omit<ParsedExpense, 'needs'> = {
     type: mergedType,
     amount: safeAmount,
-    currency: mergedCurrency,
+    currency: guardedCurrency,
     description: mergedDescription,
     notes: mergedNotes,
     categoryHint: mergedCategoryHint,
@@ -646,19 +666,28 @@ export async function parseExpense(input: ParseInput): Promise<ParsedExpense> {
   return finalDraft;
 }
 
-function parsedFromLlmData(data: z.infer<typeof llmSchema>): ParsedExpense {
+function parsedFromLlmData(data: z.infer<typeof llmSchema>, text = ''): ParsedExpense {
+  // Same deterministic foreign-currency guard as the single-parse path: a
+  // non-INR currency is honoured only when the message explicitly names a
+  // foreign token, else it's a model hallucination → INR. For a batch the
+  // check runs against the whole message (safe over-approximation: a mixed
+  // "$100 hotel and 2000 food" keeps both because "$" is present).
+  const rawCurrency = coerceCurrency(data.currency);
+  const hasForeignToken = textHasForeignCurrencyToken(text);
+  const guardedCurrency =
+    rawCurrency && rawCurrency !== 'INR' && !hasForeignToken ? null : rawCurrency;
   const draft: Omit<ParsedExpense, 'needs'> = {
     type: data.type,
     amount: coerceNumber(data.amount),
-    currency: coerceCurrency(data.currency),
+    currency: guardedCurrency,
     description: coerceString(data.description),
     notes: coerceString(data.notes, 280),
     categoryHint: coerceString(data.categoryHint, 40),
     walletHint: coerceString(data.walletHint, 40),
     date: coerceString(data.date, 10),
     splitPeople: coerceInt(data.splitPeople, 2, 50),
-    originalAmount: coerceNumber(data.originalAmount),
-    originalCurrency: coerceCurrency(data.originalCurrency),
+    originalAmount: hasForeignToken ? coerceNumber(data.originalAmount) : null,
+    originalCurrency: hasForeignToken ? coerceCurrency(data.originalCurrency) : null,
     confidence: coerceConfidence(data.confidence),
   };
   return { ...draft, needs: computeNeeds(draft) };
@@ -695,7 +724,7 @@ async function callBatchLLM(input: ParseInput): Promise<ParsedExpenseBatch | nul
     const parsed = batchLlmSchema.safeParse(payload);
     if (!parsed.success) return null;
     const items = parsed.data.items
-      .map(parsedFromLlmData)
+      .map((item) => parsedFromLlmData(item, input.text))
       .filter((item) => item.amount !== null || item.description);
     if (items.length === 0) return null;
     return { items, confidence: coerceConfidence(parsed.data.confidence) };

@@ -12,6 +12,7 @@ import {
   extractCurrency,
   extractDate,
   extractSplitCount,
+  textHasForeignCurrencyToken,
 } from '../src/services/ai/parserRegex.ts';
 
 const FROZEN_NOW = new Date('2026-05-28T12:00:00Z');
@@ -505,4 +506,114 @@ describe('extractAmount — fraction/year false-positive guards', () => {
     expect(extractAmount('sava lakh').amount).toBe(125_000);
     expect(extractAmount('ढाई सौ').amount).toBe(250);
   });
+});
+
+// --- glued crore + million/billion scale suffixes ----------------------
+// Production bug: "spent 2.5cr on property" logged ₹2 — "cr" wasn't a known
+// suffix, so the number regex truncated "2.5" to "2" at the `(?![a-z])` wall.
+// A glued-only `Ncr`→crore normalizer fixes it WITHOUT touching the spaced
+// bank-statement credit marker ("5000 Cr"). million/billion suffixes are wired
+// into parseAmount too.
+describe('extractAmount — glued crore / million / billion', () => {
+  const positives: Array<[string, number, 'INR' | null]> = [
+    ['spent 2.5cr on property', 25_000_000, null], // the exact reported bug (was ₹2)
+    ['bonus of 3cr credited', 30_000_000, null], // and "credited" is not eaten
+    ['2.5cr', 25_000_000, null],
+    ['3cr', 30_000_000, null],
+    ['1cr', 10_000_000, null],
+    ['0.5cr', 5_000_000, null],
+    ['deal closed at 2.5cr', 25_000_000, null], // glued at end of string
+    ['raised 2.5cr.', 25_000_000, null], // trailing dot
+    ['₹2.5cr', 25_000_000, 'INR'], // currency prefix + glued crore
+    ['2CR', 20_000_000, null], // uppercase
+    ['2Cr', 20_000_000, null],
+    ['10mn', 10_000_000, null],
+    ['2.5mn', 2_500_000, null],
+    ['5 million', 5_000_000, null],
+    ['1bn', 1_000_000_000, null],
+    ['2 billion', 2_000_000_000, null],
+    ['3BN', 3_000_000_000, null],
+  ];
+  for (const [input, amount, currency] of positives) {
+    test(`"${input}" → ${amount}${currency ? ` ${currency}` : ''}`, () => {
+      expect(extractAmount(input)).toEqual({ amount, currency });
+    });
+  }
+
+  // MUST-NOT-BREAK negatives — the dangerous collisions.
+  const negatives: Array<[string, number, 'INR' | null]> = [
+    ['5000 Cr credited', 5000, null], // spaced "Cr" = bank credit marker, NOT crore
+    ['₹5000 Cr credited', 5000, 'INR'], // same, with currency
+    ['300 credit', 300, null], // "cr" must not eat "credit"
+    ['spent 5 on cream', 5, null],
+    ['2 crore property', 20_000_000, null], // full word still wins
+    ['100 crackers', 100, null],
+    ['10 min walk cost 0', 10, null], // "mn" must not eat "min" (→ million)
+    ['5 members', 5, null],
+    ['meeting in 10 mins', 10, null],
+    ['5 bnb tokens', 5, null], // "bn" must not eat "bnb" (→ billion)
+  ];
+  for (const [input, amount, currency] of negatives) {
+    test(`negative: "${input}" → ${amount}`, () => {
+      expect(extractAmount(input)).toEqual({ amount, currency });
+    });
+  }
+
+  // Pre-existing scale regressions still hold.
+  test('"spent 1.5k on shoes" → 1500', () => {
+    expect(extractAmount('spent 1.5k on shoes')).toEqual({ amount: 1500, currency: null });
+  });
+  test('"1.5 lakh investment" → 150000', () => {
+    expect(extractAmount('1.5 lakh investment')).toEqual({ amount: 150_000, currency: null });
+  });
+  test('"1.5L" → 150000 (uppercase L = lakh)', () => {
+    expect(extractAmount('1.5L for the deposit')).toEqual({ amount: 150_000, currency: null });
+  });
+});
+
+// --- deterministic foreign-currency token guard ------------------------
+// Production bug: gpt-class models intermittently tagged plain rupee messages
+// as a foreign currency ("500 रुपये" → ¥500 → ₹298). The merge layer now only
+// honours a foreign currency when the text explicitly names a foreign token.
+// This helper is that gate — it must NOT fire on rupee/INR text and MUST fire
+// on explicit foreign symbols/codes, including glued forms, without misfiring
+// inside ordinary English words.
+describe('textHasForeignCurrencyToken', () => {
+  const foreign = [
+    '50 dollars',
+    '$50',
+    'spent 50$',
+    '100 usd',
+    '100usd', // glued code
+    '¥500 sushi in tokyo',
+    '€20 gift',
+    '£15 cab',
+    'convert 100 usd to inr',
+    'rm 50 lunch', // MYR
+    '100 dirhams',
+    '80 sgd freelance',
+  ];
+  for (const input of foreign) {
+    test(`foreign: "${input}" → true`, () => {
+      expect(textHasForeignCurrencyToken(input)).toBe(true);
+    });
+  }
+
+  const indian = [
+    'spent 500 रुपये on lunch', // Hindi native rupee word
+    '500 rupees on lunch',
+    'lent ravi 2000',
+    'got 2000 from friend',
+    '₹120 coffee', // INR symbol is NOT foreign
+    'rs 95 metro',
+    'मैंने आज खाने पर 500 रुपये खर्च किए',
+    'warm soup cost 200', // must not extract "rm" from "warm"
+    'platform ticket 30', // must not extract "rm"/"cad"/"aud" from words
+    'fraud alert ignore 0',
+  ];
+  for (const input of indian) {
+    test(`indian/none: "${input}" → false`, () => {
+      expect(textHasForeignCurrencyToken(input)).toBe(false);
+    });
+  }
 });

@@ -28,6 +28,38 @@ function escapeForRegex(str: string): string {
 const CURRENCY_PATTERN = CURRENCY_KEYS.map(escapeForRegex).join('|');
 
 /**
+ * Foreign (non-INR) currency aliases only, longest-first, for the deterministic
+ * "did the user actually name a foreign currency?" guard. The merge layer uses
+ * this to strip a currency the LLM hallucinated (e.g. JPY/USD) for a plain
+ * rupee message: a foreign currency is honoured ONLY when an explicit foreign
+ * token is present in the text. The boundary is a single `[^A-Za-z]` on each
+ * side (like extractCurrency) so it matches both glued symbols ("¥500", "50$")
+ * and glued codes ("100usd") — a digit is a non-letter delimiter — while never
+ * firing inside an English word ("warm" never yields "rm"→MYR).
+ */
+const FOREIGN_CURRENCY_PATTERN = Object.entries(CURRENCY_ALIASES)
+  .filter(([, code]) => code !== 'INR')
+  .map(([alias]) => alias)
+  .sort((a, b) => b.length - a.length)
+  .map(escapeForRegex)
+  .join('|');
+const FOREIGN_CURRENCY_RE = new RegExp(
+  `(?:^|[^A-Za-z])(?:${FOREIGN_CURRENCY_PATTERN})(?:[^A-Za-z]|$)`,
+  'i',
+);
+
+/**
+ * True when the raw text explicitly names a non-INR currency (symbol or code).
+ * Used by the parser merge to refuse a foreign currency the model invented for
+ * an Indian-rupee message — the single biggest source of phantom FX conversions
+ * ("500 रुपये" mis-logged as ¥500 → ₹298).
+ */
+export function textHasForeignCurrencyToken(text: string): boolean {
+  if (!text) return false;
+  return FOREIGN_CURRENCY_RE.test(text);
+}
+
+/**
  * Scale-multiplier words that may trail a digit amount ("18k", "1.5 lakh",
  * "22 hazaar", "80 हज़ार", "60 ಸಾವಿರ", "10 vela"). Includes English, romanised
  * Indic, and native-script words across all 11 supported languages. Ordered
@@ -49,10 +81,20 @@ const CRORE_WORDS = [
   'crores', 'crore', 'koti', 'kodi',
   'करोड़', 'करोड', 'कोटि', 'ਕਰੋੜ', 'કરોડ', 'ಕೋಟಿ', 'కోటి', 'கோடி', 'കോടി', 'କୋଟି',
 ];
+// Western scale suffixes. The glued/short crore alias "cr" is handled separately
+// by `normalizeCroreLetter` (NOT listed here) because a bare spaced "Cr" is the
+// ubiquitous Indian bank-statement marker for CREDIT (paired with "Dr"=debit) —
+// "₹5000 Cr credited" must stay 5000, never 5000 crore. "mn"/"bn" are safe in
+// the suffix list: the `(?![a-z])` lookahead in every amount regex stops them
+// devouring "min"/"bnb", and parseAmount wires their multipliers below.
+const MILLION_WORDS = ['millions', 'million', 'mln', 'mn'];
+const BILLION_WORDS = ['billions', 'billion', 'bn'];
 const THOUSAND_SET = new Set(THOUSAND_WORDS.map((w) => w.trim().toLowerCase()));
 const LAKH_SET = new Set(LAKH_WORDS.map((w) => w.trim().toLowerCase()));
 const CRORE_SET = new Set(CRORE_WORDS.map((w) => w.trim().toLowerCase()));
-const SCALE_SUFFIX = [...THOUSAND_WORDS, ...LAKH_WORDS, ...CRORE_WORDS]
+const MILLION_SET = new Set(MILLION_WORDS.map((w) => w.trim().toLowerCase()));
+const BILLION_SET = new Set(BILLION_WORDS.map((w) => w.trim().toLowerCase()));
+const SCALE_SUFFIX = [...THOUSAND_WORDS, ...LAKH_WORDS, ...CRORE_WORDS, ...MILLION_WORDS, ...BILLION_WORDS]
   .map((w) => w.trim())
   .sort((a, b) => b.length - a.length)
   .map(escapeForRegex)
@@ -177,6 +219,18 @@ function normalizeLakhLetter(text: string): string {
 }
 
 /**
+ * Indian shorthand "2.5cr" / "3cr" / "2.5cr." means crore. Rewrite a number
+ * GLUED to "cr" (optionally a trailing dot, no space) into "<n> crore" so the
+ * scale-word machinery handles it. Glued-only ON PURPOSE: a SPACED "5000 Cr" is
+ * the bank-statement credit marker (Dr/Cr) and must NOT become 5000 crore. The
+ * `(?![a-z])` tail keeps "2.5cror"/"...credit" from matching, mirroring how the
+ * amount regexes treat scale suffixes.
+ */
+function normalizeCroreLetter(text: string): string {
+  return text.replace(/\b(\d+(?:\.\d+)?)cr\.?(?![a-z])/gi, '$1 crore');
+}
+
+/**
  * Blank out digit runs that are NOT spendable amounts before extraction:
  * URLs, email addresses, and long (11+ digit) sequences that are phone
  * numbers, card numbers, account/order/invoice IDs. A real rupee amount is
@@ -205,7 +259,7 @@ function stripNumericNoise(text: string): string {
 export function looksLikeYearNoise(text: string): boolean {
   if (!text) return false;
   const cleaned = stripNumericNoise(
-    normalizeLakhLetter(normalizeDigitTypos(normalizeIndicDigits(text.replace(/[\u00a0]/g, ' ')))),
+    normalizeCroreLetter(normalizeLakhLetter(normalizeDigitTypos(normalizeIndicDigits(text.replace(/[\u00a0]/g, ' '))))),
   );
   if (pickBareAmount(cleaned) !== null) return false;
   const re = /(\d{4})(?![\d.,])/g;
@@ -222,7 +276,7 @@ export function looksLikeYearNoise(text: string): boolean {
 export function extractAmount(text: string): AmountExtraction {
   if (!text) return { amount: null, currency: null };
   const cleaned = stripNumericNoise(
-    normalizeLakhLetter(normalizeDigitTypos(normalizeIndicDigits(text.replace(/[\u00a0]/g, ' ')))),
+    normalizeCroreLetter(normalizeLakhLetter(normalizeDigitTypos(normalizeIndicDigits(text.replace(/[\u00a0]/g, ' '))))),
   );
 
   // 1) Currency followed by amount: "₹450", "Rs 450", "USD 50", "$50".
@@ -366,6 +420,8 @@ function parseAmount(numberToken: string, suffix: string | null): number | null 
     if (THOUSAND_SET.has(s)) multiplier = 1_000;
     else if (LAKH_SET.has(s)) multiplier = 100_000;
     else if (CRORE_SET.has(s)) multiplier = 10_000_000;
+    else if (MILLION_SET.has(s)) multiplier = 1_000_000;
+    else if (BILLION_SET.has(s)) multiplier = 1_000_000_000;
   }
   return Math.round(base * multiplier * 100) / 100;
 }
