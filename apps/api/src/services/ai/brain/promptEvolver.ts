@@ -24,6 +24,7 @@ import { promptExamples } from '../../../db/schema/spendingDna.ts';
 import { log } from '../../../utils/logger.ts';
 import type { ParsedExpense } from '../parser.ts';
 import { getDna, dnaToPriorHint } from './spendingDna.ts';
+import { validateExampleSafe } from './goldenSet.ts';
 
 /** Max few-shot examples to inject into the dynamic prompt. */
 const MAX_EXAMPLES = 5;
@@ -44,6 +45,15 @@ export async function recordExample(
   initialConfidence: number,
 ): Promise<void> {
   if (initialConfidence >= HARD_CASE_CEILING) return; // only hard cases
+  // Quarantine: the few-shot pool is an injection/poisoning surface — every
+  // example here gets baked into FUTURE prompts for this space. The golden-
+  // set validator rejects examples carrying override phrases, hallucinated
+  // currencies, mis-grounded amounts, or missing/oversize descriptions.
+  const verdict = validateExampleSafe(utterance, parsedResult);
+  if (!verdict.ok) {
+    log.warn('PROMPT_EVOLVER_REJECTED', { reason: verdict.reason });
+    return;
+  }
   const difficulty = 1 - initialConfidence;
 
   try {

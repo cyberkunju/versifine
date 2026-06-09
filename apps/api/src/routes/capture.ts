@@ -25,6 +25,7 @@ import { requireUserOrBot } from '../middleware/authEither.ts';
 import { limits, rateLimit } from '../middleware/rateLimit.ts';
 import { validate } from '../middleware/validate.ts';
 import { classifyIntent } from '../services/ai/intent.ts';
+import { planActions, logPlannerShadow } from '../services/ai/planner.ts';
 import { screenInput } from '../services/ai/guard.ts';
 import {
   handleLendBorrowSmart,
@@ -621,6 +622,18 @@ async function runTextPipeline(input: RunPipelineInput) {
     sourceType: intentResult.source,
     inputSize: summarizeForLog(text),
   });
+
+  // SHADOW PLANNER — runs in parallel with the legacy router. Never blocks the
+  // user-facing reply: we kick it off, log what it would have done, and the
+  // existing pipeline produces the actual response. The shadow log
+  // (PLANNER_SHADOW) is the source of truth for "would the typed plan have
+  // routed correctly?" — when agreement is consistently high AND the planner
+  // catches compound utterances the legacy router misses, we'll wire it live.
+  if (isAIConfigured()) {
+    void planActions(text, locale).then((plan) => {
+      logPlannerShadow(plan, intentResult.intent, summarizeForLog(text));
+    });
+  }
 
   // Correction / undo of the most recent transaction. Only reachable when the
   // bot supplied `recentContext` (i.e. there IS a recent entry to amend), so a

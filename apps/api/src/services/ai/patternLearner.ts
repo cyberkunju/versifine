@@ -4,6 +4,7 @@ import { learnedPatterns } from '../../db/schema/patterns.ts';
 import { log } from '../../utils/logger.ts';
 import type { ParsedExpense, MissingField, ExpenseType } from './parser.ts';
 import { safeRegexExec } from './brain/regexShield.ts';
+import { validatePatternSafe } from './brain/goldenSet.ts';
 
 /**
  * Compile a user-friendly template (e.g. "spent {amount} on {description}")
@@ -224,6 +225,15 @@ export async function learnPatternFromParse(
     const testMatch = safeRegexExec(compiled.regex, text, 'i');
     if (!testMatch) {
       // The template didn't actually match the source text — don't store.
+      return;
+    }
+
+    // Quarantine: would this regex misfire on a known non-expense (greeting,
+    // query, command)? Reject the promotion if so — an over-eager pattern
+    // would corrupt every future "hello" into a phantom transaction.
+    const verdict = validatePatternSafe(compiled.regex);
+    if (!verdict.ok) {
+      log.warn('PATTERN_LEARNER_REJECTED', { reason: verdict.reason, template });
       return;
     }
 

@@ -75,7 +75,8 @@ log "Running deterministic test gate"
     tests/guard.test.ts \
     tests/currencies.test.ts \
     tests/query-period.test.ts \
-    tests/parser-fallback.test.ts
+    tests/parser-fallback.test.ts \
+    tests/golden-set.test.ts
 ) || { log "ERROR: deterministic test gate FAILED — deploy aborted"; exit 1; }
 log "Deterministic test gate passed"
 
