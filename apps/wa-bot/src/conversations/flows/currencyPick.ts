@@ -34,7 +34,10 @@ interface PendingCurrencyChoice {
   ts: number;
 }
 
-/** Stash the API-returned options on the session so the next reply can resolve. */
+/** Stash the API-returned options on the session so the next reply can resolve.
+ *  We DON'T set state=CAPTURE_CONFIRM here — the currency-pick flow runs from
+ *  the engine BEFORE the CAPTURE_CONFIRM state branch, so a CONFIRM-state
+ *  handoff would intercept "saudi"/"1"/"OMR" as a free-form clarifier text. */
 export function rememberCurrencyChoice(
   session: Session,
   draftId: string,
@@ -54,7 +57,6 @@ export function rememberCurrencyChoice(
   updateSession(session.phone, {
     pending,
     lastDraftId: draftId,
-    state: 'CAPTURE_CONFIRM',
   });
 }
 
