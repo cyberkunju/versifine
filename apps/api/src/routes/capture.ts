@@ -867,6 +867,7 @@ async function persistOrDraftExpense(args: {
   const { input, intentLabel } = args;
   const { c, text, origin, locale, source } = input;
   const user = c.get('user');
+  const traceLog = c.get('log');
 
   const parsed = await parseExpense({ text, locale, spaceId: user.activeSpaceId, history: input.history });
   // Respect the classifier when it disagrees with the parser's default
@@ -882,21 +883,95 @@ async function persistOrDraftExpense(args: {
   const walletId = walletPick.wallet?.id ?? null;
   const date = parsed.date ?? TODAY();
 
-  const enoughConfidence = parsed.confidence >= 0.6;
-  const hasAmount = parsed.amount !== null;
-  const hasDescription = Boolean(parsed.description);
-  // An implausibly large amount (over ₹1 crore) is almost always a parse slip
-  // (a repeated-digit "chaiiiii 20000000", a mined hex/base64 blob, an overflow
-  // string). Never auto-log it — fall to a draft so the user confirms first.
+  // ── ACT / CONFIRM / ASK — 5-signal decision vector ─────────────────────
+  //
+  // We never gate on the raw LLM `confidence` alone: gpt-5.4-nano at minimal
+  // reasoning imitates the number from the few-shot examples and is
+  // uncalibrated. Instead, each signal is independently sourced:
+  //
+  //  S1 amount_grounded — deterministic extractor (regex/worded) found the
+  //     amount. Strongest trust signal. Pure, offline, battle-tested.
+  //  S2 amount_agreed   — regex and LLM produced the same number.
+  //     Strong: two independent systems concur.
+  //  S3 currency_clean  — no foreign currency was stripped (the guard in the
+  //     parser already ran; a stripped currency is a red flag on the whole parse).
+  //  S4 schema_ok       — the parser's LLM leg didn't fall back / retry (we
+  //     proxy this through confidence ≥ 0.5 from the parser, which is boosted
+  //     only by regex hits — so it reflects agreement, not self-reported certainty).
+  //  S5 magnitude_ok    — amount is within a plausible range.
+  //     Large amounts (> ₹50k) scale up the grounding requirement regardless of
+  //     the other signals (a ₹50k auto-log is a much bigger mistake than a ₹50 one).
+  //
+  // ACT (auto-persist) iff: completeness ∧ grounding ∧ no red flags.
+  // CONFIRM (show draft, one tap) iff: complete but grounding is soft, OR a
+  //   red flag fired, OR amount is large-but-plausible (₹50k–₹1cr).
+  // ASK (one targeted clarifier) iff: a required field is missing.
+  //
+  // This policy replaces the former single-threshold (confidence ≥ 0.6) with
+  // a monotonic, multi-signal gate where EVERY signal must align for auto-ACT,
+  // and where large amounts systematically require a confirmation tap.
+  const regexAmount = extractAmount(text);
+  const amountGrounded = regexAmount.amount !== null;
+  const amountAgreed =
+    amountGrounded &&
+    parsed.amount !== null &&
+    Math.abs(regexAmount.amount! - parsed.amount) < 0.005;
+  const currencyClean = !(
+    (parsed as unknown as Record<string, unknown>)._currencyStripped === true
+  );
+  const schemaOk = parsed.confidence >= 0.5;
+  const LARGE_AMOUNT_INR = 50_000;
+  const largeAmount = parsed.amount !== null && parsed.amount > LARGE_AMOUNT_INR;
   const implausibleAmount = parsed.amount !== null && parsed.amount > 10_000_000;
 
+  // Completeness: mandatory fields must all be present.
+  const hasAmount = parsed.amount !== null;
+  const hasDescription = Boolean(parsed.description);
+
+  // Grounding verdict (per-signal, logged for observability and future calibration).
+  const grounding: 'det' | 'agreed' | 'llm_only' | 'none' = amountGrounded
+    ? amountAgreed
+      ? 'det'
+      : 'agreed'
+    : parsed.amount !== null
+      ? 'llm_only'
+      : 'none';
+
+  // ACT requires: complete + deterministically grounded + clean + schema ok + plausible.
+  // Large amounts require a human tap even when all other signals agree.
+  const canACT =
+    hasAmount &&
+    hasDescription &&
+    walletId !== null &&
+    origin !== 'image' &&
+    !implausibleAmount &&
+    !largeAmount &&
+    (grounding === 'det' || grounding === 'agreed') &&
+    currencyClean &&
+    schemaOk;
+
+  // CONFIRM when complete but grounding is soft (llm_only or agreed but large).
+  const needsConfirmTap =
+    hasAmount &&
+    hasDescription &&
+    walletId !== null &&
+    !implausibleAmount &&
+    !canACT &&
+    origin !== 'image';
+
+  // Log the signal vector for observability — cheap, PII-safe, structured.
+  traceLog.info('CAPTURE_DECISION', {
+    grounding,
+    largeAmount,
+    currencyClean,
+    schemaOk,
+    verdict: canACT ? 'ACT' : needsConfirmTap ? 'CONFIRM' : 'ASK',
+    inputSize: summarizeForLog(text),
+  });
+
   if (
-    !enoughConfidence ||
-    !hasAmount ||
-    !hasDescription ||
-    !walletId ||
-    origin === 'image' ||
-    implausibleAmount
+    !canACT &&
+    !needsConfirmTap
   ) {
     const draft = storeDraft({
       spaceId: user.activeSpaceId,
@@ -913,6 +988,33 @@ async function persistOrDraftExpense(args: {
         draftId: draft.id,
         draft: serializeDraft(parsed),
         followupQuestion: followupQuestionFor(parsed.needs),
+        echo: text,
+      }),
+    );
+  }
+
+  // CONFIRM tap: complete and parseable, but grounding is soft or amount is
+  // large (₹50k+). Show the draft summary so the user taps YES instead of
+  // auto-logging. This also catches large legitimate transactions: someone
+  // paying ₹80k rent should see the figure before it hits the ledger.
+  if (needsConfirmTap) {
+    const draft = storeDraft({
+      spaceId: user.activeSpaceId,
+      userId: user.id,
+      origin,
+      source: text,
+      locale,
+      draft: parsed,
+    });
+    return c.json(
+      ok({
+        intent: intentLabel,
+        needsConfirmation: true,
+        draftId: draft.id,
+        draft: serializeDraft(parsed),
+        // No followupQuestion: data is complete — the confirm widget shows the
+        // summary and the user taps CONFIRM (or EDIT/CANCEL).
+        followupQuestion: undefined,
         echo: text,
       }),
     );
@@ -1586,6 +1688,22 @@ function sanitizeEdits(edits: Record<string, unknown>): Partial<ParsedExpense> {
 
 // Keep DraftRecord referenced so tooling doesn't strip the import.
 export type { DraftRecord };
+import { resolveReference } from '../services/capture/referenceResolver.ts';
+
+// ---- Reference Resolver endpoint ----------------------------------------
+// POST /capture/resolve-ref  { query: string }
+// Returns up to 3 candidate transactions for "the coffee one", "last 3", etc.
+// Used by the bot for corrections/deletes on non-last entries. Scoped to the
+// caller's space; never returns other users' data. Returns [] on no match.
+app.post('/resolve-ref', requireUserOrBot, async (c) => {
+  const u = c.get('user');
+  const body = await c.req.json().catch(() => ({}));
+  const query = typeof body.query === 'string' ? body.query.trim() : '';
+  if (!query) return c.json(ok({ candidates: [] }));
+  const candidates = await resolveReference(u.activeSpaceId, query);
+  return c.json(ok({ candidates }));
+});
+
 export const captureRoutes = app;
 export const __captureBatchForTests = {
   splitPotentialBatch,

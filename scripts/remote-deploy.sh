@@ -52,6 +52,28 @@ log "Type-checking API (runs from source; no bundle)"
     || { echo "ERROR: API typecheck failed"; exit 1; }
 [ -f apps/api/src/index.ts ] || { echo "ERROR: apps/api/src/index.ts missing"; exit 1; }
 
+# ---- 2b. Deterministic test gate (no DB, no LLM, zero false-flakes) ---------
+# Only the deterministic, pure-function test slices run here. LLM/DB-dependent
+# tests stay as a separate manual harness. This gate catches parser regressions
+# (amount/currency/date/guard) before they ever hit production — the most common
+# source of silent ledger corruption. Blocked exit → deploy aborts, services
+# unchanged.
+log "Running deterministic test gate"
+(
+  set -a
+  source "$ENV_DIR/api.env"
+  set +a
+  cd apps/api
+  /usr/local/bin/bun test \
+    tests/parser-regex.test.ts \
+    tests/guard.test.ts \
+    tests/currencies.test.ts \
+    tests/query-period.test.ts \
+    tests/parser-fallback.test.ts \
+    2>&1
+) || { log "ERROR: deterministic test gate FAILED — deploy aborted"; exit 1; }
+log "Deterministic test gate passed"
+
 log "Building wa-bot bundle"
 # Mark optional/native deps as external — these aren't actually used by our
 # code path but are conditionally `require()`d inside dependencies (e.g.
