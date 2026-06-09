@@ -59,18 +59,24 @@ log "Type-checking API (runs from source; no bundle)"
 # source of silent ledger corruption. Blocked exit → deploy aborts, services
 # unchanged.
 #
-# Run as the DEPLOY_USER (which is in the versifine group with read access to
-# /etc/versifine/api.env) — the login user that runs this script lacks group
-# membership, so a plain `source` would silently fail-open or abort with a
-# misleading error.
+# api.env is mode 0640 root:versifine; the login user runs this script and is
+# in the sudo group (NOPASSWD), not in versifine — so we read the env via
+# `sudo cat` and source it via process substitution. The deploy user can't
+# enter $WORK (the login user's home dir), so we run as the login user.
 log "Running deterministic test gate"
-sudo -u "$DEPLOY_USER" bash -lc "set -e; set -a; source $ENV_DIR/api.env; set +a; cd $WORK/apps/api && /usr/local/bin/bun test \
-  tests/parser-regex.test.ts \
-  tests/guard.test.ts \
-  tests/currencies.test.ts \
-  tests/query-period.test.ts \
-  tests/parser-fallback.test.ts" \
-  || { log "ERROR: deterministic test gate FAILED — deploy aborted"; exit 1; }
+(
+  set -e
+  set -a
+  source <(sudo cat "$ENV_DIR/api.env")
+  set +a
+  cd apps/api
+  /usr/local/bin/bun test \
+    tests/parser-regex.test.ts \
+    tests/guard.test.ts \
+    tests/currencies.test.ts \
+    tests/query-period.test.ts \
+    tests/parser-fallback.test.ts
+) || { log "ERROR: deterministic test gate FAILED — deploy aborted"; exit 1; }
 log "Deterministic test gate passed"
 
 log "Building wa-bot bundle"
