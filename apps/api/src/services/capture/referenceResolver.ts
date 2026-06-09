@@ -43,7 +43,12 @@ export interface ResolvedTransaction {
 }
 
 const MAX_MATCHES = 3;
-const SEMANTIC_THRESHOLD = 0.65;
+// Conservative threshold: 0.65 over-matches for unrelated items (a "lunch"
+// query semantically returning an "auto" entry). 0.80 keeps real synonyms
+// (chai/tea, swiggy/zomato/food-delivery) while rejecting weak associations.
+// If structural/keyword strategies miss AND nothing semantically matches at
+// this threshold, the bot asks the user to clarify rather than mis-resolving.
+const SEMANTIC_THRESHOLD = 0.80;
 
 /** Date helpers (ISO YYYY-MM-DD) */
 function isoToday(): string {

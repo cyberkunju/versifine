@@ -157,6 +157,17 @@ async function applyReferenceAction(
     }
     if (targetAmount !== null) {
       const { transaction } = await patchTransaction(session.phone, c.id, { amount: targetAmount });
+      // If the patched transaction IS the lastTransactionId the bot tracks,
+      // refresh the cached summary — otherwise a follow-up "delete that" will
+      // show the stale (pre-patch) amount in its summary.
+      if (session.lastTransactionId === c.id) {
+        const lastTx = (session.pending?.lastTx as Record<string, unknown> | undefined) ?? {};
+        const pending = {
+          ...(session.pending ?? {}),
+          lastTx: { ...lastTx, amount: transaction.amount, ts: Date.now() },
+        };
+        updateSession(session.phone, { pending });
+      }
       const oldAmt = `₹${c.amount.toLocaleString('en-IN')}`;
       const newAmt = `₹${transaction.amount.toLocaleString('en-IN')}`;
       return { text: m.correctUpdated(`${oldAmt} → ${newAmt}`) };
