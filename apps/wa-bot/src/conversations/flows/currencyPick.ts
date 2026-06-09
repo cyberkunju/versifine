@@ -127,17 +127,27 @@ function resolvePick(
   // 2) Country name / adjective. Tried BEFORE the ISO-code matcher so that
   //    "KSA" (Saudi Arabia) and other 3-letter country abbreviations resolve
   //    via the adjective list rather than failing the strict ISO lookup.
-  //    Short single-line answers only — anything longer is much more likely a
-  //    fresh utterance ("spent 50 on chai").
+  //    Multi-token answers ("Saudi please!", "yes saudi", "saudi arabia bro")
+  //    are accepted when ANY token matches an adjective AND the message has
+  //    ≤3 tokens — short polite phrasing wins, but a clearly-fresh utterance
+  //    ("spent 50 on saudi chai") is too long-token to false-positive.
   if (trimmed.length > 30 || /[\n]/.test(trimmed)) return { kind: 'unrelated' };
+  const tokens = lower.split(/\s+/).filter((t) => t.length > 0);
   for (const opt of options) {
     const country = opt.country.toLowerCase();
     const adj = COUNTRY_ADJECTIVES[opt.code];
-    const re = new RegExp(
+    const exact = new RegExp(
       `^(?:${country}|${country.replace(/\s+/g, '')}${adj ? `|${adj}` : ''})$`,
       'i',
     );
-    if (re.test(lower)) return { kind: 'option', code: opt.code, option: opt };
+    if (exact.test(lower)) return { kind: 'option', code: opt.code, option: opt };
+    // Multi-token tolerance: ≤3 tokens AND a token matches an adjective.
+    if (tokens.length <= 3) {
+      const tokenRe = new RegExp(`^(?:${country.replace(/\s+/g, '')}${adj ? `|${adj}` : ''})$`, 'i');
+      if (tokens.some((t) => tokenRe.test(t))) {
+        return { kind: 'option', code: opt.code, option: opt };
+      }
+    }
   }
 
   // 3) Direct ISO code (whole message is exactly 3 letters).
