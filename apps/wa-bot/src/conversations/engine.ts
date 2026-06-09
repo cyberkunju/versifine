@@ -274,29 +274,31 @@ async function dispatch(session: Session, message: IncomingMessage): Promise<Dis
     }
   }
 
-  // "Last one was X not Y" — correction shortcut. Only when there's a recent
-  // transaction to amend, so a fresh "paid 500 instead of cash" stays a new
-  // capture rather than being mistaken for a correction.
-  if (session.lastTransactionId && looksLikeCorrection(message.body)) {
-    const out = await handleCorrection(session, message.body);
-    return { text: out.text, speakable: true };
-  }
-
-  // Pending "which one?" pick from a previous reference command. Only fires
-  // when there's a stashed candidate list AND the body looks like a numeric/
-  // ordinal pick or CANCEL — never hijacks a fresh expense.
+  // Pending "which one?" pick from a previous reference command. Runs FIRST
+  // because it's a direct follow-up to a question the bot just asked — the
+  // body must be a numeric/ordinal pick or CANCEL, never hijacks a fresh
+  // expense.
   const pick = await tryResolvePendingPick(session, message.body);
   if (pick) {
     return { text: pick.text, speakable: true };
   }
 
   // Reference command — "delete the coffee one", "change yesterday's lunch
-  // to 350", "remove last 2". Targets a SPECIFIC older entry (not the last
-  // one, which already has its own flow). Detection is conservative: must
-  // carry a delete/change verb AND a specific referent (the X / yesterday's
-  // X / last N / a number-anchored phrase).
+  // to 350", "remove last 2". A SPECIFIC referent (not "that"/"the last
+  // one"). Runs BEFORE the catch-all lastTransactionId correction shortcut
+  // because the English correction regex matches "change the X" too eagerly
+  // and would silently patch the WRONG (last) transaction.
   if (looksLikeReferenceCommand(message.body, Boolean(session.lastTransactionId))) {
     const out = await handleReferenceCommand(session, message.body);
+    return { text: out.text, speakable: true };
+  }
+
+  // "Last one was X not Y" — correction shortcut for the LAST transaction.
+  // Only when there's a recent transaction to amend, so a fresh "paid 500
+  // instead of cash" stays a new capture rather than being mistaken for a
+  // correction.
+  if (session.lastTransactionId && looksLikeCorrection(message.body)) {
+    const out = await handleCorrection(session, message.body);
     return { text: out.text, speakable: true };
   }
 
