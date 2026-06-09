@@ -423,16 +423,19 @@ export interface ResolvedTxCandidate {
  * "last 3") to up to 3 candidate transactions. Used by the bot for corrections
  * and deletes on non-last entries — the resolver runs structural → keyword →
  * semantic strategies and returns the best matches scoped to the user's space.
+ * `intent='mutate'` (default for change/delete) skips the semantic fallback so
+ * a fuzzy match never silently corrupts the ledger.
  */
 export async function resolveTxReference(
   phone: string,
   query: string,
+  intent: 'read' | 'mutate' = 'mutate',
 ): Promise<{ candidates: ResolvedTxCandidate[] }> {
   return await call<{ candidates: ResolvedTxCandidate[] }>({
     method: 'POST',
     path: '/capture/resolve-ref',
     phone,
-    body: { query },
+    body: { query, intent },
   });
 }
 

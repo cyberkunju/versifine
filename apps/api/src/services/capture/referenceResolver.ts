@@ -245,10 +245,17 @@ async function resolveSemantic(
  * Resolve a natural-language reference ("the coffee one", "that ₹500 lunch",
  * "last 3") to transaction candidates. Returns up to MAX_MATCHES ranked by
  * confidence. Returns [] when nothing matches or on any failure.
+ *
+ * `intent='mutate'` (default for change/delete commands) DISABLES the semantic
+ * fallback so a fuzzy embedding match can never silently corrupt the ledger.
+ * For destructive ops we want a strong structural/keyword match or nothing —
+ * the bot then asks the user to clarify rather than guessing.
+ * `intent='read'` allows the full waterfall (structural → keyword → semantic).
  */
 export async function resolveReference(
   spaceId: string,
   query: string,
+  intent: 'read' | 'mutate' = 'mutate',
 ): Promise<ResolvedTransaction[]> {
   if (!query?.trim()) return [];
   try {
@@ -256,6 +263,7 @@ export async function resolveReference(
     if (structural?.length) return structural.slice(0, MAX_MATCHES);
     const keyword = await resolveKeyword(spaceId, query);
     if (keyword?.length) return keyword.slice(0, MAX_MATCHES);
+    if (intent === 'mutate') return []; // do NOT semantic-match destructive ops
     const semantic = await resolveSemantic(spaceId, query);
     return (semantic ?? []).slice(0, MAX_MATCHES);
   } catch (err) {

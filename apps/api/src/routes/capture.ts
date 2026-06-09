@@ -1725,8 +1725,9 @@ app.post('/resolve-ref', requireUserOrBot, async (c) => {
   const u = c.get('user');
   const body = await c.req.json().catch(() => ({}));
   const query = typeof body.query === 'string' ? body.query.trim() : '';
+  const intent: 'read' | 'mutate' = body.intent === 'read' ? 'read' : 'mutate';
   if (!query) return c.json(ok({ candidates: [] }));
-  const candidates = await resolveReference(u.activeSpaceId, query);
+  const candidates = await resolveReference(u.activeSpaceId, query, intent);
   return c.json(ok({ candidates }));
 });
 
