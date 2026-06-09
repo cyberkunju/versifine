@@ -147,6 +147,32 @@ export interface MessagePack {
   /** Asks the user to confirm a draft before persisting. */
   captureNeedsConfirm: (draft: DraftSummary) => string;
 
+  /**
+   * Disambiguates a generic currency word ("riyal" / "rial" / "dinar") that
+   * maps to multiple country variants. Renders a numbered list and asks the
+   * user to pick — never silently defaults.
+   */
+  currencyChoicePrompt: (
+    word: string,
+    options: ReadonlyArray<{ code: string; country: string; name: string }>,
+    amount: number | null,
+  ) => string;
+
+  /** Acknowledges the user's currency pick + shows the converted amount. */
+  currencyChosen: (
+    code: string,
+    name: string,
+    amount: number,
+    baseAmount: number | null,
+    baseCurrency: string | null,
+  ) => string;
+
+  /** User's reply to the currency picker didn't match any option. */
+  currencyChoiceUnknown: (
+    word: string,
+    options: ReadonlyArray<{ code: string; country: string; name: string }>,
+  ) => string;
+
   /** Free-form follow-up question forwarded from the API. */
   captureFollowup: (question: string) => string;
 

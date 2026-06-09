@@ -13,7 +13,7 @@
  * (CAPTURE_CONFIRM when the API returned a draft; LINKED_MAIN otherwise).
  */
 import type { Session, IncomingMessage } from '../../types.ts';
-import { isLanguage, type Language, LANGUAGE_META } from '@versifine/shared';
+import { isLanguage, type Language, type CurrencyOption, LANGUAGE_META } from '@versifine/shared';
 import {
   ApiClientError,
   askCopilot,
@@ -26,6 +26,7 @@ import {
 import { log } from '../../utils/logger.ts';
 import { translateChatAnswer } from '../../services/ai/translate.ts';
 import { applyParsedCorrection } from './correct.ts';
+import { rememberCurrencyChoice } from './currencyPick.ts';
 import { getMessages } from '../messages/index.ts';
 import type { QuerySummaryView, LedgerView, LedgerSettledView, DebtsView, TransferView } from '../messages/types.ts';
 import { setState, updateSession } from '../state.ts';
@@ -111,6 +112,25 @@ function summarizeQueryResult(result: Record<string, unknown> | undefined): stri
 
 function renderCaptureResponse(session: Session, response: CaptureResponseShape): CaptureResult {
   const m = getMessages(session.language);
+
+  // Currency disambiguation — the API parsed an amount with a generic
+  // "riyal"/"rial"/"dinar" word and no country qualifier. Stash the options
+  // on the session and show the user a numbered list. The next reply ("1",
+  // "SAR", "saudi") goes through tryResolveCurrencyChoice in the engine and
+  // re-issues captureConfirm with the chosen ISO code.
+  {
+    const qr = response.queryResult as Record<string, unknown> | undefined;
+    if (qr?.kind === 'currency_choice' && response.draftId) {
+      const word = typeof qr.word === 'string' ? qr.word : 'currency';
+      const options = (qr.options as CurrencyOption[]) ?? [];
+      const amount = response.draft?.amount ?? null;
+      if (Array.isArray(options) && options.length >= 2) {
+        rememberCurrencyChoice(session, response.draftId, word, options, amount);
+        const text = m.currencyChoicePrompt(word, options, amount);
+        return { text, speakable: text, pendingDraftId: response.draftId };
+      }
+    }
+  }
 
   // Successful persist → server returns intent + queryResult.transaction.
   if (!response.needsConfirmation) {

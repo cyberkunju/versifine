@@ -119,14 +119,14 @@ export const hi: MessagePack = {
     'त्वरित कमांड: MENU · HELP · STATUS · UNDO · LANGUAGE · RESET · STOP',
 
   captureLogged: (amount, currency, category, baseAmount, baseCurrency) => {
-    const formatted = formatAmount(amount, currency);
-    const converted =
-      baseAmount && baseCurrency && baseCurrency !== currency
-        ? ` (${formatAmount(baseAmount, baseCurrency)})`
-        : '';
+    const isForeign = baseAmount && baseCurrency && baseCurrency !== currency;
+    const primary = isForeign
+      ? formatAmount(baseAmount!, baseCurrency!)
+      : formatAmount(amount, currency);
+    const original = isForeign ? ` (मूल ${formatAmount(amount, currency)})` : '';
     return category
-      ? `✅ ${formatted}${converted} ${category} में जोड़ दिया।`
-      : `✅ ${formatted}${converted} रिकॉर्ड हो गया।`;
+      ? `✅ ${primary}${original} ${category} में जोड़ दिया।`
+      : `✅ ${primary}${original} रिकॉर्ड हो गया।`;
   },
 
   captureLoggedMany: (items, total, currency) => {
@@ -138,6 +138,30 @@ export const hi: MessagePack = {
 
   captureNeedsConfirm: (draft) =>
     `पुष्टि करें: ${describeDraft(draft)}\n\nCONFIRM लिखें save करने के लिए, EDIT बदलने के लिए, या CANCEL।`,
+
+  currencyChoicePrompt: (word, options, amount) => {
+    const lines = options.map(
+      (o, i) => `${i + 1}. ${o.name} (${o.code}) — ${o.country}`,
+    );
+    const amt = amount != null ? `${amount} ${word}` : word;
+    return (
+      `कौन सा ${word}? आपने "${amt}" कहा — कृपया एक चुनें:\n${lines.join('\n')}\n\n` +
+      `नंबर (1-${options.length}), देश (जैसे Saudi), या कोड (जैसे SAR) से जवाब दें।`
+    );
+  },
+
+  currencyChosen: (code, name, amount, baseAmount, baseCurrency) => {
+    const inBase =
+      baseAmount != null && baseCurrency && baseCurrency !== code
+        ? ` ≈ ${formatAmount(baseAmount, baseCurrency)}`
+        : '';
+    return `ठीक है — ${name} (${code}) ${formatAmount(amount, code)}${inBase}. दर्ज कर रहा हूँ...`;
+  },
+
+  currencyChoiceUnknown: (word, options) => {
+    const codes = options.map((o) => o.code).join(' / ');
+    return `${word} कौन सा, समझ नहीं आया। नंबर (1-${options.length}) या इनमें से एक भेजें: ${codes}।`;
+  },
 
   captureFollowup: (q) => q,
 

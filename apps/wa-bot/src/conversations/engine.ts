@@ -40,6 +40,7 @@ import { chunkText, parseLinkCommand, parseUniversal } from '../utils/text.ts';
 import { handleBudget, looksLikeBudgetTrigger, pickCategory, pickAmount } from './flows/budget.ts';
 import { handleCapture, handleConfirm } from './flows/capture.ts';
 import { handleCorrection, looksLikeCorrection } from './flows/correct.ts';
+import { tryResolveCurrencyChoice } from './flows/currencyPick.ts';
 import {
   handleReferenceCommand,
   looksLikeReferenceCommand,
@@ -281,6 +282,15 @@ async function dispatch(session: Session, message: IncomingMessage): Promise<Dis
   const pick = await tryResolvePendingPick(session, message.body);
   if (pick) {
     return { text: pick.text, speakable: true };
+  }
+
+  // Pending currency disambiguation ("which riyal?"). Runs BEFORE reference /
+  // correction / capture so a bare "1", "saudi", or "SAR" resolves the picker
+  // instead of being routed elsewhere. Returns null on a non-pick message so
+  // an entirely new utterance ("spent 50 on lunch") still falls through.
+  const currencyChoice = await tryResolveCurrencyChoice(session, message.body);
+  if (currencyChoice) {
+    return { text: currencyChoice.text, speakable: true };
   }
 
   // Reference command — "delete the coffee one", "change yesterday's lunch

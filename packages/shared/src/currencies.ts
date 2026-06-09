@@ -252,24 +252,24 @@ export const CURRENCY_ALIASES: Record<string, Currency> = {
   '¥': 'JPY',
   myr: 'MYR',
   rm: 'MYR',
-  // --- Gulf currencies (high-volume for Indian users abroad) -----------
-  // "riyal"/"rial" defaults to SAR (Saudi) — by far the most common Indian-Gulf
-  // usage. Users who actually mean Omani/Qatari/Yemeni Rial type the ISO code
-  // ("OMR 5", "QAR 50") which the uppercase-ISO path resolves deterministically.
-  riyal: 'SAR',
-  riyals: 'SAR',
-  rial: 'SAR',
-  rials: 'SAR',
+  // --- Gulf currency CODES + unambiguous words ---------------------------
+  // The GENERIC words "riyal"/"rial"/"dinar" are NOT in this map — they're
+  // ambiguous (Saudi/Omani/Qatari/Yemeni/Iranian riyals; Kuwaiti/Bahraini/
+  // Jordanian/Iraqi/Libyan/Tunisian dinars). The parser detects them via
+  // AMBIGUOUS_CURRENCY_WORDS + COUNTRY_QUALIFIED_CURRENCIES below and either
+  // resolves a country-qualified phrase ("saudi riyal") or surfaces a "which
+  // one?" prompt. ISO codes are unambiguous and stay here.
   sar: 'SAR',
-  // "dinar" defaults to KWD (Kuwait) — most common Indian-Gulf usage.
-  // BHD/IQD/JOD/LYD/TND speakers type the code or say "kuwaiti dinar" etc.,
-  // which the LLM resolves with full context.
-  dinar: 'KWD',
-  dinars: 'KWD',
   kwd: 'KWD',
   omr: 'OMR',
   qar: 'QAR',
   bhd: 'BHD',
+  jod: 'JOD',
+  iqd: 'IQD',
+  yer: 'YER',
+  irr: 'IRR',
+  lyd: 'LYD',
+  tnd: 'TND',
   // --- Other high-volume codes that aren't already aliased -------------
   thb: 'THB',
   baht: 'THB',
@@ -286,6 +286,123 @@ export const CURRENCY_ALIASES: Record<string, Currency> = {
   pkr: 'PKR',
   bdt: 'BDT',
 };
+
+/**
+ * Words that map to MULTIPLE possible currencies depending on country
+ * context. The parser does NOT auto-resolve these — instead the API surfaces
+ * a "which one?" choice to the user so a Saudi resident's "5 riyal" doesn't
+ * silently log as Omani Rial (or vice-versa) and corrupt FX.
+ *
+ * Order = popularity for Indian-NRI traffic. The first option is the visual
+ * default, but the user's explicit pick always wins.
+ */
+export interface CurrencyOption {
+  code: Currency;
+  /** Short native-language country name shown to the user. */
+  country: string;
+  /** Long currency name shown to the user. */
+  name: string;
+}
+export const AMBIGUOUS_CURRENCY_WORDS: Record<string, CurrencyOption[]> = {
+  riyal: [
+    { code: 'SAR', country: 'Saudi Arabia', name: 'Saudi Riyal' },
+    { code: 'OMR', country: 'Oman', name: 'Omani Rial' },
+    { code: 'QAR', country: 'Qatar', name: 'Qatari Riyal' },
+    { code: 'YER', country: 'Yemen', name: 'Yemeni Rial' },
+    { code: 'IRR', country: 'Iran', name: 'Iranian Rial' },
+  ],
+  rial: [
+    { code: 'OMR', country: 'Oman', name: 'Omani Rial' },
+    { code: 'IRR', country: 'Iran', name: 'Iranian Rial' },
+    { code: 'YER', country: 'Yemen', name: 'Yemeni Rial' },
+    { code: 'SAR', country: 'Saudi Arabia', name: 'Saudi Riyal' },
+  ],
+  dinar: [
+    { code: 'KWD', country: 'Kuwait', name: 'Kuwaiti Dinar' },
+    { code: 'BHD', country: 'Bahrain', name: 'Bahraini Dinar' },
+    { code: 'JOD', country: 'Jordan', name: 'Jordanian Dinar' },
+    { code: 'IQD', country: 'Iraq', name: 'Iraqi Dinar' },
+    { code: 'LYD', country: 'Libya', name: 'Libyan Dinar' },
+    { code: 'TND', country: 'Tunisia', name: 'Tunisian Dinar' },
+  ],
+};
+const AMBIGUOUS_PLURAL_TO_SINGULAR: Record<string, string> = {
+  riyals: 'riyal',
+  rials: 'rial',
+  dinars: 'dinar',
+};
+
+/**
+ * Country-qualified currency phrases that resolve UNAMBIGUOUSLY ("saudi
+ * riyal" → SAR, "omani rial" → OMR). Matched longest-first; case-insensitive.
+ * Used by the parser to short-circuit AMBIGUOUS_CURRENCY_WORDS when the user
+ * already specified the country.
+ */
+export const COUNTRY_QUALIFIED_CURRENCIES: Array<{ pattern: RegExp; code: Currency }> = [
+  { pattern: /\b(?:saudi(?:\s+arabian)?)\s+(?:riyal|rial)s?\b/i, code: 'SAR' },
+  { pattern: /\b(?:omani|oman)\s+(?:rial|riyal)s?\b/i, code: 'OMR' },
+  { pattern: /\b(?:qatari|qatar)\s+(?:riyal|rial)s?\b/i, code: 'QAR' },
+  { pattern: /\b(?:yemeni|yemen)\s+(?:rial|riyal)s?\b/i, code: 'YER' },
+  { pattern: /\b(?:iranian|iran)\s+(?:rial|riyal)s?\b/i, code: 'IRR' },
+  { pattern: /\b(?:kuwaiti|kuwait)\s+dinars?\b/i, code: 'KWD' },
+  { pattern: /\b(?:bahraini|bahrain)\s+dinars?\b/i, code: 'BHD' },
+  { pattern: /\b(?:jordanian|jordan)\s+dinars?\b/i, code: 'JOD' },
+  { pattern: /\b(?:iraqi|iraq)\s+dinars?\b/i, code: 'IQD' },
+  { pattern: /\b(?:libyan|libya)\s+dinars?\b/i, code: 'LYD' },
+  { pattern: /\b(?:tunisian|tunisia)\s+dinars?\b/i, code: 'TND' },
+  // Dollar variants (default USD covers most cases; these are the explicit asks).
+  { pattern: /\b(?:us|u\.s\.|american|america)\s+(?:dollar|dollars)\b/i, code: 'USD' },
+  { pattern: /\b(?:canadian|canada)\s+(?:dollar|dollars)\b/i, code: 'CAD' },
+  { pattern: /\b(?:australian|australia|aussie)\s+(?:dollar|dollars)\b/i, code: 'AUD' },
+  { pattern: /\b(?:singapore|singaporean)\s+(?:dollar|dollars)\b/i, code: 'SGD' },
+  { pattern: /\b(?:hong\s*kong|hk|hongkong)\s+(?:dollar|dollars)\b/i, code: 'HKD' },
+  { pattern: /\b(?:new\s*zealand|nz)\s+(?:dollar|dollars)\b/i, code: 'NZD' },
+];
+
+/**
+ * Lower-case singular form of an ambiguous currency word, or null when the
+ * input doesn't name one. Handles plurals (riyals → riyal) and an attached
+ * country qualifier suppresses ambiguity (saudi riyal → not ambiguous).
+ */
+export function detectAmbiguousCurrencyWord(text: string): string | null {
+  if (!text) return null;
+  // If a country-qualified phrase resolves the word, it's no longer ambiguous.
+  for (const { pattern } of COUNTRY_QUALIFIED_CURRENCIES) {
+    if (pattern.test(text)) return null;
+  }
+  const lower = text.toLowerCase();
+  for (const word of Object.keys(AMBIGUOUS_CURRENCY_WORDS)) {
+    const re = new RegExp(`(?:^|[^a-z])${word}s?(?:[^a-z]|$)`, 'i');
+    if (re.test(lower)) return word;
+  }
+  // Map a PLURAL to its singular AMBIGUOUS_CURRENCY_WORDS key.
+  for (const [plural, singular] of Object.entries(AMBIGUOUS_PLURAL_TO_SINGULAR)) {
+    const re = new RegExp(`(?:^|[^a-z])${plural}(?:[^a-z]|$)`, 'i');
+    if (re.test(lower)) return singular;
+  }
+  return null;
+}
+
+/** Resolve a country-qualified currency phrase ("saudi riyal" → "SAR"). */
+export function resolveQualifiedCurrency(text: string): Currency | null {
+  if (!text) return null;
+  for (const { pattern, code } of COUNTRY_QUALIFIED_CURRENCIES) {
+    if (pattern.test(text)) return code;
+  }
+  return null;
+}
+
+/** Get the disambiguation options for a known ambiguous word. */
+export function getCurrencyOptions(word: string): CurrencyOption[] {
+  const key = word.trim().toLowerCase();
+  const direct = AMBIGUOUS_CURRENCY_WORDS[key];
+  if (direct) return direct;
+  const singular = AMBIGUOUS_PLURAL_TO_SINGULAR[key];
+  if (singular && AMBIGUOUS_CURRENCY_WORDS[singular]) {
+    return AMBIGUOUS_CURRENCY_WORDS[singular]!;
+  }
+  return [];
+}
 
 export function normalizeCurrency(input: string | null | undefined): Currency {
   if (!input) return 'INR';

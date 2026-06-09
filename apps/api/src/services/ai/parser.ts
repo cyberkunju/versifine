@@ -19,7 +19,7 @@ import { CURRENCY_ALIASES, type Currency, isCurrency } from '@versifine/shared';
 import { env } from '../../env.ts';
 import { log } from '../../utils/logger.ts';
 import { getOpenAI, isAIConfigured, normalizeChatParams, withLatency } from './client.ts';
-import { extractAmount, extractCurrency, extractDate, extractSplitCount, looksLikeYearNoise, textHasForeignCurrencyToken } from './parserRegex.ts';
+import { extractAmount, extractAmountWithMeta, extractCurrency, extractDate, extractSplitCount, looksLikeYearNoise, textHasForeignCurrencyToken } from './parserRegex.ts';
 import { tryParseLearnedPattern, learnPatternFromParse } from './patternLearner.ts';
 import {
   lookupSimilar,
@@ -67,6 +67,14 @@ export interface ParsedExpense {
    * False/undefined for the normal/safe cases.
    */
   currencyStripped?: boolean;
+  /**
+   * Set when the user named a GENERIC currency word with multiple country
+   * variants ("riyal" / "rial" / "dinar") and no country qualifier was
+   * present. The capture pipeline uses this to surface a "which one?" picker
+   * instead of silently defaulting (e.g. "5 riyal" → ask SAR/OMR/QAR/YER/IRR).
+   * Lower-case singular form ('riyal'|'rial'|'dinar'); null otherwise.
+   */
+  ambiguousCurrencyWord?: string | null;
 }
 
 export interface ParsedExpenseBatch {
@@ -582,7 +590,11 @@ export async function parseExpense(input: ParseInput): Promise<ParsedExpense> {
   }
 
   // ── TIER 2: Deterministic Regex ─────────────────────────────────────────
-  const regexAmount = extractAmount(text);
+  const regexAmountMeta = extractAmountWithMeta(text);
+  const regexAmount: { amount: number | null; currency: string | null } = {
+    amount: regexAmountMeta.amount,
+    currency: regexAmountMeta.currency,
+  };
   const regexCurrency = regexAmount.currency ?? extractCurrency(text);
   const regexDate = extractDate(text);
   const regexSplit = extractSplitCount(text);
@@ -675,6 +687,13 @@ export async function parseExpense(input: ParseInput): Promise<ParsedExpense> {
     originalAmount,
     originalCurrency,
     currencyStripped,
+    // Surface the ambiguous currency word ONLY when the parser ended up with
+    // no resolved currency. If the LLM (with full-text context) attached a
+    // currency we trust, clear the flag — it's no longer ambiguous.
+    ambiguousCurrencyWord:
+      regexAmountMeta.ambiguousCurrencyWord && !guardedCurrency
+        ? regexAmountMeta.ambiguousCurrencyWord
+        : null,
     confidence,
   };
 

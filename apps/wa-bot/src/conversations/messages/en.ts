@@ -128,14 +128,19 @@ export const en: MessagePack = {
     'Quick commands: MENU · HELP · STATUS · UNDO · LANGUAGE · RESET · STOP',
 
   captureLogged: (amount, currency, category, baseAmount, baseCurrency) => {
-    const formatted = formatAmount(amount, currency);
-    const converted =
-      baseAmount && baseCurrency && baseCurrency !== currency
-        ? ` (${formatAmount(baseAmount, baseCurrency)})`
-        : '';
+    // Log PRIMARY in the user's base currency (their wallet/account currency)
+    // and note the FOREIGN original parenthetically when they spent in another
+    // currency. Same data, clearer mental model: "I spent ₹110 (originally
+    // SAR 5)" — the user always sees how it hits their balance + what they
+    // physically paid in their pocket.
+    const isForeign = baseAmount && baseCurrency && baseCurrency !== currency;
+    const primary = isForeign
+      ? formatAmount(baseAmount!, baseCurrency!)
+      : formatAmount(amount, currency);
+    const original = isForeign ? ` (originally ${formatAmount(amount, currency)})` : '';
     return category
-      ? `✅ Logged ${formatted}${converted} under ${category}.`
-      : `✅ Logged ${formatted}${converted}.`;
+      ? `✅ Logged ${primary}${original} under ${category}.`
+      : `✅ Logged ${primary}${original}.`;
   },
 
   captureLoggedMany: (items, total, currency) => {
@@ -147,6 +152,30 @@ export const en: MessagePack = {
 
   captureNeedsConfirm: (draft) =>
     `Almost! ${describeDraft(draft)}\n\nReply CONFIRM to save, EDIT to change, or CANCEL.`,
+
+  currencyChoicePrompt: (word, options, amount) => {
+    const lines = options.map(
+      (o, i) => `${i + 1}. ${o.name} (${o.code}) — ${o.country}`,
+    );
+    const amt = amount != null ? `${amount} ${word}` : word;
+    return (
+      `Which ${word}? You said "${amt}" — please pick one:\n${lines.join('\n')}\n\n` +
+      `Reply with the number (1-${options.length}), the country (e.g. Saudi), or the code (e.g. SAR).`
+    );
+  },
+
+  currencyChosen: (code, name, amount, baseAmount, baseCurrency) => {
+    const inBase =
+      baseAmount != null && baseCurrency && baseCurrency !== code
+        ? ` ≈ ${formatAmount(baseAmount, baseCurrency)}`
+        : '';
+    return `Got it — ${name} (${code}) ${formatAmount(amount, code)}${inBase}. Logging now...`;
+  },
+
+  currencyChoiceUnknown: (word, options) => {
+    const codes = options.map((o) => o.code).join(' / ');
+    return `I didn't catch which ${word}. Reply with the number (1-${options.length}) or one of ${codes}.`;
+  },
 
   captureFollowup: (q) => q,
 

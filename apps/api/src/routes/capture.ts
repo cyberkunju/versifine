@@ -3,6 +3,7 @@ import {
   type Category,
   type Intent,
   type Language,
+  getCurrencyOptions,
   isLanguage,
   isTransactionIntent,
   resolveLanguageName,
@@ -903,6 +904,44 @@ async function persistOrDraftExpense(args: {
   const walletPick = pickWallet(livewallets, parsed.walletHint);
   const walletId = walletPick.wallet?.id ?? null;
   const date = parsed.date ?? TODAY();
+
+  // Ambiguous currency word ("riyal" / "rial" / "dinar" with no country
+  // qualifier) — we MUST ask the user "which one?" rather than silently
+  // defaulting to a country. The user's clear intent: a Saudi resident's
+  // "5 riyal" should not log as Omani Rial (or vice versa). Surface a draft
+  // (so the parsed amount/description survives) AND a currency_choice
+  // payload listing the candidates.
+  if (parsed.ambiguousCurrencyWord && parsed.amount !== null) {
+    const options = getCurrencyOptions(parsed.ambiguousCurrencyWord);
+    if (options.length >= 2) {
+      const draft = storeDraft({
+        spaceId: user.activeSpaceId,
+        userId: user.id,
+        origin,
+        source: text,
+        locale,
+        draft: parsed,
+      });
+      traceLog.info('CAPTURE_AMBIGUOUS_CURRENCY', {
+        word: parsed.ambiguousCurrencyWord,
+        options: options.map((o) => o.code),
+      });
+      return c.json(
+        ok({
+          intent: intentLabel,
+          needsConfirmation: true,
+          draftId: draft.id,
+          draft: serializeDraft(parsed),
+          queryResult: {
+            kind: 'currency_choice',
+            word: parsed.ambiguousCurrencyWord,
+            options,
+          },
+          echo: text,
+        }),
+      );
+    }
+  }
 
   // ── ACT / CONFIRM / ASK — 5-signal decision vector ─────────────────────
   //

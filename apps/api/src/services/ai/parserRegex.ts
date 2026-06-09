@@ -8,13 +8,30 @@
  * a chance: it sees the full text, so its other fields stay
  * unaffected.
  */
-import { CURRENCY_ALIASES, CURRENCIES, type Currency } from '@versifine/shared';
+import {
+  CURRENCY_ALIASES,
+  CURRENCIES,
+  type Currency,
+  detectAmbiguousCurrencyWord,
+  resolveQualifiedCurrency,
+} from '@versifine/shared';
 
 export interface AmountExtraction {
   /** Positive amount or null. */
   amount: number | null;
   /** Currency code if directly attached to the amount, else null. */
   currency: Currency | null;
+}
+
+/**
+ * Extended extraction surface used by the API capture pipeline. When the
+ * user names a generic ambiguous currency word ("riyal", "rial", "dinar")
+ * with no country qualifier, `currency` is null AND `ambiguousCurrencyWord`
+ * carries the matched word so the bot can ask "which one?" instead of
+ * silently picking a default.
+ */
+export interface AmountExtractionMeta extends AmountExtraction {
+  ambiguousCurrencyWord: string | null;
 }
 
 const CURRENCY_KEYS = Object.keys(CURRENCY_ALIASES);
@@ -374,6 +391,13 @@ export function extractAmount(text: string): AmountExtraction {
     normalizeCroreLetter(normalizeLakhLetter(normalizeDigitTypos(normalizeIndicDigits(text.replace(/[\u00a0]/g, ' '))))),
   );
 
+  // 0) Country-qualified phrase ("saudi riyal", "omani rial", "us dollar").
+  //    A qualified word is UNAMBIGUOUS — the parser resolves it directly to
+  //    the ISO code without going through the riyal/rial/dinar disambiguation
+  //    that runs in extractAmountWithMeta. The amount comes from any of the
+  //    standard digit/word passes; only the currency is overridden.
+  const qualified = resolveQualifiedCurrency(cleaned);
+
   // 1) Currency followed by amount: "₹450", "Rs 450", "USD 50", "$50".
   const leading = new RegExp(
     `(?:^|[^A-Za-z])(${CURRENCY_PATTERN})\\s*(\\d[\\d,]*(?:\\.\\d+)?)\\s*(${SCALE_SUFFIX})?(?![a-z])`,
@@ -410,8 +434,11 @@ export function extractAmount(text: string): AmountExtraction {
   if (isoAttached) return isoAttached;
 
   // 3) No currency attached — score every bare number and pick the price.
+  //    If a country-qualified phrase ("saudi riyal", "us dollar") was present,
+  //    use its resolved code so the user gets the unambiguous currency they
+  //    explicitly named.
   const amt = pickBareAmount(cleaned);
-  if (amt !== null) return { amount: amt, currency: null };
+  if (amt !== null) return { amount: amt, currency: qualified };
 
   // 4) No digits anywhere — fall back to spelled-out / worded numbers in
   //    English and the supported Indian languages ("നൂറ് രൂപ" → 100,
@@ -419,9 +446,29 @@ export function extractAmount(text: string): AmountExtraction {
   //    only runs when steps 1–3 found nothing. This is the fix for the
   //    voice-note bug where "ചായ കുടിച്ചു നൂറ് രൂപായ്" stalled the bot.
   const worded = pickWordedAmount(cleaned);
-  if (worded) return { amount: worded.value, currency: worded.currency };
+  if (worded) {
+    return { amount: worded.value, currency: qualified ?? worded.currency };
+  }
 
   return { amount: null, currency: null };
+}
+
+/**
+ * Extended extraction surface: same as {@link extractAmount} but also flags
+ * an UNQUALIFIED ambiguous currency word so the API can ask "which one?"
+ * before logging. Used by the capture pipeline; tests and library code that
+ * just want a {amount, currency} keep using extractAmount.
+ */
+export function extractAmountWithMeta(text: string): AmountExtractionMeta {
+  const base = extractAmount(text);
+  if (base.currency !== null || base.amount === null) {
+    return { ...base, ambiguousCurrencyWord: null };
+  }
+  // No currency was resolved AND we DID find an amount. Check if the user
+  // named an ambiguous currency word ("riyal"/"rial"/"dinar") with no country
+  // qualifier — if so, the bot will surface a "which one?" picker.
+  const ambiguous = detectAmbiguousCurrencyWord(text);
+  return { ...base, ambiguousCurrencyWord: ambiguous };
 }
 
 interface BareCandidate {

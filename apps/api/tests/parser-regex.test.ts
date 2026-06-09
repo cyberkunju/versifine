@@ -9,6 +9,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   extractAmount,
+  extractAmountWithMeta,
   extractCurrency,
   extractDate,
   extractSplitCount,
@@ -727,12 +728,14 @@ describe('extractAmount — explicit ISO-4217 code (deterministic)', () => {
 });
 
 
-// --- Production regressions: rendara + riyal --------------------------
+// --- Production regressions: rendara + ambiguous Gulf currency words --
 // Real WhatsApp voice note: "ഇന്ന് ഞാൻ രണ്ടര riyal-inu ഊണ് കഴിച്ചു"
 // (today I had lunch for 2.5 riyal). Both the Malayalam fraction "രണ്ടര"
-// (2.5) and the gulf-currency word "riyal" (SAR by default) were missing,
-// so the bot mined ₹2 / ₹30 INR instead of SAR 2.5.
-describe('extractAmount — Malayalam രണ്ടര (2.5) and riyal default', () => {
+// (2.5) and the gulf-currency word "riyal" were broken: the bot mined
+// ₹2 / ₹30 INR. We now compose the fraction with a scale word AND surface
+// "riyal"/"rial"/"dinar" as AMBIGUOUS so the bot asks "which one?" instead
+// of silently defaulting to one country.
+describe('extractAmount — Malayalam രണ്ടര (2.5) and ambiguous Gulf currencies', () => {
   // Fractions compose with a count/scale word — same convention as dhai/dedh.
   // A BARE "rendara" or "randar" alone is intentionally null (false-positive
   // guard mirrors `dhai`, `dedh`, `sava` from the existing test set).
@@ -753,18 +756,53 @@ describe('extractAmount — Malayalam രണ്ടര (2.5) and riyal default', 
     expect(extractAmount('രണ്ടര ആയിരം').amount).toBe(2500);
   });
 
-  test('"4 riyal" → 4 SAR', () => {
-    expect(extractAmount('4 riyal')).toEqual({ amount: 4, currency: 'SAR' });
+  // --- bare ambiguous words: amount yes, currency no, ambiguous flag set ---
+  test('"4 riyal" — ambiguous, no currency auto-assigned', () => {
+    expect(extractAmount('4 riyal')).toEqual({ amount: 4, currency: null });
   });
 
-  test('"50 riyals" → 50 SAR', () => {
-    expect(extractAmount('50 riyals')).toEqual({ amount: 50, currency: 'SAR' });
+  test('"50 riyals" — ambiguous', () => {
+    expect(extractAmount('50 riyals')).toEqual({ amount: 50, currency: null });
   });
 
-  test('"100 rial" → 100 SAR (Indian-Gulf default)', () => {
-    expect(extractAmount('100 rial')).toEqual({ amount: 100, currency: 'SAR' });
+  test('"100 rial" — ambiguous', () => {
+    expect(extractAmount('100 rial')).toEqual({ amount: 100, currency: null });
   });
 
+  test('"50 dinar" — ambiguous', () => {
+    expect(extractAmount('50 dinar')).toEqual({ amount: 50, currency: null });
+  });
+
+  // --- country-qualified phrases resolve unambiguously --------------------
+  test('"5 saudi riyal" → SAR 5 (qualified)', () => {
+    expect(extractAmount('5 saudi riyal')).toEqual({ amount: 5, currency: 'SAR' });
+  });
+
+  test('"50 omani rial" → OMR 50', () => {
+    expect(extractAmount('50 omani rial')).toEqual({ amount: 50, currency: 'OMR' });
+  });
+
+  test('"saudi riyal 200 dinner" → SAR 200', () => {
+    expect(extractAmount('saudi riyal 200 dinner')).toEqual({ amount: 200, currency: 'SAR' });
+  });
+
+  test('"100 qatari riyal" → QAR 100', () => {
+    expect(extractAmount('100 qatari riyal')).toEqual({ amount: 100, currency: 'QAR' });
+  });
+
+  test('"200 kuwaiti dinar" → KWD 200', () => {
+    expect(extractAmount('200 kuwaiti dinar')).toEqual({ amount: 200, currency: 'KWD' });
+  });
+
+  test('"50 bahraini dinar" → BHD 50', () => {
+    expect(extractAmount('50 bahraini dinar')).toEqual({ amount: 50, currency: 'BHD' });
+  });
+
+  test('"100 jordanian dinar" → JOD 100', () => {
+    expect(extractAmount('100 jordanian dinar')).toEqual({ amount: 100, currency: 'JOD' });
+  });
+
+  // --- explicit ISO codes still resolve deterministically ----------------
   test('explicit OMR / SAR / QAR / KWD codes still resolve deterministically', () => {
     expect(extractAmount('5 OMR coffee')).toEqual({ amount: 5, currency: 'OMR' });
     expect(extractAmount('SAR 200 dinner')).toEqual({ amount: 200, currency: 'SAR' });
@@ -772,7 +810,110 @@ describe('extractAmount — Malayalam രണ്ടര (2.5) and riyal default', 
     expect(extractAmount('KWD 10 cab')).toEqual({ amount: 10, currency: 'KWD' });
   });
 
-  test('"50 dinar" defaults to KWD', () => {
-    expect(extractAmount('50 dinar')).toEqual({ amount: 50, currency: 'KWD' });
+  // --- US/Canadian/Australian dollar variants ----------------------------
+  test('"50 us dollar" → USD 50', () => {
+    expect(extractAmount('50 us dollar')).toEqual({ amount: 50, currency: 'USD' });
+  });
+
+  test('"100 canadian dollar" → CAD 100', () => {
+    expect(extractAmount('100 canadian dollar')).toEqual({ amount: 100, currency: 'CAD' });
+  });
+
+  test('"50 australian dollar" → AUD 50', () => {
+    expect(extractAmount('50 australian dollar')).toEqual({ amount: 50, currency: 'AUD' });
+  });
+});
+
+// --- ambiguity flag via extractAmountWithMeta --------------------------
+// The capture pipeline uses extractAmountWithMeta (not extractAmount) so it
+// can pop a "which riyal?" picker for the user without ever silently
+// committing to a country default.
+describe('extractAmountWithMeta — ambiguous currency surfacing', () => {
+  test('"4 riyal" flags riyal as ambiguous', () => {
+    expect(extractAmountWithMeta('4 riyal')).toEqual({
+      amount: 4,
+      currency: null,
+      ambiguousCurrencyWord: 'riyal',
+    });
+  });
+
+  test('"50 riyals" flags riyal (plural folds to singular)', () => {
+    expect(extractAmountWithMeta('50 riyals')).toEqual({
+      amount: 50,
+      currency: null,
+      ambiguousCurrencyWord: 'riyal',
+    });
+  });
+
+  test('"100 rial" flags rial', () => {
+    expect(extractAmountWithMeta('100 rial')).toEqual({
+      amount: 100,
+      currency: null,
+      ambiguousCurrencyWord: 'rial',
+    });
+  });
+
+  test('"200 dinar" flags dinar', () => {
+    expect(extractAmountWithMeta('200 dinar')).toEqual({
+      amount: 200,
+      currency: null,
+      ambiguousCurrencyWord: 'dinar',
+    });
+  });
+
+  test('"5 saudi riyal" does NOT flag (qualified phrase resolves)', () => {
+    expect(extractAmountWithMeta('5 saudi riyal')).toEqual({
+      amount: 5,
+      currency: 'SAR',
+      ambiguousCurrencyWord: null,
+    });
+  });
+
+  test('"5 SAR" does NOT flag (explicit ISO code)', () => {
+    expect(extractAmountWithMeta('5 SAR')).toEqual({
+      amount: 5,
+      currency: 'SAR',
+      ambiguousCurrencyWord: null,
+    });
+  });
+
+  test('"5 OMR" does NOT flag', () => {
+    expect(extractAmountWithMeta('5 OMR')).toEqual({
+      amount: 5,
+      currency: 'OMR',
+      ambiguousCurrencyWord: null,
+    });
+  });
+
+  test('"100 KWD" does NOT flag', () => {
+    expect(extractAmountWithMeta('100 KWD')).toEqual({
+      amount: 100,
+      currency: 'KWD',
+      ambiguousCurrencyWord: null,
+    });
+  });
+
+  test('"spent 50 on lunch" does NOT flag (no currency word at all)', () => {
+    expect(extractAmountWithMeta('spent 50 on lunch')).toEqual({
+      amount: 50,
+      currency: null,
+      ambiguousCurrencyWord: null,
+    });
+  });
+
+  test('"500 rupees on chai" does NOT flag (rupees is unambiguous)', () => {
+    expect(extractAmountWithMeta('500 rupees on chai')).toEqual({
+      amount: 500,
+      currency: 'INR',
+      ambiguousCurrencyWord: null,
+    });
+  });
+
+  test('"riyal" alone (no amount) returns null amount, no flag', () => {
+    expect(extractAmountWithMeta('riyal')).toEqual({
+      amount: null,
+      currency: null,
+      ambiguousCurrencyWord: null,
+    });
   });
 });
