@@ -183,30 +183,37 @@ app.patch('/:id', zValidator('json', transactionUpdateInput), async (c) => {
     updates.categorizedBy = 'user';
   }
 
-  const [updated] = await db
-    .update(transactions)
-    .set(updates)
-    .where(
-      and(
-        eq(transactions.id, id),
-        eq(transactions.spaceId, u.activeSpaceId),
-        isNull(transactions.deletedAt),
-      ),
-    )
-    .returning();
-  if (!updated) throw errors.internal('Update failed');
+  // ATOMIC: take the existing snapshot, apply the update, AND record the audit
+  // mutation inside ONE DB transaction so a partial failure can never leave the
+  // ledger mutated without an audit row (the invariant the gate relies on).
+  // Side effects (events, budget recompute, category-override learning) only
+  // run AFTER successful commit.
+  const txResult = await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(transactions)
+      .set(updates)
+      .where(
+        and(
+          eq(transactions.id, id),
+          eq(transactions.spaceId, u.activeSpaceId),
+          isNull(transactions.deletedAt),
+        ),
+      )
+      .returning();
+    if (!updated) throw errors.internal('Update failed');
 
-  // Audit + undo: record the full before/after so "undo" reverts the exact
-  // change (amount corrections included — category_corrections never did).
-  await recordMutation(db, {
-    spaceId: u.activeSpaceId,
-    userId: u.id,
-    transactionId: updated.id,
-    action: 'update',
-    before: snapshotTx(existing),
-    after: snapshotTx(updated),
-    source: c.req.header('x-bot-secret') ? 'whatsapp_correction' : 'manual_web',
+    await recordMutation(tx, {
+      spaceId: u.activeSpaceId,
+      userId: u.id,
+      transactionId: updated.id,
+      action: 'update',
+      before: snapshotTx(existing),
+      after: snapshotTx(updated),
+      source: c.req.header('x-bot-secret') ? 'whatsapp_correction' : 'manual_web',
+    });
+    return updated;
   });
+  const updated = txResult;
 
   if (body.category && body.category !== existing.category) {
     await recordCategoryCorrection(
@@ -231,23 +238,31 @@ app.patch('/:id', zValidator('json', transactionUpdateInput), async (c) => {
 app.delete('/:id', async (c) => {
   const u = c.get('user');
   const id = c.req.param('id');
-  const existing = await getTransactionById(u.activeSpaceId, id);
-  const [row] = await db
-    .update(transactions)
-    .set({ deletedAt: new Date(), updatedAt: new Date() })
-    .where(
-      and(
-        eq(transactions.id, id),
-        eq(transactions.spaceId, u.activeSpaceId),
-        isNull(transactions.deletedAt),
-      ),
-    )
-    .returning();
-  if (!row) throw errors.notFound('Transaction not found');
 
-  // Audit + undo: record the delete with a full snapshot so "undo" restores it.
-  if (existing) {
-    await recordMutation(db, {
+  // ATOMIC: snapshot, soft-delete, and record audit mutation in ONE DB
+  // transaction so a delete is never silent (no audit row) on partial failure.
+  const txResult = await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select()
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.id, id),
+          eq(transactions.spaceId, u.activeSpaceId),
+          isNull(transactions.deletedAt),
+        ),
+      )
+      .limit(1);
+    if (!existing) return null;
+
+    const [row] = await tx
+      .update(transactions)
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .where(eq(transactions.id, existing.id))
+      .returning();
+    if (!row) return null;
+
+    await recordMutation(tx, {
       spaceId: u.activeSpaceId,
       userId: u.id,
       transactionId: row.id,
@@ -255,14 +270,17 @@ app.delete('/:id', async (c) => {
       before: snapshotTx(existing),
       source: c.req.header('x-bot-secret') ? 'whatsapp_delete' : 'manual_web',
     });
-  }
+    return row;
+  });
+
+  if (!txResult) throw errors.notFound('Transaction not found');
 
   emit(u.id, {
     type: 'transaction.deleted',
     entityId: id,
     data: { transactionId: id },
   });
-  void recomputeAffectedBudgets(u.id, u.activeSpaceId, row.category);
+  void recomputeAffectedBudgets(u.id, u.activeSpaceId, txResult.category);
   return c.json(ok({ deleted: true }));
 });
 
@@ -275,8 +293,19 @@ app.post('/undo', async (c) => {
   const u = c.get('user');
   const result = await undoLastMutation(u.id, u.activeSpaceId);
   if (!result) return c.json(ok({ undone: false }));
+  // Reverse-action → WS event the client expects:
+  //   create → deleted (the row is now soft-deleted)
+  //   delete → created (the row is back; clients that REMOVED on .deleted
+  //                     must re-add — emitting .updated would leak rows)
+  //   update → updated
+  const eventType =
+    result.reversed === 'create'
+      ? 'transaction.deleted'
+      : result.reversed === 'delete'
+        ? 'transaction.created'
+        : 'transaction.updated';
   emit(u.id, {
-    type: result.reversed === 'create' ? 'transaction.deleted' : 'transaction.updated',
+    type: eventType,
     entityId: result.transaction.id,
     data: { transactionId: result.transaction.id },
   });
@@ -302,33 +331,36 @@ app.post('/:id/category', zValidator('json', categoryCorrectionInput), async (c)
   const existing = await getTransactionById(u.activeSpaceId, id);
   if (!existing) throw errors.notFound('Transaction not found');
 
-  const [updated] = await db
-    .update(transactions)
-    .set({
-      category,
-      categoryConfidence: '1.00',
-      categorizedBy: 'user',
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(transactions.id, id),
-        eq(transactions.spaceId, u.activeSpaceId),
-        isNull(transactions.deletedAt),
-      ),
-    )
-    .returning();
-  if (!updated) throw errors.internal('Category update failed');
-
-  await recordMutation(db, {
-    spaceId: u.activeSpaceId,
-    userId: u.id,
-    transactionId: updated.id,
-    action: 'update',
-    before: snapshotTx(existing),
-    after: snapshotTx(updated),
-    source: c.req.header('x-bot-secret') ? 'whatsapp_correction' : 'manual_web',
+  const [updated] = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(transactions)
+      .set({
+        category,
+        categoryConfidence: '1.00',
+        categorizedBy: 'user',
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(transactions.id, id),
+          eq(transactions.spaceId, u.activeSpaceId),
+          isNull(transactions.deletedAt),
+        ),
+      )
+      .returning();
+    if (!row) throw errors.internal('Category update failed');
+    await recordMutation(tx, {
+      spaceId: u.activeSpaceId,
+      userId: u.id,
+      transactionId: row.id,
+      action: 'update',
+      before: snapshotTx(existing),
+      after: snapshotTx(row),
+      source: c.req.header('x-bot-secret') ? 'whatsapp_correction' : 'manual_web',
+    });
+    return [row];
   });
+  if (!updated) throw errors.internal('Category update failed');
 
   if (category !== existing.category) {
     await recordCategoryCorrection(

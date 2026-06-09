@@ -19,7 +19,7 @@ import { Hono } from 'hono';
 import { env } from '../env.ts';
 import { log } from '../utils/logger.ts';
 import { downloadMedia, isCloudApiConfigured, markRead } from '../services/whatsapp/graph.ts';
-import { seenMessage, verifySignature, alreadyProcessedDurable } from '../services/whatsapp/security.ts';
+import { seenMessage, verifySignature, hasBeenProcessedDurable, markProcessedDurable } from '../services/whatsapp/security.ts';
 import type {
   MetaInboundMessage,
   MetaWebhookEnvelope,
@@ -136,9 +136,12 @@ async function processMessage(m: MetaInboundMessage): Promise<void> {
     log.debug('WA_MESSAGE_DUPLICATE_SKIPPED', { messageId: m.id });
     return;
   }
-  // Durable dedup — survives a restart between Meta's original delivery and a
-  // retry, so a redelivery after a deploy can't double-log/correct/delete.
-  if (await alreadyProcessedDurable(m.id)) {
+  // Durable dedup — READ-ONLY check. Survives a restart so a Meta retry after
+  // a deploy can't double-process. We mark "done" AFTER the message has been
+  // relayed/processed, NOT before — if we crashed mid-flight after marking,
+  // Meta's retry would silently drop a never-processed message. Process-then-
+  // mark: a mid-flight crash leads to one safe re-processing on retry instead.
+  if (await hasBeenProcessedDurable(m.id)) {
     log.debug('WA_MESSAGE_DUPLICATE_SKIPPED_DURABLE', { messageId: m.id });
     return;
   }
@@ -161,6 +164,7 @@ async function processMessage(m: MetaInboundMessage): Promise<void> {
         messageId: m.id,
       });
     }
+    await markProcessedDurable(m.id);
     return;
   }
 
@@ -170,6 +174,12 @@ async function processMessage(m: MetaInboundMessage): Promise<void> {
   const payload = await toRelayPayload(m);
   if (!payload) return;
   await relayToBot(payload);
+  // Successfully processed — mark in the durable dedup table so a subsequent
+  // Meta retry (potentially after a deploy/restart) is a no-op. Marking AFTER
+  // relay means a mid-flight crash leaves the row un-marked → Meta retries →
+  // we re-process safely. The destructive ledger ops downstream are
+  // idempotent on user intent (correction/delete on the SAME lastTransactionId).
+  await markProcessedDurable(m.id);
 }
 
 app.post('/whatsapp', async (c) => {

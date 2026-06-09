@@ -58,6 +58,15 @@ export interface ParsedExpense {
   originalCurrency: string | null;
   confidence: number;
   needs: MissingField[];
+  /**
+   * True when the LLM proposed a NON-INR currency that the parser's
+   * deterministic guard had to STRIP because the raw text contained no
+   * foreign-currency token (a hallucination). The decision gate uses this as
+   * a red-flag signal — even if the resulting parse is "clean", the LLM was
+   * uncertain about the currency, so we route to CONFIRM rather than ACT.
+   * False/undefined for the normal/safe cases.
+   */
+  currencyStripped?: boolean;
 }
 
 export interface ParsedExpenseBatch {
@@ -610,6 +619,12 @@ export async function parseExpense(input: ParseInput): Promise<ParsedExpense> {
   const hasForeignToken = textHasForeignCurrencyToken(text);
   const guardedCurrency: string | null =
     mergedCurrency && mergedCurrency !== 'INR' && !hasForeignToken ? null : mergedCurrency;
+  // Decision-gate signal: did we have to STRIP an LLM-proposed foreign currency?
+  // True when the LLM proposed non-INR but the text named no foreign token —
+  // a hallucination the parser correctly defused but the gate must still treat
+  // as a red flag (route to CONFIRM, not auto-ACT).
+  const currencyStripped =
+    !!llm?.currency && llm.currency !== 'INR' && !hasForeignToken;
   const mergedDate = regexDate ?? llm?.date ?? null;
   const mergedSplit = regexSplit ?? llm?.splitPeople ?? null;
 
@@ -659,6 +674,7 @@ export async function parseExpense(input: ParseInput): Promise<ParsedExpense> {
     splitPeople: mergedSplit,
     originalAmount,
     originalCurrency,
+    currencyStripped,
     confidence,
   };
 
@@ -688,6 +704,7 @@ function parsedFromLlmData(data: z.infer<typeof llmSchema>, text = ''): ParsedEx
   const hasForeignToken = textHasForeignCurrencyToken(text);
   const guardedCurrency =
     rawCurrency && rawCurrency !== 'INR' && !hasForeignToken ? null : rawCurrency;
+  const currencyStripped = !!rawCurrency && rawCurrency !== 'INR' && !hasForeignToken;
   const draft: Omit<ParsedExpense, 'needs'> = {
     type: data.type,
     amount: coerceNumber(data.amount),
@@ -701,6 +718,7 @@ function parsedFromLlmData(data: z.infer<typeof llmSchema>, text = ''): ParsedEx
     originalAmount: hasForeignToken ? coerceNumber(data.originalAmount) : null,
     originalCurrency: hasForeignToken ? coerceCurrency(data.originalCurrency) : null,
     confidence: coerceConfidence(data.confidence),
+    currencyStripped,
   };
   return { ...draft, needs: computeNeeds(draft) };
 }

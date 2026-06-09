@@ -916,46 +916,68 @@ async function persistOrDraftExpense(args: {
     amountGrounded &&
     parsed.amount !== null &&
     Math.abs(regexAmount.amount! - parsed.amount) < 0.005;
-  const currencyClean = !(
-    (parsed as unknown as Record<string, unknown>)._currencyStripped === true
-  );
+  // Real signal: did the parser have to STRIP an LLM-hallucinated foreign
+  // currency? When true the gate routes to CONFIRM even if the OUTPUT is clean
+  // — the model was uncertain about currency, which we treat as a red flag.
+  const currencyClean = parsed.currencyStripped !== true;
   const schemaOk = parsed.confidence >= 0.5;
+  // INR threshold for "needs human eyes". Foreign currencies are flagged
+  // separately below — a $1000 hotel is ~₹83k and must NOT auto-ACT as if
+  // the amount were 1000 of an unknown unit.
   const LARGE_AMOUNT_INR = 50_000;
-  const largeAmount = parsed.amount !== null && parsed.amount > LARGE_AMOUNT_INR;
+  const isForeignCurrency =
+    parsed.currency !== null && parsed.currency !== 'INR';
+  // Income is reversible (undo restores within seconds) and a recurring
+  // ₹80k salary log shouldn't friction-tap every payday. The implausible
+  // ceiling still catches genuinely absurd amounts regardless of type.
+  const magnitudeGated = parsed.type !== 'income';
+  const largeAmount =
+    magnitudeGated &&
+    parsed.amount !== null &&
+    (parsed.amount > LARGE_AMOUNT_INR || isForeignCurrency);
   const implausibleAmount = parsed.amount !== null && parsed.amount > 10_000_000;
 
-  // Completeness: mandatory fields must all be present.
+  // Completeness — every required slot must be filled. Use parsed.needs
+  // (computed by the parser from missing fields) as the SOURCE OF TRUTH.
+  // Previously we checked `walletId !== null`, but pickWallet falls back to
+  // wallets[0] when no hint matches, so a multi-wallet user with no wallet
+  // hint silently posts to wallets[0]. The needs[] check correctly demands
+  // an explicit wallet hint or a single-wallet space before auto-ACTing.
   const hasAmount = parsed.amount !== null;
   const hasDescription = Boolean(parsed.description);
+  const walletDetermined =
+    walletId !== null && (livewallets.length === 1 || walletPick.matched !== 'fallback');
 
-  // Grounding verdict (per-signal, logged for observability and future calibration).
+  // Grounding verdict — captured for the decision-log + future calibration.
   const grounding: 'det' | 'agreed' | 'llm_only' | 'none' = amountGrounded
     ? amountAgreed
-      ? 'det'
-      : 'agreed'
+      ? 'agreed'
+      : 'det'
     : parsed.amount !== null
       ? 'llm_only'
       : 'none';
 
   // ACT requires: complete + deterministically grounded + clean + schema ok + plausible.
-  // Large amounts require a human tap even when all other signals agree.
+  // Large amounts and foreign currencies require a human tap regardless.
   const canACT =
     hasAmount &&
     hasDescription &&
-    walletId !== null &&
+    walletDetermined &&
     origin !== 'image' &&
     !implausibleAmount &&
     !largeAmount &&
-    (grounding === 'det' || grounding === 'agreed') &&
+    (grounding === 'agreed' || grounding === 'det') &&
     currencyClean &&
     schemaOk;
 
-  // CONFIRM when complete but grounding is soft (llm_only or agreed but large).
+  // CONFIRM: complete enough to show a draft (one tap to save), but at least
+  // one signal asks for human eyes — soft grounding, large/foreign amount, a
+  // stripped-currency red flag, or implausible (still gets shown so the user
+  // can confirm or cancel rather than getting silently dropped).
   const needsConfirmTap =
     hasAmount &&
     hasDescription &&
-    walletId !== null &&
-    !implausibleAmount &&
+    walletDetermined &&
     !canACT &&
     origin !== 'image';
 
@@ -963,8 +985,12 @@ async function persistOrDraftExpense(args: {
   traceLog.info('CAPTURE_DECISION', {
     grounding,
     largeAmount,
+    isForeignCurrency,
     currencyClean,
     schemaOk,
+    walletDetermined,
+    walletMatch: walletPick.matched,
+    type: parsed.type,
     verdict: canACT ? 'ACT' : needsConfirmTap ? 'CONFIRM' : 'ASK',
     inputSize: summarizeForLog(text),
   });

@@ -58,20 +58,19 @@ log "Type-checking API (runs from source; no bundle)"
 # (amount/currency/date/guard) before they ever hit production — the most common
 # source of silent ledger corruption. Blocked exit → deploy aborts, services
 # unchanged.
+#
+# Run as the DEPLOY_USER (which is in the versifine group with read access to
+# /etc/versifine/api.env) — the login user that runs this script lacks group
+# membership, so a plain `source` would silently fail-open or abort with a
+# misleading error.
 log "Running deterministic test gate"
-(
-  set -a
-  source "$ENV_DIR/api.env"
-  set +a
-  cd apps/api
-  /usr/local/bin/bun test \
-    tests/parser-regex.test.ts \
-    tests/guard.test.ts \
-    tests/currencies.test.ts \
-    tests/query-period.test.ts \
-    tests/parser-fallback.test.ts \
-    2>&1
-) || { log "ERROR: deterministic test gate FAILED — deploy aborted"; exit 1; }
+sudo -u "$DEPLOY_USER" bash -lc "set -e; set -a; source $ENV_DIR/api.env; set +a; cd $WORK/apps/api && /usr/local/bin/bun test \
+  tests/parser-regex.test.ts \
+  tests/guard.test.ts \
+  tests/currencies.test.ts \
+  tests/query-period.test.ts \
+  tests/parser-fallback.test.ts" \
+  || { log "ERROR: deterministic test gate FAILED — deploy aborted"; exit 1; }
 log "Deterministic test gate passed"
 
 log "Building wa-bot bundle"

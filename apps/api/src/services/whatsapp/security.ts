@@ -14,7 +14,7 @@
  *    message that was in-flight at the moment of restart.)
  */
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { lt, sql } from 'drizzle-orm';
+import { eq, lt, sql } from 'drizzle-orm';
 import { db } from '../../db/client.ts';
 import { processedMessages } from '../../db/schema/processedMessages.ts';
 import { env } from '../../env.ts';
@@ -72,15 +72,64 @@ export function _resetSeen(): void {
 
 // ---- durable idempotency (survives restart) ----
 const PRUNE_PROBABILITY = 0.02;
-const RETENTION_DAYS = 3;
+// Meta retries inbound webhooks for up to ~7 days after delivery failure. The
+// dedup row must outlive that window so a long-tail retry can't double-process.
+const RETENTION_DAYS = 8;
 
 /**
- * Durable dedup: atomically claim a message id. Returns true when the id was
- * ALREADY processed (insert hit the primary-key conflict) so the caller skips
- * it — even across a process restart, unlike the in-memory ring. On any DB
- * error we fail OPEN (return false → process): a rare duplicate is a smaller
- * harm than silently dropping a real message, and the in-memory ring still
- * guards in-process retries.
+ * Durable dedup — read-only check. Returns true when this messageId already
+ * has a "done" row from a previous (post-restart) run. Use BEFORE processing
+ * to drop a redelivery, then call markProcessedDurable AFTER processing
+ * succeeds so a mid-flight crash leads to safe re-processing on retry rather
+ * than silent message loss. Fails OPEN (returns false) on any DB error so a
+ * transient hiccup never drops a real message; the in-memory ring still
+ * blocks within-process duplicates during the same run.
+ */
+export async function hasBeenProcessedDurable(
+  messageId: string | undefined,
+): Promise<boolean> {
+  if (!messageId) return false;
+  try {
+    const [row] = await db
+      .select({ id: processedMessages.messageId })
+      .from(processedMessages)
+      .where(eq(processedMessages.messageId, messageId))
+      .limit(1);
+    return Boolean(row);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Durable dedup — write the "done" marker AFTER the message has been
+ * successfully processed. Insert-on-conflict-do-nothing keeps it idempotent
+ * (a same-process retry that races would no-op). Opportunistic prune trims
+ * rows older than RETENTION_DAYS.
+ */
+export async function markProcessedDurable(messageId: string | undefined): Promise<void> {
+  if (!messageId) return;
+  try {
+    await db
+      .insert(processedMessages)
+      .values({ messageId })
+      .onConflictDoNothing();
+    if (Math.random() < PRUNE_PROBABILITY) {
+      void db
+        .delete(processedMessages)
+        .where(lt(processedMessages.createdAt, sql`now() - interval '${sql.raw(String(RETENTION_DAYS))} days'`))
+        .catch(() => undefined);
+    }
+  } catch {
+    // Non-fatal: an in-memory ring still dedupes within this process; on a
+    // very short retry window we'd accept a rare double-process over losing
+    // the original.
+  }
+}
+
+/**
+ * Legacy combined check — kept for callers that don't separate the read from
+ * the write yet. New code should use hasBeenProcessedDurable + markProcessedDurable.
  */
 export async function alreadyProcessedDurable(messageId: string | undefined): Promise<boolean> {
   if (!messageId) return false;
