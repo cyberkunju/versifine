@@ -617,3 +617,55 @@ describe('textHasForeignCurrencyToken', () => {
     });
   }
 });
+
+// --- foreign-token guard must honour the FULL world currency set -------
+// Regression: the guard first shipped knowing only the ~9 CURRENCY_ALIASES
+// currencies, so it stripped any other world currency (BRL/THB/ZAR/CNY/…) back
+// to INR — breaking the FX conversion the app supports for ~160 currencies.
+// The guard now recognises any non-INR ISO-4217 code (uppercase), common
+// currency words, and the alias symbols/words.
+describe('textHasForeignCurrencyToken — long-tail world currencies', () => {
+  const codeForeign = [
+    'spent 100 BRL on dinner', // Brazilian real
+    'spent 200 THB on food', // Thai baht
+    'spent 500 ZAR on shopping', // South African rand
+    'paid 100 CNY', // Chinese yuan
+    'ZAR 500 hotel', // code-first
+    'transferred 1000 CHF', // Swiss franc
+    'got 5000 KRW', // Korean won (code)
+    'PKR 2000 sent', // Pakistani rupee (still foreign vs INR)
+  ];
+  for (const input of codeForeign) {
+    test(`ISO code: "${input}" → true`, () => {
+      expect(textHasForeignCurrencyToken(input)).toBe(true);
+    });
+  }
+
+  const wordForeign = [
+    'spent 200 baht on food',
+    'paid 50 yuan',
+    'spent 1000 pesos',
+    'cost 300 ruble',
+    'paid 80 zloty',
+  ];
+  for (const input of wordForeign) {
+    test(`currency word: "${input}" → true`, () => {
+      expect(textHasForeignCurrencyToken(input)).toBe(true);
+    });
+  }
+
+  // Hallucination guard must STILL hold: rupee/no-currency text with stray
+  // lowercase tokens that merely resemble codes must not register as foreign.
+  const stillInr = [
+    'spent it all on 500 groceries', // "all" lowercase, not ALL the lek
+    'i will try 500 today', // "try" lowercase, not TRY the lira
+    'lent ravi 2000', // no currency at all
+    'मैंने आज खाने पर 500 रुपये खर्च किए', // native rupee
+    '500 rupaye on lunch',
+  ];
+  for (const input of stillInr) {
+    test(`still INR: "${input}" → false`, () => {
+      expect(textHasForeignCurrencyToken(input)).toBe(false);
+    });
+  }
+});

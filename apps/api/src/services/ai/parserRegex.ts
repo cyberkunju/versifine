@@ -8,7 +8,7 @@
  * a chance: it sees the full text, so its other fields stay
  * unaffected.
  */
-import { CURRENCY_ALIASES, type Currency } from '@versifine/shared';
+import { CURRENCY_ALIASES, CURRENCIES, type Currency } from '@versifine/shared';
 
 export interface AmountExtraction {
   /** Positive amount or null. */
@@ -49,14 +49,55 @@ const FOREIGN_CURRENCY_RE = new RegExp(
 );
 
 /**
- * True when the raw text explicitly names a non-INR currency (symbol or code).
- * Used by the parser merge to refuse a foreign currency the model invented for
- * an Indian-rupee message — the single biggest source of phantom FX conversions
- * ("500 रुपये" mis-logged as ¥500 → ₹298).
+ * The full set of non-INR ISO-4217 codes the FX layer can convert. A user who
+ * names an exotic currency by its CODE ("100 BRL", "500 ZAR", "200 THB") must
+ * be honoured — the merge guard would otherwise force INR. Matched UPPERCASE
+ * only (`\b[A-Z]{3}\b`, no `i` flag): people write currency codes in caps, and
+ * this avoids lowercase English words that collide with codes ("all"→ALL,
+ * "try"→TRY) weakening the hallucination guard.
+ */
+const FOREIGN_ISO_SET: ReadonlySet<string> = new Set(
+  CURRENCIES.filter((c) => c !== 'INR'),
+);
+const ISO_CODE_TOKEN_RE = /\b[A-Z]{3}\b/g;
+
+/**
+ * Common foreign currency WORDS not already in CURRENCY_ALIASES, so "200 baht",
+ * "50 yuan", "1000 pesos" are recognised as foreign. Deliberately EXCLUDES words
+ * that collide with everyday English or that Indians use for rupees — "real"
+ * (BRL but also "real money"), "won" (KRW but also past-tense win), "rand"
+ * (ZAR but also a name), and "taka"/"rupiya" (Indians say these for ₹) — so the
+ * rupee-hallucination guard stays strong. The ISO-code rule above already
+ * covers those currencies when written as codes.
+ */
+const FOREIGN_WORD_LIST = [
+  'yuan', 'renminbi', 'rmb', 'baht', 'peso', 'pesos', 'ruble', 'rubles',
+  'rouble', 'roubles', 'shekel', 'shekels', 'zloty', 'rupiah', 'dong',
+  'riyal', 'riyals', 'rial', 'rials', 'dinar', 'dinars', 'franc', 'francs',
+  'lira', 'krona', 'kronor', 'krone', 'kroner', 'forint', 'hryvnia',
+  'ringgit', 'kwacha', 'naira', 'cedi', 'birr',
+];
+const FOREIGN_WORD_RE = new RegExp(
+  `(?:^|[^A-Za-z])(?:${FOREIGN_WORD_LIST.map(escapeForRegex).join('|')})(?:[^A-Za-z]|$)`,
+  'i',
+);
+
+/**
+ * True when the raw text explicitly names a non-INR currency — by symbol/alias
+ * ("$", "50 dollars", "rm"), by ISO code ("100 BRL", "ZAR 500"), or by a common
+ * currency word ("200 baht"). Used by the parser merge to refuse a foreign
+ * currency the model invented for an Indian-rupee message (the single biggest
+ * source of phantom FX conversions: "500 रुपये" mis-logged as ¥500 → ₹298),
+ * while still honouring any of the ~160 world currencies the FX layer supports
+ * when the user actually states one.
  */
 export function textHasForeignCurrencyToken(text: string): boolean {
   if (!text) return false;
-  return FOREIGN_CURRENCY_RE.test(text);
+  if (FOREIGN_CURRENCY_RE.test(text)) return true;
+  if (FOREIGN_WORD_RE.test(text)) return true;
+  const codes = text.match(ISO_CODE_TOKEN_RE);
+  if (codes && codes.some((c) => FOREIGN_ISO_SET.has(c))) return true;
+  return false;
 }
 
 /**
