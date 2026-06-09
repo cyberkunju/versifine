@@ -380,6 +380,34 @@ export async function patchTransaction(
   });
 }
 
+export interface UndoResultShape {
+  undone: boolean;
+  reversed?: 'create' | 'update' | 'delete';
+  transaction?: { id: string; amount: number; currency: string; category: string | null; description: string };
+}
+
+/** Reverse the user's most recent mutation (create→remove, update→revert, delete→restore). */
+export async function undoLast(phone: string): Promise<UndoResultShape> {
+  return await call<UndoResultShape>({
+    method: 'POST',
+    path: '/transactions/undo',
+    phone,
+    body: {},
+  });
+}
+
+/** Soft-delete a transaction by id (records a 'delete' mutation; reversible via undo). */
+export async function deleteTransaction(
+  phone: string,
+  transactionId: string,
+): Promise<{ deleted: boolean }> {
+  return await call<{ deleted: boolean }>({
+    method: 'DELETE',
+    path: `/transactions/${transactionId}`,
+    phone,
+  });
+}
+
 export interface DbSession {
   phone: string;
   language: string;

@@ -204,6 +204,12 @@ export interface MessagePack {
   /** Correction failed (no recent transaction or API error). */
   correctNotPossible: string;
 
+  /** Undo succeeded — summary describes the entry after reversal. */
+  undone: (summary: string) => string;
+
+  /** Nothing to undo. */
+  nothingToUndo: string;
+
   /** Status snapshot, replies to STATUS command. */
   statusLine: (state: string, language: string) => string;
 

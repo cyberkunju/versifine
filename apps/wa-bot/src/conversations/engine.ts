@@ -40,6 +40,7 @@ import { chunkText, parseLinkCommand, parseUniversal } from '../utils/text.ts';
 import { handleBudget, looksLikeBudgetTrigger, pickCategory, pickAmount } from './flows/budget.ts';
 import { handleCapture, handleConfirm } from './flows/capture.ts';
 import { handleCorrection, looksLikeCorrection } from './flows/correct.ts';
+import { handleUndo } from './flows/undo.ts';
 import { handleLanguagePick, handleEmailStep, resolveFirstContact } from './flows/identity.ts';
 import {
   handleHelp,
@@ -141,9 +142,10 @@ async function dispatch(session: Session, message: IncomingMessage): Promise<Dis
       }
       case 'HUMAN':
         return { text: handleHelp(session).text, speakable: false };
-      case 'UNDO':
-        // UNDO not yet wired; fall back to help.
-        return { text: handleHelp(session).text, speakable: false };
+      case 'UNDO': {
+        const undo = await handleUndo(session);
+        return { text: undo.text, speakable: true };
+      }
       case 'CONFIRM':
       case 'CANCEL':
       case 'EDIT': {

@@ -258,6 +258,8 @@ export const en: MessagePack = {
   correctUpdated: (summary) => `✅ Updated — the last transaction is now ${summary}.`,
   correctNotPossible:
     "I couldn't find a recent transaction to correct. Send your last expense again with the right category.",
+  undone: (summary) => `↩️ Undone — ${summary}.`,
+  nothingToUndo: "Nothing to undo right now.",
 
   statusLine: (state, language) =>
     `Status: linked, language ${language}, current step: ${state.toLowerCase()}.`,

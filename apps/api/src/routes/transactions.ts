@@ -33,6 +33,7 @@ import { recomputeAffectedBudgets } from '../services/budgets/index.ts';
 import { safeNormalizeMerchant, safeUpsertOverride } from '../services/categorize/_safe.ts';
 import { emit } from '../services/events/bus.ts';
 import { createTransaction, emitCreated } from '../services/transactions/create.ts';
+import { recordMutation, snapshotTx, undoLastMutation } from '../services/transactions/mutations.ts';
 import {
   getTransactionById,
   listTransactions,
@@ -195,6 +196,18 @@ app.patch('/:id', zValidator('json', transactionUpdateInput), async (c) => {
     .returning();
   if (!updated) throw errors.internal('Update failed');
 
+  // Audit + undo: record the full before/after so "undo" reverts the exact
+  // change (amount corrections included — category_corrections never did).
+  await recordMutation(db, {
+    spaceId: u.activeSpaceId,
+    userId: u.id,
+    transactionId: updated.id,
+    action: 'update',
+    before: snapshotTx(existing),
+    after: snapshotTx(updated),
+    source: c.req.header('x-bot-secret') ? 'whatsapp_correction' : 'manual_web',
+  });
+
   if (body.category && body.category !== existing.category) {
     await recordCategoryCorrection(
       u.activeSpaceId,
@@ -218,6 +231,7 @@ app.patch('/:id', zValidator('json', transactionUpdateInput), async (c) => {
 app.delete('/:id', async (c) => {
   const u = c.get('user');
   const id = c.req.param('id');
+  const existing = await getTransactionById(u.activeSpaceId, id);
   const [row] = await db
     .update(transactions)
     .set({ deletedAt: new Date(), updatedAt: new Date() })
@@ -231,6 +245,18 @@ app.delete('/:id', async (c) => {
     .returning();
   if (!row) throw errors.notFound('Transaction not found');
 
+  // Audit + undo: record the delete with a full snapshot so "undo" restores it.
+  if (existing) {
+    await recordMutation(db, {
+      spaceId: u.activeSpaceId,
+      userId: u.id,
+      transactionId: row.id,
+      action: 'delete',
+      before: snapshotTx(existing),
+      source: c.req.header('x-bot-secret') ? 'whatsapp_delete' : 'manual_web',
+    });
+  }
+
   emit(u.id, {
     type: 'transaction.deleted',
     entityId: id,
@@ -238,6 +264,30 @@ app.delete('/:id', async (c) => {
   });
   void recomputeAffectedBudgets(u.id, u.activeSpaceId, row.category);
   return c.json(ok({ deleted: true }));
+});
+
+/**
+ * Undo the user's most recent mutation (create → remove, update → revert,
+ * delete → restore). Powers the universal "undo" / "oops" command. Returns
+ * { undone: false } when there's nothing to reverse.
+ */
+app.post('/undo', async (c) => {
+  const u = c.get('user');
+  const result = await undoLastMutation(u.id, u.activeSpaceId);
+  if (!result) return c.json(ok({ undone: false }));
+  emit(u.id, {
+    type: result.reversed === 'create' ? 'transaction.deleted' : 'transaction.updated',
+    entityId: result.transaction.id,
+    data: { transactionId: result.transaction.id },
+  });
+  void recomputeAffectedBudgets(u.id, u.activeSpaceId, result.affectedCategory);
+  return c.json(
+    ok({
+      undone: true,
+      reversed: result.reversed,
+      transaction: result.transaction,
+    }),
+  );
 });
 
 const categoryCorrectionInput = z.object({
@@ -269,6 +319,16 @@ app.post('/:id/category', zValidator('json', categoryCorrectionInput), async (c)
     )
     .returning();
   if (!updated) throw errors.internal('Category update failed');
+
+  await recordMutation(db, {
+    spaceId: u.activeSpaceId,
+    userId: u.id,
+    transactionId: updated.id,
+    action: 'update',
+    before: snapshotTx(existing),
+    after: snapshotTx(updated),
+    source: c.req.header('x-bot-secret') ? 'whatsapp_correction' : 'manual_web',
+  });
 
   if (category !== existing.category) {
     await recordCategoryCorrection(

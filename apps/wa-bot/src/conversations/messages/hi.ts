@@ -249,6 +249,8 @@ export const hi: MessagePack = {
   correctUpdated: (summary) => `✅ अपडेट कर दिया — पिछला transaction अब ${summary} है।`,
   correctNotPossible:
     'सुधारने के लिए कोई हाल का transaction नहीं मिला। पिछला खर्च सही कैटेगरी के साथ फिर से भेजें।',
+  undone: (summary) => `↩️ वापस कर दिया — ${summary}।`,
+  nothingToUndo: 'अभी undo करने के लिए कुछ नहीं है।',
 
   statusLine: (state, language) =>
     `स्थिति: लिंक्ड, भाषा ${language}, वर्तमान चरण: ${state.toLowerCase()}।`,

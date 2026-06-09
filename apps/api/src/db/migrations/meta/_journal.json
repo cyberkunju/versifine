@@ -71,6 +71,13 @@
       "when": 1780900000001,
       "tag": "0009_overall_budget_parser_version",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1781018181755,
+      "tag": "0010_acoustic_cobalt_man",
+      "breakpoints": true
     }
   ]
 }

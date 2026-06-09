@@ -31,6 +31,7 @@ import { recomputeAffectedBudgets } from '../budgets/index.ts';
 import { emit } from '../events/bus.ts';
 import { getRate } from '../fx/client.ts';
 import { normalizeCurrencyCode, toBase } from '../fx/convert.ts';
+import { recordMutation, snapshotTx } from './mutations.ts';
 import { enqueueEmbed } from './embed.ts';
 
 export interface CreateTransactionOptions {
@@ -144,6 +145,16 @@ async function persist(
       })
       .returning();
     if (!row) throw errors.internal('Failed to insert transaction');
+    // Audit + undo stack: record the create atomically with the insert so
+    // "undo" right after a log removes this exact row.
+    await recordMutation(tx, {
+      spaceId,
+      userId,
+      transactionId: row.id,
+      action: 'create',
+      after: snapshotTx(row),
+      source,
+    });
     return row;
   });
 
