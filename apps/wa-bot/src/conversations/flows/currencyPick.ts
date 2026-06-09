@@ -1,15 +1,19 @@
 /**
- * Currency-disambiguation flow — "which riyal?".
+ * Currency disambiguation — "which riyal/rial/dinar?".
  *
- * When the API returns `queryResult.kind === 'currency_choice'` (the user said
- * a generic "riyal"/"rial"/"dinar" with no country qualifier), the bot stashes
- * the options on the session and asks the user to pick. This flow handles the
- * follow-up reply: a number (1-N), a country name ("saudi"/"oman"), or a
- * direct ISO code ("SAR"/"OMR").
+ * The API returns `queryResult.kind === 'currency_choice'` when the user
+ * said a generic ambiguous currency word with no country qualifier. We
+ * stash an `openFrame` and ask the user to pick. The next inbound goes
+ * through the openFrame resolver BEFORE settings/copilot/capture (engine
+ * ordering), so a bare `Omr`, `1`, or `saudi` resolves the picker rather
+ * than being mis-routed to onboarding.
  *
- * Once resolved we re-issue `captureConfirm({draftId, edits:{currency}})` so
- * the FX layer converts at write time and the row records the user's chosen
- * country variant — no silent defaulting, no lost amount.
+ * Match order in the resolver:
+ *   1. Numeric pick (1..N)
+ *   2. ISO code that's in the option list
+ *   3. Country name/adjective ("saudi", "kuwait", "iran")
+ *   4. The bare ambiguous word ("riyal" again) → re-prompt
+ *   5. Anything else → release the frame; engine handles fresh.
  */
 import type { Session } from '../../types.ts';
 import {
@@ -21,131 +25,34 @@ import { ApiClientError, captureConfirm } from '../../services/apiClient.ts';
 import { setState, updateSession } from '../state.ts';
 import { log } from '../../utils/logger.ts';
 import { getMessages } from '../messages/index.ts';
+import {
+  type FrameOption,
+  type OpenFrame,
+  type ResolverVerdict,
+  openFrame as setOpenFrame,
+  registerResolver,
+} from '../openFrame.ts';
 
-/** TTL for a pending currency-pick — long enough for a thoughtful reply, short
- *  enough that an ignored prompt can't poison a fresh capture an hour later. */
-const PICK_TTL_MS = 5 * 60_000;
-
-interface PendingCurrencyChoice {
+interface CurrencyChoiceContext extends Record<string, unknown> {
   draftId: string;
   word: string;
-  options: CurrencyOption[];
   amount: number | null;
-  ts: number;
+  /** Full option set (with country names + native code) so the resolver can
+   *  re-render the prompt on a retry without re-fetching from the API. */
+  options: CurrencyOption[];
 }
 
-/** Stash the API-returned options on the session so the next reply can resolve.
- *  We DON'T set state=CAPTURE_CONFIRM here — the currency-pick flow runs from
- *  the engine BEFORE the CAPTURE_CONFIRM state branch, so a CONFIRM-state
- *  handoff would intercept "saudi"/"1"/"OMR" as a free-form clarifier text. */
-export function rememberCurrencyChoice(
-  session: Session,
-  draftId: string,
-  word: string,
-  options: CurrencyOption[],
-  amount: number | null,
-): void {
-  const pending = { ...(session.pending ?? {}) };
-  const choice: PendingCurrencyChoice = {
-    draftId,
-    word,
-    options,
-    amount,
-    ts: Date.now(),
-  };
-  pending.currencyChoice = choice;
-  updateSession(session.phone, {
-    pending,
-    lastDraftId: draftId,
-  });
-}
-
-/** Read the pending currency-pick, or null if there's none / it expired. */
-function readChoice(session: Session): PendingCurrencyChoice | null {
-  const c = session.pending?.currencyChoice as PendingCurrencyChoice | undefined;
-  if (!c || !c.draftId || !Array.isArray(c.options) || c.options.length === 0) return null;
-  if (Date.now() - (c.ts ?? 0) > PICK_TTL_MS) return null;
-  return c;
-}
-
-function clearChoice(session: Session): void {
-  const pending = { ...(session.pending ?? {}) };
-  delete pending.currencyChoice;
-  updateSession(session.phone, { pending });
-}
-
-/** True when the session is awaiting a currency pick. */
-export function hasPendingCurrencyChoice(session: Session): boolean {
-  return readChoice(session) != null;
-}
-
-/**
- * Try to resolve `body` to one of the pending options. Match order:
- *   1. A bare number 1..N → the Nth option (visual order = popularity).
- *   2. An ISO code present in the option list ("SAR", "OMR").
- *   3. A country adjective/name ("saudi", "saudi arabia", "oman", "qatar"…)
- *      that maps via COUNTRY_ALIASES to a code in the option list.
- *   4. The bare currency word ("riyal" alone) → re-prompt (still ambiguous).
- *
- * Returns null when the input is clearly NOT a pick (so the engine can fall
- * through to other flows — a fresh expense like "spent 50 on lunch" should
- * NOT be hijacked by the picker).
- */
-function resolvePick(
-  body: string,
-  options: CurrencyOption[],
-): { code: Currency; option: CurrencyOption } | 'unknown' | 'pass' {
-  const trimmed = body.trim();
-  if (!trimmed) return 'pass';
-  const lower = trimmed.toLowerCase();
-
-  // 1) Numeric pick — must be a bare number (1..N) with no other words.
-  const num = /^([1-9])$/.exec(trimmed);
-  if (num) {
-    const idx = Number(num[1]) - 1;
-    const opt = options[idx];
-    if (opt) return { code: opt.code, option: opt };
-    return 'unknown';
-  }
-
-  // 2) Direct ISO code — only when it's the WHOLE message (so "i had 5 SAR
-  //    coffee" doesn't get hijacked as a currency pick for the previous
-  //    expense). Case-insensitive.
-  const codeOnly = /^([a-z]{3})$/i.exec(trimmed);
-  if (codeOnly) {
-    const upper = codeOnly[1]!.toUpperCase();
-    const opt = options.find((o) => o.code === upper);
-    if (opt) return { code: opt.code, option: opt };
-    return 'unknown';
-  }
-
-  // 3) Country adjective/name. Allow short, single-line answers only.
-  if (trimmed.length > 30 || /[.\n!?]/.test(trimmed)) return 'pass';
-  for (const opt of options) {
-    const country = opt.country.toLowerCase();
-    const adjective = COUNTRY_ADJECTIVES[opt.code]; // optional alternative form
-    const re = new RegExp(
-      `^(?:${country}|${country.replace(/\s+/g, '')}${adjective ? `|${adjective}` : ''})$`,
-      'i',
-    );
-    if (re.test(lower)) return { code: opt.code, option: opt };
-  }
-
-  // 4) Bare ambiguous word again ("riyal") → re-prompt.
-  if (Object.keys(AMBIGUOUS_CURRENCY_WORDS).includes(lower)) return 'unknown';
-
-  // Anything else — let the engine try other flows. The user might be sending
-  // a brand-new expense and the picker is stale.
-  return 'pass';
-}
-
-/** ISO-code → country adjective (short form) for the country-name matcher. */
+/** ISO-code → country adjective alternatives for the country-name matcher.
+ *  Pipe-separated alternation; each alternative is a complete word the user
+ *  might send. Hyphenated forms ("saudi-arabia") and compact spellings
+ *  ("saudia", "ksa") are normalised before the regex sees the input, so we
+ *  don't need to enumerate them here. */
 const COUNTRY_ADJECTIVES: Partial<Record<string, string>> = {
-  SAR: 'saudi',
+  SAR: 'saudi|ksa|saudia',
   OMR: 'omani|oman',
   QAR: 'qatari|qatar',
   YER: 'yemeni|yemen',
-  IRR: 'iranian|iran',
+  IRR: 'iranian|iran|persian',
   KWD: 'kuwaiti|kuwait',
   BHD: 'bahraini|bahrain',
   JOD: 'jordanian|jordan',
@@ -154,48 +61,129 @@ const COUNTRY_ADJECTIVES: Partial<Record<string, string>> = {
   TND: 'tunisian|tunisia',
 };
 
+/** Strip outer whitespace + outer punctuation so "saudi please!" / "Yeah, saudi."
+ *  resolve to the bare country name. Internal whitespace is preserved so
+ *  "saudi arabia" still matches its country regex. */
+function tidyAnswer(body: string): string {
+  return body
+    .trim()
+    .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 /**
- * Engine integration point — called BEFORE the reference resolver and
- * correction shortcuts. Returns the localized reply when the body resolved a
- * pending currency pick (or asks the user to retry); null when there is no
- * pending pick OR the body clearly isn't a pick (so the engine continues).
+ * Stash a currency-choice frame on the session. Called by renderCaptureResponse
+ * when the API returns `queryResult.kind === 'currency_choice'`.
  */
-export async function tryResolveCurrencyChoice(
+export function rememberCurrencyChoice(
+  session: Session,
+  draftId: string,
+  word: string,
+  options: CurrencyOption[],
+  amount: number | null,
+): void {
+  const frameOptions: FrameOption[] = options.map((o) => ({
+    id: o.code,
+    label: `${o.name} (${o.code})`,
+    payload: o,
+  }));
+  const m = getMessages(session.language);
+  setOpenFrame(session, {
+    kind: 'currency_choice',
+    prompt: m.currencyChoicePrompt(word, options, amount),
+    options: frameOptions,
+    context: { draftId, word, amount, options } satisfies CurrencyChoiceContext,
+  });
+  // Track the lastDraftId so confirm-state recovery (image upload mid-frame,
+  // CONFIRM/CANCEL) still has the draft to operate against.
+  updateSession(session.phone, { lastDraftId: draftId });
+}
+
+/** Resolve `body` to one of the known options. */
+function resolvePick(
+  body: string,
+  options: CurrencyOption[],
+):
+  | { kind: 'option'; code: Currency; option: CurrencyOption }
+  | { kind: 'unknown' }
+  | { kind: 'unrelated' } {
+  const trimmed = tidyAnswer(body);
+  if (!trimmed) return { kind: 'unrelated' };
+  const lower = trimmed.toLowerCase();
+
+  // 1) Numeric pick — supports up to 99 options (we cap UX at ~10 but the
+  //    matcher is forward-compatible). Whole message must be a bare number.
+  const numMatch = /^([1-9][0-9]?)$/.exec(trimmed);
+  if (numMatch) {
+    const idx = Number(numMatch[1]) - 1;
+    const opt = options[idx];
+    if (opt) return { kind: 'option', code: opt.code, option: opt };
+    // Number out of range — user is trying to answer but missed. Keep frame.
+    return { kind: 'unknown' };
+  }
+
+  // 2) Direct ISO code (whole message is exactly 3 letters).
+  const codeMatch = /^([a-z]{3})$/i.exec(trimmed);
+  if (codeMatch) {
+    const upper = codeMatch[1]!.toUpperCase();
+    const opt = options.find((o) => o.code === upper);
+    if (opt) return { kind: 'option', code: opt.code, option: opt };
+    // 3-letter code that's NOT in the option set (e.g. user types "USD" mid
+    // riyal-flow). Keep the frame open and re-prompt — most likely an
+    // attempted answer that just hit the wrong code, not a brand-new utterance.
+    return { kind: 'unknown' };
+  }
+
+  // 3) Country name / adjective. Short single-line answers only — anything
+  //    longer is much more likely a fresh utterance ("spent 50 on chai").
+  if (trimmed.length > 30 || /[\n]/.test(trimmed)) return { kind: 'unrelated' };
+  for (const opt of options) {
+    const country = opt.country.toLowerCase();
+    const adj = COUNTRY_ADJECTIVES[opt.code];
+    const re = new RegExp(
+      `^(?:${country}|${country.replace(/\s+/g, '')}${adj ? `|${adj}` : ''})$`,
+      'i',
+    );
+    if (re.test(lower)) return { kind: 'option', code: opt.code, option: opt };
+  }
+
+  // 4) Bare ambiguous word again → user is confused, re-prompt.
+  if (Object.keys(AMBIGUOUS_CURRENCY_WORDS).includes(lower)) return { kind: 'unknown' };
+
+  // 5) Anything else — release the frame; engine handles fresh.
+  return { kind: 'unrelated' };
+}
+
+const currencyResolver = async (
   session: Session,
   body: string,
-): Promise<{ text: string; speakable?: string } | null> {
-  const choice = readChoice(session);
-  if (!choice) return null;
+  frame: OpenFrame,
+): Promise<ResolverVerdict> => {
+  const ctx = frame.context as CurrencyChoiceContext;
+  if (!ctx?.draftId || !Array.isArray(ctx.options)) return { kind: 'unrelated' };
 
   const m = getMessages(session.language);
-  const verdict = resolvePick(body, choice.options);
+  const verdict = resolvePick(body, ctx.options);
 
-  if (verdict === 'pass') {
-    // Not a pick — let the engine try other flows. We do NOT clear the
-    // pending state here so a subsequent "1" or "saudi" still works (within
-    // PICK_TTL_MS).
-    return null;
+  if (verdict.kind === 'unrelated') return { kind: 'unrelated' };
+  if (verdict.kind === 'unknown') {
+    return { kind: 'unknown', text: m.currencyChoiceUnknown(ctx.word, ctx.options) };
   }
 
-  if (verdict === 'unknown') {
-    return { text: m.currencyChoiceUnknown(choice.word, choice.options) };
-  }
-
-  // Resolved — call captureConfirm with the chosen currency.
+  // Resolved — confirm with the chosen currency.
   try {
     const history = (session.pending?.history as any[]) || [];
     const response = await captureConfirm(session.phone, {
-      draftId: choice.draftId,
+      draftId: ctx.draftId,
       edits: { currency: verdict.code },
       history,
     });
-    clearChoice(session);
     if (!response.needsConfirmation) {
       updateSession(session.phone, { lastDraftId: null });
       setState(session.phone, 'LINKED_MAIN');
     }
-    // The API's persist response carries baseAmount/baseCurrency on the row;
-    // surface it so the user sees both the chosen currency AND its INR value.
     const tx = response.queryResult?.transaction as
       | {
           id?: string;
@@ -215,25 +203,31 @@ export async function tryResolveCurrencyChoice(
         tx.baseAmount,
         tx.baseCurrency,
       );
-      return { text, speakable: text };
+      return { kind: 'consumed', text, speakable: true };
     }
-    // Fallback acknowledgement when the API didn't return a finished tx
-    // (e.g. wallet still missing) — render the structured choice and let the
-    // next clarifier round complete the draft.
+    // Fallback acknowledgement when the API didn't finish the persist (e.g.
+    // wallet still missing) — render the picked currency and let the next
+    // turn fill the gap.
     const text = m.currencyChosen(
       verdict.option.code,
       verdict.option.name,
-      choice.amount ?? 0,
+      ctx.amount ?? 0,
       null,
       null,
     );
-    return { text, speakable: text };
+    return { kind: 'consumed', text, speakable: true };
   } catch (err) {
     log.warn('CURRENCY_PICK_FAIL', {
       phone: session.phone,
       error: err instanceof ApiClientError ? `${err.code}:${err.message}` : String(err),
     });
-    clearChoice(session);
-    return { text: m.error };
+    // KEEP the frame open — a transient API failure shouldn't lose state.
+    // The user can retry the same pick OR send "cancel" to escape.
+    return {
+      kind: 'unknown',
+      text: m.error + '\n\n' + m.currencyChoiceUnknown(ctx.word, ctx.options),
+    };
   }
-}
+};
+
+registerResolver('currency_choice', currencyResolver);

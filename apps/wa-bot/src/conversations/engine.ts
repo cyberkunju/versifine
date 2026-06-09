@@ -40,7 +40,15 @@ import { chunkText, parseLinkCommand, parseUniversal } from '../utils/text.ts';
 import { handleBudget, looksLikeBudgetTrigger, pickCategory, pickAmount } from './flows/budget.ts';
 import { handleCapture, handleConfirm } from './flows/capture.ts';
 import { handleCorrection, looksLikeCorrection } from './flows/correct.ts';
-import { tryResolveCurrencyChoice } from './flows/currencyPick.ts';
+// Frame primitives — bootstrap registers per-kind resolvers (currencyPick, etc.)
+// at module load. Explicit beats side-effect imports because tree-shaking
+// can't drop it and tests can override the bootstrap to register mocks.
+import { bootstrapResolvers, tryResolveFrame } from './openFrame.ts';
+let resolversBootstrapped: Promise<void> | null = null;
+function ensureResolvers(): Promise<void> {
+  if (!resolversBootstrapped) resolversBootstrapped = bootstrapResolvers();
+  return resolversBootstrapped;
+}
 import {
   handleReferenceCommand,
   looksLikeReferenceCommand,
@@ -103,6 +111,24 @@ async function languageMenu(
 const ENGLISH_BRIDGE_LANGS = new Set<Language>(['bn', 'mr', 'gu', 'pa', 'od']);
 
 async function dispatch(session: Session, message: IncomingMessage): Promise<DispatchOutcome> {
+  // Make sure frame resolvers are wired up. First call is async; subsequent
+  // calls are a memoized no-op so this stays cheap on the hot path.
+  await ensureResolvers();
+
+  // OPEN-FRAME RESOLVER — runs FIRST, before universal commands, link
+  // handling, state-based dispatch, settings/copilot/capture. This is the
+  // whole point of the primitive: a reply to "which riyal?" must NEVER be
+  // re-classified as a fresh utterance and routed to onboarding/copilot.
+  // Returns null when there's no active frame OR when the frame released
+  // itself (the user sent a clearly-fresh utterance like "spent 50 on chai");
+  // in those cases the engine continues with the body intact.
+  if (message.body && message.body.trim()) {
+    const framed = await tryResolveFrame(session, message.body);
+    if (framed) {
+      return { text: framed.text, speakable: framed.speakable ?? true };
+    }
+  }
+
   // English bridge — for lower-resource languages, reason over an English
   // translation of the user's message (the reply is localized back later).
   if (
@@ -282,15 +308,6 @@ async function dispatch(session: Session, message: IncomingMessage): Promise<Dis
   const pick = await tryResolvePendingPick(session, message.body);
   if (pick) {
     return { text: pick.text, speakable: true };
-  }
-
-  // Pending currency disambiguation ("which riyal?"). Runs BEFORE reference /
-  // correction / capture so a bare "1", "saudi", or "SAR" resolves the picker
-  // instead of being routed elsewhere. Returns null on a non-pick message so
-  // an entirely new utterance ("spent 50 on lunch") still falls through.
-  const currencyChoice = await tryResolveCurrencyChoice(session, message.body);
-  if (currencyChoice) {
-    return { text: currencyChoice.text, speakable: true };
   }
 
   // Reference command — "delete the coffee one", "change yesterday's lunch
