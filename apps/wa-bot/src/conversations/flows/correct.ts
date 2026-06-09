@@ -129,7 +129,10 @@ export function looksLikeCorrection(text: string): boolean {
 
 export async function handleCorrection(session: Session, body: string): Promise<{ text: string }> {
   const parsed = parseCorrection(body);
-  return applyParsedCorrection(session, parsed);
+  const prev = (session.pending?.lastTx as { amount?: unknown } | undefined)?.amount;
+  return applyParsedCorrection(session, parsed, {
+    previousAmount: typeof prev === 'number' ? prev : null,
+  });
 }
 
 /**
