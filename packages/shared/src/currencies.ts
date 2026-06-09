@@ -326,6 +326,51 @@ export const AMBIGUOUS_CURRENCY_WORDS: Record<string, CurrencyOption[]> = {
     { code: 'TND', country: 'Tunisia', name: 'Tunisian Dinar' },
   ],
 };
+
+/**
+ * Native-script + voice-transcription variants of the ambiguous tokens.
+ * Indian / NRI users speak in Malayalam, Hindi, Arabic, Persian — Sarvam
+ * sometimes returns the native script, sometimes a romanised form, often
+ * with agglutinative case-suffixes (Malayalam `-il`/`-inu`/`-ile`/`-inte`,
+ * Hindi `-mein`/`-ko`, Tamil `-ku`/`-il`). We map ALL these surface forms
+ * back to their canonical English key so the picker fires regardless of
+ * what the transcriber emitted.
+ */
+const AMBIGUOUS_NATIVE_FORMS: Array<{ pattern: RegExp; key: string }> = [
+  // ── riyal — Latin variants with case-suffixes (most common in Sarvam output)
+  // riyal / riyals / riyalil / riyalin / riyalinu / riyalile / riyalum / riyalkalil
+  {
+    pattern: /(?:^|[^\p{L}])riyal(?:s|in|inu|il|ile|inte|um|kal|kalil|kalukku|kalum)?(?:[^\p{L}]|$)/iu,
+    key: 'riyal',
+  },
+  // ── rial — same, narrower (English/Persian rendering)
+  {
+    pattern: /(?:^|[^\p{L}])rial(?:s|in|inu|il|ile|um|kal|kalil)?(?:[^\p{L}]|$)/iu,
+    key: 'rial',
+  },
+  // ── dinar — same
+  {
+    pattern: /(?:^|[^\p{L}])dinar(?:s|in|inu|il|ile|um|kal|kalil)?(?:[^\p{L}]|$)/iu,
+    key: 'dinar',
+  },
+  // ── Native scripts ───────────────────────────────────────────────────────
+  // Malayalam റിയാൽ (riyal) and the suffixed forms റിയാലിന്/റിയാലിൽ/റിയാലിന്റെ.
+  // Match the prefix `റിയാ` followed by any letter/mark sequence — this
+  // catches every case-suffixed inflection without enumerating each.
+  { pattern: /റിയാ[\p{L}\p{Mark}]*/u, key: 'riyal' },
+  // Hindi / Devanagari रियाल (riyal) — and case-suffix variants रियाल में/को/से/ने
+  { pattern: /रियाल[\p{L}\p{Mark}]*/u, key: 'riyal' },
+  // Arabic ريال (riyal) and ريالات (riyals) — common in user voice notes
+  { pattern: /ريال(?:ات)?/u, key: 'riyal' },
+  // Persian ﷼ glyph
+  { pattern: /﷼/u, key: 'rial' },
+  // Malayalam ദിനാർ (dinar) — same prefix-anchored loose match
+  { pattern: /ദിനാ[\p{L}\p{Mark}]*/u, key: 'dinar' },
+  // Hindi दीनार (dinar)
+  { pattern: /दीनार[\p{L}\p{Mark}]*/u, key: 'dinar' },
+  // Arabic دينار (dinar)
+  { pattern: /دينار/u, key: 'dinar' },
+];
 const AMBIGUOUS_PLURAL_TO_SINGULAR: Record<string, string> = {
   riyals: 'riyal',
   rials: 'rial',
@@ -336,21 +381,25 @@ const AMBIGUOUS_PLURAL_TO_SINGULAR: Record<string, string> = {
  * Country-qualified currency phrases that resolve UNAMBIGUOUSLY ("saudi
  * riyal" → SAR, "omani rial" → OMR). Matched longest-first; case-insensitive.
  * Used by the parser to short-circuit AMBIGUOUS_CURRENCY_WORDS when the user
- * already specified the country.
+ * already specified the country. The riyal/rial/dinar token is permitted to
+ * carry an arbitrary Latin suffix (`riyalil`, `riyalin`, `rials`) so Sarvam's
+ * Manglish transcriptions that glue Malayalam case-suffixes to the Latin
+ * stem still resolve correctly.
  */
 export const COUNTRY_QUALIFIED_CURRENCIES: Array<{ pattern: RegExp; code: Currency }> = [
-  { pattern: /\b(?:saudi(?:\s+arabian)?)\s+(?:riyal|rial)s?\b/i, code: 'SAR' },
-  { pattern: /\b(?:omani|oman)\s+(?:rial|riyal)s?\b/i, code: 'OMR' },
-  { pattern: /\b(?:qatari|qatar)\s+(?:riyal|rial)s?\b/i, code: 'QAR' },
-  { pattern: /\b(?:yemeni|yemen)\s+(?:rial|riyal)s?\b/i, code: 'YER' },
-  { pattern: /\b(?:iranian|iran)\s+(?:rial|riyal)s?\b/i, code: 'IRR' },
-  { pattern: /\b(?:kuwaiti|kuwait)\s+dinars?\b/i, code: 'KWD' },
-  { pattern: /\b(?:bahraini|bahrain)\s+dinars?\b/i, code: 'BHD' },
-  { pattern: /\b(?:jordanian|jordan)\s+dinars?\b/i, code: 'JOD' },
-  { pattern: /\b(?:iraqi|iraq)\s+dinars?\b/i, code: 'IQD' },
-  { pattern: /\b(?:libyan|libya)\s+dinars?\b/i, code: 'LYD' },
-  { pattern: /\b(?:tunisian|tunisia)\s+dinars?\b/i, code: 'TND' },
-  // Dollar variants (default USD covers most cases; these are the explicit asks).
+  { pattern: /\b(?:saudi(?:\s+arabian)?)\s+(?:riyal|rial)[a-z]*\b/i, code: 'SAR' },
+  { pattern: /\b(?:omani|oman)\s+(?:rial|riyal)[a-z]*\b/i, code: 'OMR' },
+  { pattern: /\b(?:qatari|qatar)\s+(?:riyal|rial)[a-z]*\b/i, code: 'QAR' },
+  { pattern: /\b(?:yemeni|yemen)\s+(?:rial|riyal)[a-z]*\b/i, code: 'YER' },
+  { pattern: /\b(?:iranian|iran)\s+(?:rial|riyal)[a-z]*\b/i, code: 'IRR' },
+  { pattern: /\b(?:kuwaiti|kuwait)\s+dinar[a-z]*\b/i, code: 'KWD' },
+  { pattern: /\b(?:bahraini|bahrain)\s+dinar[a-z]*\b/i, code: 'BHD' },
+  { pattern: /\b(?:jordanian|jordan)\s+dinar[a-z]*\b/i, code: 'JOD' },
+  { pattern: /\b(?:iraqi|iraq)\s+dinar[a-z]*\b/i, code: 'IQD' },
+  { pattern: /\b(?:libyan|libya)\s+dinar[a-z]*\b/i, code: 'LYD' },
+  { pattern: /\b(?:tunisian|tunisia)\s+dinar[a-z]*\b/i, code: 'TND' },
+  // Dollar variants — strict word boundary, no Latin suffix tolerance because
+  // "dollar" rarely takes case suffixes in Indian transcriptions.
   { pattern: /\b(?:us|u\.s\.|american|america)\s+(?:dollar|dollars)\b/i, code: 'USD' },
   { pattern: /\b(?:canadian|canada)\s+(?:dollar|dollars)\b/i, code: 'CAD' },
   { pattern: /\b(?:australian|australia|aussie)\s+(?:dollar|dollars)\b/i, code: 'AUD' },
@@ -369,6 +418,14 @@ export function detectAmbiguousCurrencyWord(text: string): string | null {
   // If a country-qualified phrase resolves the word, it's no longer ambiguous.
   for (const { pattern } of COUNTRY_QUALIFIED_CURRENCIES) {
     if (pattern.test(text)) return null;
+  }
+  // Native scripts + agglutinative-suffixed Latin forms — covers Malayalam
+  // റിയാൽ + റിയാലിന്/റിയാലിൽ etc., Hindi रियाल + रियाल में etc., Arabic ريال,
+  // Persian ﷼, and the Latin riyal/rial/dinar with suffixes the regex below
+  // would otherwise miss because `[a-z]` boundaries don't tolerate Unicode
+  // case-suffix consonants.
+  for (const { pattern, key } of AMBIGUOUS_NATIVE_FORMS) {
+    if (pattern.test(text)) return key;
   }
   const lower = text.toLowerCase();
   for (const word of Object.keys(AMBIGUOUS_CURRENCY_WORDS)) {

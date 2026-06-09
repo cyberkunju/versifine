@@ -633,6 +633,13 @@ const WORDED_UNITS: Record<string, number> = {
   one: 1,
   two: 2,
   three: 3,
+  // Romanised Malayalam — "rendu"/"randu" (രണ്ട് = 2) is extremely common in
+  // Sarvam Manglish output. Listed as STRONG (not weak) because neither word
+  // collides with any everyday English/Indian word, and a Manglish utterance
+  // like "rendu riyal" must extract amount=2 for the picker to fire on the
+  // accompanying currency word.
+  rendu: 2,
+  randu: 2,
   four: 4,
   five: 5,
   six: 6,

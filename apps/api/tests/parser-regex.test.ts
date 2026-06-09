@@ -917,3 +917,71 @@ describe('extractAmountWithMeta — ambiguous currency surfacing', () => {
     });
   });
 });
+
+
+// --- L1-2 reviewer P0-3: native scripts + agglutinative case suffixes -
+// The original production failure was a Malayalam voice note where Sarvam
+// often returns the agglutinative form "riyalil"/"riyalin" (Latin) or the
+// native script "റിയാൽ"/"റിയാലിന്". Without these, the picker doesn't fire
+// for the very transcription shapes that broke production.
+describe('extractAmountWithMeta — Malayalam/Hindi/Arabic native + suffixed forms', () => {
+  test('"rendu riyalil" (Manglish, suffix -il) flags riyal', () => {
+    expect(extractAmountWithMeta('njan rendu riyalil chappathi').ambiguousCurrencyWord).toBe(
+      'riyal',
+    );
+  });
+
+  test('"randu riyalin" (Manglish, suffix -in) flags riyal', () => {
+    expect(extractAmountWithMeta('randu riyalinu oonu').ambiguousCurrencyWord).toBe('riyal');
+  });
+
+  test('"2 riyalil" with digit + suffix flags riyal', () => {
+    expect(extractAmountWithMeta('2 riyalil chappathi').ambiguousCurrencyWord).toBe('riyal');
+  });
+
+  test('Malayalam native "റിയാൽ" flags riyal', () => {
+    expect(extractAmountWithMeta('2 റിയാൽ ചപ്പാത്തി').ambiguousCurrencyWord).toBe('riyal');
+  });
+
+  test('Malayalam native with case suffix "റിയാലിൽ" flags riyal', () => {
+    expect(extractAmountWithMeta('2 റിയാലിൽ ചപ്പാത്തി').ambiguousCurrencyWord).toBe('riyal');
+  });
+
+  test('Hindi native "रियाल" flags riyal', () => {
+    expect(extractAmountWithMeta('2 रियाल').ambiguousCurrencyWord).toBe('riyal');
+  });
+
+  test('Arabic native "ريال" flags riyal', () => {
+    expect(extractAmountWithMeta('2 ريال').ambiguousCurrencyWord).toBe('riyal');
+  });
+
+  test('Malayalam "ദിനാർ" flags dinar', () => {
+    expect(extractAmountWithMeta('5 ദിനാർ').ambiguousCurrencyWord).toBe('dinar');
+  });
+
+  test('Romanised "rendu" extracts amount=2 (was missing — required for the picker to fire)', () => {
+    expect(extractAmount('rendu riyal').amount).toBe(2);
+  });
+
+  test('Romanised "randu" extracts amount=2', () => {
+    expect(extractAmount('randu riyal').amount).toBe(2);
+  });
+
+  test('"rendu" alone (no currency word) still extracts as 2 (worded number)', () => {
+    expect(extractAmount('rendu').amount).toBe(2);
+  });
+
+  test('end-to-end Manglish: "njan rendu riyalil chappathi" extracts amount=2 + flags riyal', () => {
+    const m = extractAmountWithMeta('njan rendu riyalil chappathi');
+    expect(m.amount).toBe(2);
+    expect(m.currency).toBeNull();
+    expect(m.ambiguousCurrencyWord).toBe('riyal');
+  });
+
+  test('Saudi-qualified Manglish still resolves directly: "njan rendu saudi riyalil"', () => {
+    const m = extractAmountWithMeta('njan rendu saudi riyalil chappathi');
+    expect(m.amount).toBe(2);
+    expect(m.currency).toBe('SAR');
+    expect(m.ambiguousCurrencyWord).toBeNull();
+  });
+});

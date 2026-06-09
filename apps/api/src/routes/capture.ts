@@ -911,27 +911,51 @@ async function persistOrDraftExpense(args: {
   // "5 riyal" should not log as Omani Rial (or vice versa). Surface a draft
   // (so the parsed amount/description survives) AND a currency_choice
   // payload listing the candidates.
-  if (parsed.ambiguousCurrencyWord && parsed.amount !== null) {
+  //
+  // Gate also requires `!parsed.currency` — once the user has picked, the
+  // resolved draft is cached for future similar utterances; on re-hit we
+  // already know the currency and must NOT re-fire the picker.
+  if (
+    parsed.ambiguousCurrencyWord &&
+    parsed.amount !== null &&
+    !parsed.currency
+  ) {
     const options = getCurrencyOptions(parsed.ambiguousCurrencyWord);
     if (options.length >= 2) {
+      // Strip the LLM's hallucinated originalAmount/originalCurrency from the
+      // draft we stash. The persist layer derives these from the user's
+      // CHOSEN currency (after the picker resolves) — keeping the LLM's
+      // pre-pick guess on the draft would stamp a wrong originalCurrency on
+      // the persisted row (e.g. user picks OMR, but row says originalCurrency=SAR
+      // because that's what the LLM assumed for the word "riyal"). Off-by-10×
+      // FX corruption silent-fail noted by the L1-2 brutal review.
+      const draftToStash = {
+        ...parsed,
+        originalAmount: null,
+        originalCurrency: null,
+        // Also clear `currency` — the LLM's pre-pick guess shouldn't survive.
+        // Persist will use whatever the user picks via captureConfirm edits.
+        currency: null,
+      };
       const draft = storeDraft({
         spaceId: user.activeSpaceId,
         userId: user.id,
         origin,
         source: text,
         locale,
-        draft: parsed,
+        draft: draftToStash,
       });
       traceLog.info('CAPTURE_AMBIGUOUS_CURRENCY', {
         word: parsed.ambiguousCurrencyWord,
         options: options.map((o) => o.code),
+        llmGuess: parsed.currency, // null after the strip; logged for ops
       });
       return c.json(
         ok({
           intent: intentLabel,
           needsConfirmation: true,
           draftId: draft.id,
-          draft: serializeDraft(parsed),
+          draft: serializeDraft(draftToStash),
           queryResult: {
             kind: 'currency_choice',
             word: parsed.ambiguousCurrencyWord,

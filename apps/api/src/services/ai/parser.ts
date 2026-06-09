@@ -573,6 +573,17 @@ export async function parseExpense(input: ParseInput): Promise<ParsedExpense> {
         cached.originalAmount = null;
         cached.originalCurrency = null;
       }
+      // Self-heal `ambiguousCurrencyWord` from the deterministic detector.
+      // Pre-L1-2 cache rows have this field undefined even when the text
+      // contains an unqualified ambiguous word; without this refresh, a
+      // returning user saying "5 riyal" hits the cache and bypasses the
+      // L1-2 picker entirely. Same `regexAmount.currency === null` rule as
+      // the live merge — a user-qualified currency clears the flag.
+      const freshMeta = extractAmountWithMeta(text);
+      cached.ambiguousCurrencyWord =
+        freshMeta.ambiguousCurrencyWord && freshMeta.currency === null && !cached.currency
+          ? freshMeta.ambiguousCurrencyWord
+          : null;
       return { ...cached, needs: computeNeeds(cached) };
     }
 
@@ -687,11 +698,22 @@ export async function parseExpense(input: ParseInput): Promise<ParsedExpense> {
     originalAmount,
     originalCurrency,
     currencyStripped,
-    // Surface the ambiguous currency word ONLY when the parser ended up with
-    // no resolved currency. If the LLM (with full-text context) attached a
-    // currency we trust, clear the flag — it's no longer ambiguous.
+    // AMBIGUOUS CURRENCY no-bypass rule.
+    //
+    // The deterministic detector flags 'riyal'/'rial'/'dinar' as ambiguous
+    // when no country qualifier is present in the raw text. The LLM, given
+    // the same input, often invents one (usually SAR for "riyal" because
+    // that's what its training distribution favours) — but that's just one
+    // of N possible variants. The user must pick.
+    //
+    // We clear the flag ONLY when the USER explicitly qualified the
+    // currency: either with a country phrase ("saudi riyal" → SAR via
+    // resolveQualifiedCurrency, captured by regexAmount.currency) or with
+    // a verbatim ISO code ("OMR 5", captured the same way). The LLM's guess
+    // alone NEVER clears the flag — that's exactly how the production
+    // failure ("rendu riyal" → silent SAR) reproduced.
     ambiguousCurrencyWord:
-      regexAmountMeta.ambiguousCurrencyWord && !guardedCurrency
+      regexAmountMeta.ambiguousCurrencyWord && regexAmount.currency === null
         ? regexAmountMeta.ambiguousCurrencyWord
         : null,
     confidence,
