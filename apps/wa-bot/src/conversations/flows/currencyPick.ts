@@ -124,20 +124,11 @@ function resolvePick(
     return { kind: 'unknown' };
   }
 
-  // 2) Direct ISO code (whole message is exactly 3 letters).
-  const codeMatch = /^([a-z]{3})$/i.exec(trimmed);
-  if (codeMatch) {
-    const upper = codeMatch[1]!.toUpperCase();
-    const opt = options.find((o) => o.code === upper);
-    if (opt) return { kind: 'option', code: opt.code, option: opt };
-    // 3-letter code that's NOT in the option set (e.g. user types "USD" mid
-    // riyal-flow). Keep the frame open and re-prompt — most likely an
-    // attempted answer that just hit the wrong code, not a brand-new utterance.
-    return { kind: 'unknown' };
-  }
-
-  // 3) Country name / adjective. Short single-line answers only — anything
-  //    longer is much more likely a fresh utterance ("spent 50 on chai").
+  // 2) Country name / adjective. Tried BEFORE the ISO-code matcher so that
+  //    "KSA" (Saudi Arabia) and other 3-letter country abbreviations resolve
+  //    via the adjective list rather than failing the strict ISO lookup.
+  //    Short single-line answers only — anything longer is much more likely a
+  //    fresh utterance ("spent 50 on chai").
   if (trimmed.length > 30 || /[\n]/.test(trimmed)) return { kind: 'unrelated' };
   for (const opt of options) {
     const country = opt.country.toLowerCase();
@@ -147,6 +138,18 @@ function resolvePick(
       'i',
     );
     if (re.test(lower)) return { kind: 'option', code: opt.code, option: opt };
+  }
+
+  // 3) Direct ISO code (whole message is exactly 3 letters).
+  const codeMatch = /^([a-z]{3})$/i.exec(trimmed);
+  if (codeMatch) {
+    const upper = codeMatch[1]!.toUpperCase();
+    const opt = options.find((o) => o.code === upper);
+    if (opt) return { kind: 'option', code: opt.code, option: opt };
+    // 3-letter code that's NOT in the option set (e.g. user types "USD" mid
+    // riyal-flow). Keep the frame open and re-prompt — most likely an
+    // attempted answer that just hit the wrong code, not a brand-new utterance.
+    return { kind: 'unknown' };
   }
 
   // 4) Bare ambiguous word again → user is confused, re-prompt.
