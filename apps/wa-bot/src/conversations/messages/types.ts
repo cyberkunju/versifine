@@ -210,6 +210,9 @@ export interface MessagePack {
   /** Nothing to undo. */
   nothingToUndo: string;
 
+  /** Last transaction deleted (reversible). summary is e.g. "₹250 (coffee)". */
+  deleted: (summary: string) => string;
+
   /** Status snapshot, replies to STATUS command. */
   statusLine: (state: string, language: string) => string;
 

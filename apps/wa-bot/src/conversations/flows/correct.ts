@@ -142,6 +142,7 @@ export async function handleCorrection(session: Session, body: string): Promise<
 export async function applyParsedCorrection(
   session: Session,
   fields: { amount?: number | null; category?: string | null; description?: string | null },
+  opts: { previousAmount?: number | null } = {},
 ): Promise<{ text: string }> {
   const m = getMessages(session.language);
   if (!session.lastTransactionId) {
@@ -173,7 +174,16 @@ export async function applyParsedCorrection(
     const { transaction } = await patchTransaction(session.phone, session.lastTransactionId, patch);
 
     const parts: string[] = [];
-    if (amount !== undefined) parts.push(`₹${transaction.amount.toLocaleString('en-IN')}`);
+    if (amount !== undefined) {
+      const newAmt = `₹${transaction.amount.toLocaleString('en-IN')}`;
+      const prev = opts.previousAmount;
+      // Show old → new so the user always sees exactly what changed.
+      parts.push(
+        prev != null && Math.abs(prev - transaction.amount) >= 0.005
+          ? `₹${prev.toLocaleString('en-IN')} → ${newAmt}`
+          : newAmt,
+      );
+    }
     if (description) parts.push(`"${transaction.description}"`);
     if (category) parts.push(transaction.category ?? category);
     return { text: m.correctUpdated(parts.join(' · ')) };

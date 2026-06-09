@@ -260,6 +260,7 @@ export const en: MessagePack = {
     "I couldn't find a recent transaction to correct. Send your last expense again with the right category.",
   undone: (summary) => `↩️ Undone — ${summary}.`,
   nothingToUndo: "Nothing to undo right now.",
+  deleted: (summary) => `🗑️ Deleted ${summary}. Reply UNDO to restore it.`,
 
   statusLine: (state, language) =>
     `Status: linked, language ${language}, current step: ${state.toLowerCase()}.`,

@@ -20,6 +20,7 @@ import {
   captureImage,
   captureText,
   captureVoice,
+  deleteTransaction,
   type CaptureResponseShape,
 } from '../../services/apiClient.ts';
 import { log } from '../../utils/logger.ts';
@@ -291,7 +292,36 @@ function renderCaptureResponse(session: Session, response: CaptureResponseShape)
 }
 
 /**
+ * Delete the user's last transaction (act-with-undo). Soft-deletes the row
+ * (reversible via UNDO / the mutation log) and clears the stale session
+ * pointer. Replies with what was removed + how to bring it back.
+ */
+async function handleDeleteLast(session: Session): Promise<CaptureResult> {
+  const m = getMessages(session.language);
+  if (!session.lastTransactionId) {
+    return { text: m.correctNotPossible };
+  }
+  const lastTx = (session.pending?.lastTx as Record<string, unknown> | undefined) ?? {};
+  const amount = typeof lastTx.amount === 'number' ? lastTx.amount : null;
+  const summary = amount != null ? `₹${amount.toLocaleString('en-IN')}` : 'the last entry';
+  try {
+    await deleteTransaction(session.phone, session.lastTransactionId);
+    const pending = { ...(session.pending ?? {}) };
+    delete pending.lastTx;
+    updateSession(session.phone, { lastTransactionId: null, pending });
+    return { text: m.deleted(summary), speakable: m.deleted(summary) };
+  } catch (err) {
+    log.warn('DELETE_LAST_FAIL', {
+      phone: session.phone,
+      error: err instanceof ApiClientError ? `${err.code}:${err.message}` : String(err),
+    });
+    return { text: m.error };
+  }
+}
+
+/**
  * Answer a free-form finance question through the guarded copilot.
+ * Falls back to the website nudge if the answer can't be produced.
  * Falls back to the website nudge if the answer can't be produced.
  */
 async function answerChat(session: Session, question: string): Promise<CaptureResult> {
@@ -358,10 +388,19 @@ export async function handleCapture(
       // remembered transaction instead of logging a new one.
       const qr = response.queryResult as Record<string, unknown> | undefined;
       if (qr?.kind === 'correct_last') {
-        const result = await applyParsedCorrection(session, {
-          amount: typeof qr.amount === 'number' ? qr.amount : null,
-          category: typeof qr.category === 'string' ? qr.category : null,
-        });
+        const prevAmount =
+          typeof (session.pending?.lastTx as Record<string, unknown> | undefined)?.amount ===
+          'number'
+            ? ((session.pending!.lastTx as Record<string, unknown>).amount as number)
+            : null;
+        const result = await applyParsedCorrection(
+          session,
+          {
+            amount: typeof qr.amount === 'number' ? qr.amount : null,
+            category: typeof qr.category === 'string' ? qr.category : null,
+          },
+          { previousAmount: prevAmount },
+        );
         // Keep recentContext in sync with the corrected value (+ reset TTL) so a
         // SECOND follow-up corrects the new amount, not the original.
         const lastTx = (session.pending?.lastTx as Record<string, unknown> | undefined) ?? {};
@@ -376,6 +415,9 @@ export async function handleCapture(
         };
         updateSession(session.phone, { pending });
         return result;
+      }
+      if (qr?.kind === 'delete_last') {
+        return await handleDeleteLast(session);
       }
       // Free-form question → answer inline with the guarded copilot instead
       // of nudging the user to the website. The API screens for scope +

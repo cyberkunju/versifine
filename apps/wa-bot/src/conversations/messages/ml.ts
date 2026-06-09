@@ -254,6 +254,7 @@ export const ml: MessagePack = {
     'തിരുത്താൻ പാകത്തിൽ ഒരു transaction കണ്ടെത്താനായില്ല. അവസാന ചെലവ് ശരിയായ category-യോടെ വീണ്ടും അയക്കൂ.',
   undone: (summary) => `↩️ പഴയപടിയാക്കി — ${summary}.`,
   nothingToUndo: 'ഇപ്പോൾ undo ചെയ്യാൻ ഒന്നുമില്ല.',
+  deleted: (summary) => `🗑️ ${summary} ഒഴിവാക്കി. തിരികെ കൊണ്ടുവരാൻ UNDO അയക്കൂ.`,
   correctUpdated: (summary) => `✅ അപ്ഡേറ്റ് ചെയ്തു — അവസാന transaction ഇപ്പോൾ ${summary} ആണ്.`,
 
   statusLine: (state, language) =>

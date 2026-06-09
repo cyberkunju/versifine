@@ -664,6 +664,23 @@ async function runTextPipeline(input: RunPipelineInput) {
     // fall through to normal routing below
   }
 
+  // Delete the last transaction ("delete that", "remove the last one", "undo
+  // it"). Soft-delete + undo affordance (act-with-undo) rather than a friction
+  // confirm — the mutation log makes it fully reversible. Only reachable with
+  // recentContext present (there IS a last entry); the bot applies it to its
+  // lastTransactionId. Never produced by the offline fallback (fail-closed).
+  if (input.recentContext && intentResult.intent === 'delete_last') {
+    traceLog.info('CAPTURE_DELETE_LAST', {});
+    return c.json(
+      ok({
+        intent: 'delete_last' as const,
+        needsConfirmation: false,
+        queryResult: { kind: 'delete_last' },
+        echo: text,
+      }),
+    );
+  }
+
   // Money movement — lend / borrow / repayment / debt question / transfer.
   // Runs before the expense/batch/chat routing because these are NOT spends:
   // a repayment settles a debt (not income), a transfer moves money between
