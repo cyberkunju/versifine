@@ -1,0 +1,1 @@
+ALTER TABLE "bot_sessions" ALTER COLUMN "last_draft_id" SET DATA TYPE varchar(32);

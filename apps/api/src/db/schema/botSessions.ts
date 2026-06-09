@@ -16,7 +16,7 @@ export const botSessions = pgTable(
     linked: boolean('linked').notNull().default(false),
     userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
     spaceId: uuid('space_id').references(() => spaces.id, { onDelete: 'set null' }),
-    lastDraftId: uuid('last_draft_id'),
+    lastDraftId: varchar('last_draft_id', { length: 32 }),
     lastTransactionId: uuid('last_transaction_id'),
     replyMode: varchar('reply_mode', { length: 15 }).notNull().default('auto'),
     pending: jsonb('pending').notNull().default('{}'),
