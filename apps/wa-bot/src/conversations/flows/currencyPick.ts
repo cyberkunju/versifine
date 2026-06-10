@@ -102,8 +102,8 @@ export function rememberCurrencyChoice(
   updateSession(session.phone, { lastDraftId: draftId });
 }
 
-/** Resolve `body` to one of the known options. */
-function resolvePick(
+/** Resolve `body` to one of the known options. Exported for unit tests. */
+export function resolvePick(
   body: string,
   options: CurrencyOption[],
 ):
@@ -114,26 +114,38 @@ function resolvePick(
   if (!trimmed) return { kind: 'unrelated' };
   const lower = trimmed.toLowerCase();
 
-  // 1) Numeric pick — supports up to 99 options (we cap UX at ~10 but the
-  //    matcher is forward-compatible). Whole message must be a bare number.
-  const numMatch = /^([1-9][0-9]?)$/.exec(trimmed);
-  if (numMatch) {
-    const idx = Number(numMatch[1]) - 1;
+  // 1) Numeric pick — bare 1-99, OR a single number token among ≤3 tokens
+  //    so "1 i think" / "no 2" / "maybe 3 please" resolve like the user
+  //    intended. Real users hedge — the resolver shouldn't punish them.
+  const numMatchExact = /^([1-9][0-9]?)$/.exec(trimmed);
+  if (numMatchExact) {
+    const idx = Number(numMatchExact[1]) - 1;
     const opt = options[idx];
     if (opt) return { kind: 'option', code: opt.code, option: opt };
-    // Number out of range — user is trying to answer but missed. Keep frame.
     return { kind: 'unknown' };
   }
+  // Short hedged form — exactly one numeric token in ≤4 short tokens.
+  const earlyTokens = lower.split(/\s+/).filter((t) => t.length > 0);
+  if (earlyTokens.length <= 4 && trimmed.length <= 30) {
+    const numericTokens = earlyTokens.filter((t) => /^[1-9][0-9]?$/.test(t));
+    if (numericTokens.length === 1) {
+      const idx = Number(numericTokens[0]) - 1;
+      const opt = options[idx];
+      if (opt) return { kind: 'option', code: opt.code, option: opt };
+    }
+  }
 
-  // 2) Country name / adjective. Tried BEFORE the ISO-code matcher so that
-  //    "KSA" (Saudi Arabia) and other 3-letter country abbreviations resolve
-  //    via the adjective list rather than failing the strict ISO lookup.
-  //    Multi-token answers ("Saudi please!", "yes saudi", "saudi arabia bro")
-  //    are accepted when ANY token matches an adjective AND the message has
-  //    ≤3 tokens — short polite phrasing wins, but a clearly-fresh utterance
-  //    ("spent 50 on saudi chai") is too long-token to false-positive.
-  if (trimmed.length > 30 || /[\n]/.test(trimmed)) return { kind: 'unrelated' };
-  const tokens = lower.split(/\s+/).filter((t) => t.length > 0);
+  // 2) Country name / adjective AND token-level ISO code match. Tried
+  //    BEFORE the strict whole-message ISO code matcher so multi-token
+  //    answers ("Omr i think", "Saudi please", "1 i think") resolve.
+  //    Multi-token tolerance: ≤4 tokens AND any token matches an
+  //    adjective OR an option's ISO code. This is the fix for the
+  //    production failure where the user typed "Omr i think" and the
+  //    bot routed to chat instead of picking OMR.
+  // tidyAnswer collapses newlines/tabs into single spaces above, so the
+  // length cap alone is enough to keep the resolver focused on short replies.
+  if (trimmed.length > 30) return { kind: 'unrelated' };
+  const tokens = earlyTokens;
   for (const opt of options) {
     const country = opt.country.toLowerCase();
     const adj = COUNTRY_ADJECTIVES[opt.code];
@@ -142,24 +154,27 @@ function resolvePick(
       'i',
     );
     if (exact.test(lower)) return { kind: 'option', code: opt.code, option: opt };
-    // Multi-token tolerance: ≤3 tokens AND a token matches an adjective.
-    if (tokens.length <= 3) {
+    if (tokens.length <= 4) {
+      // Adjective token match.
       const tokenRe = new RegExp(`^(?:${country.replace(/\s+/g, '')}${adj ? `|${adj}` : ''})$`, 'i');
       if (tokens.some((t) => tokenRe.test(t))) {
+        return { kind: 'option', code: opt.code, option: opt };
+      }
+      // ISO-code token match — token.toUpperCase() === opt.code.
+      // Catches "Omr i think", "I want OMR", "no SAR".
+      if (tokens.some((t) => t.toUpperCase() === opt.code)) {
         return { kind: 'option', code: opt.code, option: opt };
       }
     }
   }
 
-  // 3) Direct ISO code (whole message is exactly 3 letters).
+  // 3) Direct ISO code (whole message is exactly 3 letters and matches a
+  //    known currency code that ISN'T in the option set). User typed
+  //    something like "USD" mid-flow — keep the frame open and re-prompt.
   const codeMatch = /^([a-z]{3})$/i.exec(trimmed);
   if (codeMatch) {
-    const upper = codeMatch[1]!.toUpperCase();
-    const opt = options.find((o) => o.code === upper);
-    if (opt) return { kind: 'option', code: opt.code, option: opt };
-    // 3-letter code that's NOT in the option set (e.g. user types "USD" mid
-    // riyal-flow). Keep the frame open and re-prompt — most likely an
-    // attempted answer that just hit the wrong code, not a brand-new utterance.
+    // The option-set match was already attempted above (token level); if we
+    // got here, the code didn't belong to this picker → re-prompt.
     return { kind: 'unknown' };
   }
 
