@@ -985,3 +985,64 @@ describe('extractAmountWithMeta — Malayalam/Hindi/Arabic native + suffixed for
     expect(m.ambiguousCurrencyWord).toBeNull();
   });
 });
+
+
+// --- L1-5: Indian post-position quantity-vs-price scoring ---------------
+// Production failure: "നാല് തപ്പാത്തി രണ്ട് റിയാലിൽ" / "rendu riyalil naal
+// chappathi" (4 chappathis at 2 riyal). Bot extracted 4 because the scorer
+// only knew English markers ("for X", "spent X"). Indian languages mark the
+// price postpositionally: "X riyalil/rupayil/ke/mein" — the number BEFORE
+// the postposition is the price, the number BEFORE a food noun is the qty.
+describe('extractAmount — Indian postposition price markers', () => {
+  test('"rendu riyalil naal chappathi" → 2 (price), not 4 (quantity)', () => {
+    expect(extractAmount('rendu riyalil naal chappathi').amount).toBe(2);
+  });
+
+  test('"2 riyalil 4 chappathi" with digits → 2', () => {
+    expect(extractAmount('2 riyalil 4 chappathi').amount).toBe(2);
+  });
+
+  test('"5 rupayil 2 chai" → 5 (price)', () => {
+    expect(extractAmount('5 rupayil 2 chai').amount).toBe(5);
+  });
+
+  test('"100 mein 3 dosa" Hinglish → 100 (price)', () => {
+    expect(extractAmount('100 mein 3 dosa').amount).toBe(100);
+  });
+
+  test('"3 dosa 100 mein" reversed Hinglish → 100', () => {
+    expect(extractAmount('3 dosa 100 mein').amount).toBe(100);
+  });
+
+  test('"50 ke 2 samosa" → 50', () => {
+    expect(extractAmount('50 ke 2 samosa').amount).toBe(50);
+  });
+
+  test('"2 chappathi 50 rupaye" Hinglish → 50', () => {
+    expect(extractAmount('2 chappathi 50 rupaye').amount).toBe(50);
+  });
+
+  test('"50 ku 2 idli" Tanglish → 50', () => {
+    expect(extractAmount('50 ku 2 idli').amount).toBe(50);
+  });
+
+  test('food-quantity disambiguation: "3 idli 80" → 80 (price), 3 is quantity', () => {
+    expect(extractAmount('3 idli 80').amount).toBe(80);
+  });
+
+  test('"2 cup chai 50" → 50 (price), 2 is quantity (cups)', () => {
+    expect(extractAmount('2 cup chai 50').amount).toBe(50);
+  });
+
+  test('Pre-existing English tests still pass: "I had 2 coffee for 560"', () => {
+    expect(extractAmount('I had 2 coffee for 560').amount).toBe(560);
+  });
+
+  test('Pre-existing: "3 plates biryani 450"', () => {
+    expect(extractAmount('3 plates biryani 450').amount).toBe(450);
+  });
+
+  test('No postposition: "2 chappathi" alone → null (single bare qty, no price)', () => {
+    expect(extractAmount('2 chappathi').amount).toBeNull();
+  });
+});

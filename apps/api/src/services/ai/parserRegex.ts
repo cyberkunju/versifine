@@ -179,9 +179,29 @@ const SPLIT_PEOPLE_RE =
 /** Words that mark the number AFTER them as the price/amount, not a quantity. */
 const PRICE_MARKER =
   /\b(?:for|cost|costs|costing|worth|price|priced|paid|pay|payment|of|@|=|total|bill|amount|spent|spend)\s*$/i;
+
+/**
+ * Indian-language POSTPOSITION currency markers — when a number is
+ * IMMEDIATELY followed by one of these patterns, the number is the
+ * PRICE/amount (not a quantity). Mirrors the way Malayalam, Hindi, and
+ * Tamil express price-first: "X riyalil Y chappathi" → X is price (the
+ * `-il` postposition glues to riyal), Y is quantity (precedes the food
+ * noun).
+ *
+ * Patterns:
+ *   • Manglish: rendu riyal-il / riyal-in / riyal-inu / rupayil / rupayinu
+ *     / paisa
+ *   • Hinglish: 100 ke / 100 mein / 100 mey / 100 rupaye / 100 rupiye
+ *   • Tanglish: 100 ku (-ku is the dative)
+ *
+ * Tested against `after` (text immediately after the digit/number).
+ */
+const CURRENCY_POSTPOSITION_AFTER =
+  /^\s*(?:riyal[a-z]*|rial[a-z]*|dinar[a-z]*|dollar[a-z]*|rupay[a-z]*|rupiy[a-z]*|paisa|paise|ke\s|mein\b|mey\b|ki\s|ka\s|ku\s)/i;
+
 /** Words/units that mark the number BEFORE them as a quantity, not a price. */
 const QUANTITY_UNIT =
-  /^\s*(?:x|nos?|pcs?|pieces?|plates?|cups?|glasses?|kg|kgs?|g|grams?|litres?|liters?|l|ml|people|persons?|friends?|times?|months?|years?|days?|weeks?|hours?|hrs?|%|percent)\b/i;
+  /^\s*(?:x|nos?|pcs?|pieces?|plates?|cups?|glasses?|kg|kgs?|g|grams?|litres?|liters?|l|ml|people|persons?|friends?|times?|months?|years?|days?|weeks?|hours?|hrs?|%|percent|chappathi|chapati|chapatis|porotta|porottas|idli|idlis|dosa|dosas|paratha|parathas|samosa|samosas|vada|vadas|pakora|pakoras|biryani|biryanis|chai|tea|coffee|kaapi|chaya|chappathy|paani|water|biscuit|biscuits|sandwich|sandwiches|bottle|bottles|packet|packets|item|items)\b/i;
 
 /**
  * Temporal prepositions that, when sitting IMMEDIATELY before a bare 4-digit
@@ -475,6 +495,10 @@ interface BareCandidate {
   value: number;
   index: number;
   afterPriceMarker: boolean;
+  /** True when the number is IMMEDIATELY followed by a currency-postposition
+   *  ("X riyalil Y chappathi" — X is price). Indian-language equivalent of
+   *  the English `afterPriceMarker` signal. */
+  beforePricePostposition: boolean;
   beforeQuantityUnit: boolean;
   isYear: boolean;
   /** 4-digit, in a year band, no price marker, no scale — a YEAR if a sibling
@@ -512,6 +536,7 @@ function pickBareAmount(text: string): number | null {
       value,
       index: m.index,
       afterPriceMarker: PRICE_MARKER.test(before),
+      beforePricePostposition: CURRENCY_POSTPOSITION_AFTER.test(after),
       beforeQuantityUnit: QUANTITY_UNIT.test(after),
       isYear,
       yearBandEligible:
@@ -539,7 +564,9 @@ function pickBareAmount(text: string): number | null {
     // "5 people") and is NOT introduced by a price marker is a count, not a
     // spend — don't mine it. This stops "headache for 3 days" → ₹3.
     const only = real[0]!;
-    if (only.beforeQuantityUnit && !only.afterPriceMarker) return null;
+    if (only.beforeQuantityUnit && !only.afterPriceMarker && !only.beforePricePostposition) {
+      return null;
+    }
     return only.value;
   }
 
@@ -549,6 +576,10 @@ function pickBareAmount(text: string): number | null {
   for (const c of real) {
     let score = 0;
     if (c.afterPriceMarker) score += 5;
+    // Indian post-position price marker — "rendu riyalil naal chappathi": the
+    // number FOLLOWED BY riyalil is the price, even though no English price
+    // marker appears. Same weight as the English signal.
+    if (c.beforePricePostposition) score += 5;
     if (c.beforeQuantityUnit) score -= 4;
     if (c.value === maxValue) score += 1;
     // Later position is a mild tiebreaker (price follows the item).
