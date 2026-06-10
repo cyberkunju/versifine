@@ -1372,11 +1372,46 @@ app.post('/image', requireUserOrBot, captureLimit, async (c) => {
   if (!form) throw errors.validation('Multipart body required');
   const image = form.get('image');
   const locale = form.get('locale');
+  // Optional caption the user typed alongside the photo. We use it as a
+  // fall-back parse target when vision returns nothing, AND we hand it to
+  // categorisation when vision missed the merchant. Empath subagent flagged
+  // that discarding a caption on a photo message is a louder invisibility
+  // signal than not running OCR at all.
+  const captionRaw = form.get('caption');
+  const caption =
+    typeof captionRaw === 'string' && captionRaw.trim() ? captionRaw.trim().slice(0, 800) : null;
   if (!(image instanceof File)) throw errors.validation('image file is required');
 
   const buffer = Buffer.from(await image.arrayBuffer());
   const mimetype = image.type || 'image/jpeg';
   const extracted = await extractFromReceipt(buffer, mimetype);
+
+  // CAPTION-HONOURING FALLBACK. When vision returned no usable signal,
+  // route the caption through the regular text parser before declaring the
+  // image unreadable — the user often types "Lulu, ₹240 grocery" alongside
+  // the photo, and that text is more reliable than any OCR. If both vision
+  // AND caption fail, the bot's image-unreadable copy still fires.
+  if (caption && (extracted.amount === null || !extracted.description)) {
+    try {
+      const captionParsed = await parseExpense({
+        text: caption,
+        spaceId: c.get('user').activeSpaceId,
+      });
+      if (extracted.amount === null && captionParsed.amount !== null) {
+        extracted.amount = captionParsed.amount;
+        if (captionParsed.currency) extracted.currency = captionParsed.currency;
+      }
+      if (!extracted.description && captionParsed.description) {
+        extracted.description = captionParsed.description;
+      }
+      if (!extracted.date && captionParsed.date) {
+        extracted.date = captionParsed.date;
+      }
+    } catch {
+      // Caption parse failed — silently fall through. The image-unreadable
+      // path on the bot side will still fire if both signals are missing.
+    }
+  }
 
   const user = c.get('user');
   const livewallets = await listLiveWallets(user.activeSpaceId);

@@ -180,6 +180,23 @@ export const ml: MessagePack = {
   refPickCancelled: 'റദ്ദാക്കി.',
   captureMissingDetail:
     'ഒരു detail ബാക്കിയുണ്ട്. ഇവിടെ ടൈപ്പ് ചെയ്യൂ, അല്ലെങ്കിൽ CANCEL അയക്കൂ.',
+  imageAck: (seen) => {
+    const amt = seen.amount;
+    const cur = seen.currency ?? 'INR';
+    const desc = seen.description?.trim();
+    if (amt != null && desc) {
+      return `📷 ${desc}-ന് ${formatAmount(amt, cur)} കാണാം.`;
+    }
+    if (amt != null) {
+      return `📷 ഈ receipt-ൽ ${formatAmount(amt, cur)} കാണാം.`;
+    }
+    if (desc) {
+      return `📷 ${desc} receipt കാണാം.`;
+    }
+    return '📷 ഫോട്ടോ കിട്ടി.';
+  },
+  imageUnreadable:
+    '📷 ഫോട്ടോ കണ്ടു പക്ഷെ വ്യക്തമായി വായിക്കാൻ പറ്റിയില്ല. എത്രയാണെന്നും എന്തിനായിരുന്നുവെന്നും ടൈപ്പ് ചെയ്യൂ, അല്ലെങ്കിൽ കൂടുതൽ വ്യക്തമായ ഫോട്ടോ അയക്കൂ.',
 
   captureFollowup: (q) => q,
 

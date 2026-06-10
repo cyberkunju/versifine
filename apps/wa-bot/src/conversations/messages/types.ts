@@ -214,6 +214,27 @@ export interface MessagePack {
    *  message while a draft is awaiting clarification. */
   captureMissingDetail: string;
 
+  /**
+   * Image-acknowledgement prefix. Prepended to ANY image-origin reply so
+   * the user always sees "I looked at the photo" before the reply body.
+   * The empath subagent identified "image invisibility" as the worst feeling
+   * — the user took the trouble to photograph a receipt, bot replied without
+   * referencing the image. Function form (not literal) because we want to
+   * say what we ACTUALLY SAW: "I see ₹450 — what was it for?" beats
+   * "📷 Photo received." every time.
+   */
+  imageAck: (seen: {
+    amount: number | null;
+    currency: string | null;
+    description: string | null;
+  }) => string;
+
+  /**
+   * Image-extraction failed entirely (amount + description both null). The
+   * bot acknowledges the photo, names the failure, and offers a recovery.
+   */
+  imageUnreadable: string;
+
   /** Free-form follow-up question forwarded from the API. */
   captureFollowup: (question: string) => string;
 

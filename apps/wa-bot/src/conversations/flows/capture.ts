@@ -407,13 +407,53 @@ export async function handleCapture(
       return renderCaptureResponse(session, response);
     }
     if (message.hasImage && message.imageBuffer) {
+      // Forward any caption text the user typed alongside the photo. The
+      // empath subagent flagged that ignoring the caption ("Lulu, ₹240
+      // groceries") on a photo message is the loudest possible signal that
+      // we didn't look — the user literally TYPED what was in the picture.
+      const caption = message.body?.trim() || undefined;
       const response = await captureImage(
         session.phone,
         message.imageBuffer,
         message.imageMimetype ?? 'image/jpeg',
         locale,
+        caption,
       );
-      return renderCaptureResponse(session, response);
+      const result = renderCaptureResponse(session, response);
+      // IMAGE-ACKNOWLEDGE-FIRST CONTRACT (L1-4): the user took the trouble
+      // to photograph a receipt — never reply without referencing what we
+      // saw. Two paths:
+      //   • extracted SOMETHING → "📷 I see ₹450 for coffee" leading the body
+      //   • extracted NOTHING (amount + description both null in the draft) →
+      //     replace the body with the "couldn't read it" recovery copy.
+      const draft = response.draft;
+      const seen = {
+        amount: draft?.amount ?? null,
+        currency: draft?.currency ?? null,
+        description: draft?.description ?? null,
+      };
+      const extractedNothing =
+        response.needsConfirmation === true &&
+        seen.amount === null &&
+        (seen.description ?? '').trim() === '';
+      if (extractedNothing) {
+        log.info('CAPTURE_IMAGE_UNREADABLE', {
+          phone: session.phone,
+          hadDraftId: Boolean(response.draftId),
+          hadCaption: Boolean(caption),
+        });
+      }
+      const ack = m.imageAck(seen);
+      const body = extractedNothing ? m.imageUnreadable : result.text;
+      // Speakable version OMITS the imageAck prefix — TTS reading "Photo
+      // received" is awkward; image input doesn't trigger TTS today anyway,
+      // but keep the spoken text clean for future paths that might.
+      const speakableBody = result.speakable ?? body;
+      return {
+        text: `${ack}\n\n${body}`,
+        speakable: typeof speakableBody === 'string' ? speakableBody : body,
+        ...(result.pendingDraftId ? { pendingDraftId: result.pendingDraftId } : {}),
+      };
     }
     if (message.body && message.body.trim()) {
       const history = (session.pending.history as any[]) || [];

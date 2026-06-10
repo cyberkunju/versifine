@@ -177,6 +177,23 @@ export const hi: MessagePack = {
   refPickCancelled: 'रद्द किया।',
   captureMissingDetail:
     'एक छोटी सी detail चाहिए। यहाँ टाइप करें, या CANCEL भेजें।',
+  imageAck: (seen) => {
+    const amt = seen.amount;
+    const cur = seen.currency ?? 'INR';
+    const desc = seen.description?.trim();
+    if (amt != null && desc) {
+      return `📷 ${desc} के लिए ${formatAmount(amt, cur)} दिख रहा है।`;
+    }
+    if (amt != null) {
+      return `📷 इस receipt पर ${formatAmount(amt, cur)} दिख रहा है।`;
+    }
+    if (desc) {
+      return `📷 ${desc} की receipt दिख रही है।`;
+    }
+    return '📷 तस्वीर मिल गई।';
+  },
+  imageUnreadable:
+    '📷 तस्वीर देखी पर ठीक से पढ़ नहीं पाया। Total और किसके लिए था टाइप करें, या साफ़ photo भेजें।',
 
   captureFollowup: (q) => q,
 

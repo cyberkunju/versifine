@@ -191,6 +191,24 @@ export const en: MessagePack = {
   refPickCancelled: 'Cancelled.',
   captureMissingDetail:
     'I need one missing detail. Type it here, or send CANCEL to discard this draft.',
+  imageAck: (seen) => {
+    const amt = seen.amount;
+    const cur = seen.currency ?? 'INR';
+    const desc = seen.description?.trim();
+    if (amt != null && desc) {
+      // Both — strongest "I saw what you sent".
+      return `📷 I see ${formatAmount(amt, cur)} for ${desc}.`;
+    }
+    if (amt != null) {
+      return `📷 I see ${formatAmount(amt, cur)} on this receipt.`;
+    }
+    if (desc) {
+      return `📷 I see a ${desc} receipt.`;
+    }
+    return '📷 Photo received.';
+  },
+  imageUnreadable:
+    "📷 I see the image but couldn't read it clearly. Could you type the total and what it was for, or send a sharper photo?",
 
   captureFollowup: (q) => q,
 

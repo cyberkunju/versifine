@@ -198,12 +198,19 @@ export async function captureImage(
   image: Buffer,
   mimetype: string,
   locale?: string,
+  /** Optional caption text the user typed alongside the photo. Forwarded to
+   *  the API so vision can use it as a hint OR fall back on it when the
+   *  receipt is unreadable. The empath subagent flagged that ignoring a
+   *  caption ("Lulu, ₹240 for groceries") on a photo message is a louder
+   *  invisibility signal than not running OCR at all. */
+  caption?: string,
 ): Promise<CaptureResponseShape> {
   const form = new FormData();
   const blob = new Blob([image], { type: mimetype });
   form.set('image', blob, suffixForMime(mimetype, 'receipt'));
   const loc = normalizeLocale(locale);
   if (loc) form.set('locale', loc);
+  if (caption && caption.trim()) form.set('caption', caption.trim().slice(0, 800));
   return await call<CaptureResponseShape>({
     method: 'POST',
     path: '/capture/image',
