@@ -7,6 +7,7 @@
     "dev": "bun --watch --env-file=../../.env src/index.ts",
     "dev:supervised": "bun --env-file=../../.env src/supervisor.ts",
     "typecheck": "tsc --noEmit",
+    "lint:phrases": "bun run scripts/lint-banned-phrases.mjs",
     "start": "bun src/index.ts",
     "test": "bun test"
   },

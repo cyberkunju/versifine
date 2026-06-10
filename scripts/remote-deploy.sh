@@ -52,6 +52,19 @@ log "Type-checking API (runs from source; no bundle)"
     || { echo "ERROR: API typecheck failed"; exit 1; }
 [ -f apps/api/src/index.ts ] || { echo "ERROR: apps/api/src/index.ts missing"; exit 1; }
 
+log "Type-checking wa-bot"
+( cd apps/wa-bot && /usr/local/bin/bun run typecheck ) \
+    || { echo "ERROR: wa-bot typecheck failed"; exit 1; }
+
+log "Linting wa-bot for banned English fallback phrases (L1-3 cardinal-sin guard)"
+# After L1-3 we localized every error/clarifier path to MessagePack keys
+# (en/hi/ml + Sarvam fallback). This lint stops a future commit from
+# silently dropping a hardcoded "Sorry, I don't understand" / "Something
+# went wrong" / "Cancelled. What would you like to do" English literal in
+# user-facing code. Comment-stripped scan; runtime strings only.
+( cd apps/wa-bot && /usr/local/bin/bun run lint:phrases ) \
+    || { echo "ERROR: banned-phrase lint FAILED — deploy aborted"; exit 1; }
+
 # ---- 2b. Deterministic test gate (no DB, no LLM, zero false-flakes) ---------
 # Only the deterministic, pure-function test slices run here. LLM/DB-dependent
 # tests stay as a separate manual harness. This gate catches parser regressions
