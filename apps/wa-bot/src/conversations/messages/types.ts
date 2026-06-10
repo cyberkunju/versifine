@@ -73,6 +73,24 @@ export interface TransferView {
   toName: string;
 }
 
+/**
+ * One leg of a compound basket the planner executed from a single message
+ * ("paid 500 rent and got 2000 salary and lent ravi 300"). `kind='tx'` is a
+ * wallet transaction (expense/income, carries an undo token); `kind='ledger'`
+ * is a lend/borrow entry.
+ */
+export interface PlanLegView {
+  kind: 'tx' | 'ledger';
+  actionKind: 'log_expense' | 'log_income' | 'lend' | 'borrow';
+  amount: number;
+  currency: string;
+  description: string | null;
+  category: string | null;
+  counterparty: string | null;
+  direction: 'lent' | 'borrowed' | null;
+  undoToken: string | null;
+}
+
 export interface MessagePack {
   /** Initial reply when an unknown phone first messages the bot. */
   greeting: string;
@@ -146,6 +164,13 @@ export interface MessagePack {
       category: string | null;
     }>,
   ) => string;
+
+  /**
+   * Confirmation after a COMPOUND basket ("paid 500 rent and got 2000 salary
+   * and lent ravi 300") is executed across expense/income/lend/borrow. Each
+   * leg is rendered on its own line; tx legs append their undo token.
+   */
+  planBatchLogged: (legs: ReadonlyArray<PlanLegView>) => string;
 
   /** Asks the user to confirm a draft before persisting. */
   captureNeedsConfirm: (draft: DraftSummary) => string;

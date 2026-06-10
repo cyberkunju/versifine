@@ -124,7 +124,12 @@ export async function createEntry(
     .returning();
   if (!row) throw errors.internal('Ledger create failed');
 
-  emitUpdated(userId, row);
+  // Post-commit, best-effort — must not throw (the row is already written).
+  try {
+    emitUpdated(userId, row);
+  } catch (err) {
+    log.warn('LEDGER_EMIT_FAIL', { error: err instanceof Error ? err.message : String(err) });
+  }
   return row;
 }
 

@@ -29,7 +29,7 @@ import { applyParsedCorrection } from './correct.ts';
 import { rememberCurrencyChoice } from './currencyPick.ts';
 import { clearTurnLanguage, effectiveLanguage } from '../../utils/langDetect.ts';
 import { getMessages } from '../messages/index.ts';
-import type { QuerySummaryView, LedgerView, LedgerSettledView, DebtsView, TransferView } from '../messages/types.ts';
+import type { QuerySummaryView, LedgerView, LedgerSettledView, DebtsView, TransferView, PlanLegView } from '../messages/types.ts';
 import { setState, updateSession } from '../state.ts';
 
 export interface CaptureResult {
@@ -140,6 +140,32 @@ function renderCaptureResponse(session: Session, response: CaptureResponseShape)
     // structured fields (never an English string), so hi/ml render natively.
     const qr = response.queryResult as Record<string, unknown> | undefined;
     const moneyKind = typeof qr?.kind === 'string' ? (qr.kind as string) : undefined;
+    if (moneyKind === 'plan_batch' && Array.isArray(qr?.results)) {
+      // Compound utterance executed as a basket ("paid 500 rent and got 2000
+      // salary and lent ravi 300"). Each leg is rendered + (for wallet
+      // transactions) carries its own undo token. The most recent tx leg
+      // becomes the "last transaction" for follow-up corrections.
+      const legs = qr.results as PlanLegView[];
+      if (legs.length === 0) {
+        // The planner attempted writes but every leg failed (rare — e.g. a DB
+        // hiccup). We do NOT fall through to legacy here (the API already
+        // owns this turn), so tell the user plainly to retry.
+        return { text: m.captureFailed };
+      }
+      const lastTx = [...legs].reverse().find((l) => l.kind === 'tx');
+      if (lastTx) {
+        rememberLastTransaction(session, {
+          amount: lastTx.amount,
+          currency: lastTx.currency,
+          description: lastTx.description ?? '',
+          category: lastTx.category ?? null,
+        });
+      }
+      const text = m.planBatchLogged(legs);
+      // Speech omits the undo codes — reading "undo MF782V" aloud is noise.
+      const speakable = text.replace(/ · undo [A-Z0-9]+/g, '');
+      return { text, speakable };
+    }
     if (moneyKind === 'ledger' && qr?.ledger) {
       const text = m.ledgerLogged(qr.ledger as LedgerView);
       return { text, speakable: text };

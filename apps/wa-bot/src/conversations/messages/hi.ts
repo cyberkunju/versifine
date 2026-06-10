@@ -148,6 +148,24 @@ export const hi: MessagePack = {
     return `${items.length} खर्च दर्ज किए (${formatGroupedTotal(items)} कुल):\n${lines}`;
   },
 
+  planBatchLogged: (legs) => {
+    const lines = legs
+      .map((leg) => {
+        if (leg.kind === 'ledger') {
+          return leg.direction === 'lent'
+            ? `• ${leg.counterparty} पर आपके ${formatAmount(leg.amount, leg.currency)} बाकी हैं`
+            : `• आप पर ${leg.counterparty} के ${formatAmount(leg.amount, leg.currency)} बाकी हैं`;
+        }
+        const sign = leg.actionKind === 'log_income' ? '+' : '';
+        const cat = leg.category ? ` (${leg.category})` : '';
+        const token = leg.undoToken ? ` · undo ${leg.undoToken}` : '';
+        const desc = leg.description ? ` ${leg.description}` : '';
+        return `• ${sign}${formatAmount(leg.amount, leg.currency)}${desc}${cat}${token}`;
+      })
+      .join('\n');
+    return `✅ हो गया — ${legs.length} चीज़ें दर्ज कीं:\n${lines}`;
+  },
+
   captureNeedsConfirm: (draft) =>
     `पुष्टि करें: ${describeDraft(draft)}\n\nCONFIRM लिखें save करने के लिए, EDIT बदलने के लिए, या CANCEL।`,
 

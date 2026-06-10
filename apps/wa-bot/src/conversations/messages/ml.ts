@@ -151,6 +151,24 @@ export const ml: MessagePack = {
     return `${items.length} ചെലവുകൾ രേഖപ്പെടുത്തി (${formatGroupedTotal(items)} മൊത്തം):\n${lines}`;
   },
 
+  planBatchLogged: (legs) => {
+    const lines = legs
+      .map((leg) => {
+        if (leg.kind === 'ledger') {
+          return leg.direction === 'lent'
+            ? `• ${leg.counterparty} നിങ്ങൾക്ക് ${formatAmount(leg.amount, leg.currency)} തരാനുണ്ട്`
+            : `• നിങ്ങൾ ${leg.counterparty}-ന് ${formatAmount(leg.amount, leg.currency)} കൊടുക്കാനുണ്ട്`;
+        }
+        const sign = leg.actionKind === 'log_income' ? '+' : '';
+        const cat = leg.category ? ` (${leg.category})` : '';
+        const token = leg.undoToken ? ` · undo ${leg.undoToken}` : '';
+        const desc = leg.description ? ` ${leg.description}` : '';
+        return `• ${sign}${formatAmount(leg.amount, leg.currency)}${desc}${cat}${token}`;
+      })
+      .join('\n');
+    return `✅ കഴിഞ്ഞു — ${legs.length} കാര്യങ്ങൾ രേഖപ്പെടുത്തി:\n${lines}`;
+  },
+
   captureNeedsConfirm: (draft) =>
     `ഉറപ്പിക്കൂ: ${describeDraft(draft)}\n\nസേവ് ചെയ്യാൻ CONFIRM, മാറ്റാൻ EDIT, റദ്ദാക്കാൻ CANCEL.`,
 

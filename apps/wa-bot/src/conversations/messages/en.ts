@@ -168,6 +168,24 @@ export const en: MessagePack = {
     return `Logged ${items.length} expenses (${formatGroupedTotal(items)} total):\n${lines}`;
   },
 
+  planBatchLogged: (legs) => {
+    const lines = legs
+      .map((leg) => {
+        if (leg.kind === 'ledger') {
+          return leg.direction === 'lent'
+            ? `• ${leg.counterparty} owes you ${formatAmount(leg.amount, leg.currency)}`
+            : `• you owe ${leg.counterparty} ${formatAmount(leg.amount, leg.currency)}`;
+        }
+        const sign = leg.actionKind === 'log_income' ? '+' : '';
+        const cat = leg.category ? ` (${leg.category})` : '';
+        const token = leg.undoToken ? ` · undo ${leg.undoToken}` : '';
+        const desc = leg.description ? ` ${leg.description}` : '';
+        return `• ${sign}${formatAmount(leg.amount, leg.currency)}${desc}${cat}${token}`;
+      })
+      .join('\n');
+    return `✅ Done — logged ${legs.length} things:\n${lines}`;
+  },
+
   captureNeedsConfirm: (draft) =>
     `Almost! ${describeDraft(draft)}\n\nReply CONFIRM to save, EDIT to change, or CANCEL.`,
 

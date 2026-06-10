@@ -172,13 +172,25 @@ async function persist(
     return { row, undoToken: token };
   });
 
-  emitCreated(userId, stored.row);
+  // Post-commit side effects MUST NOT throw: the row is already committed, so
+  // a throw here would surface as a create failure to the caller (and, in the
+  // compound-plan executor, could mislead the double-write guard). Each is
+  // best-effort and independently swallowed.
+  try {
+    emitCreated(userId, stored.row);
+  } catch (err) {
+    log.warn('EMIT_CREATED_FAIL', { error: err instanceof Error ? err.message : String(err) });
+  }
   // Best-effort RAG embedding for EVERY creation path (manual web, CSV
   // import, copilot tool, capture/confirm). Fire-and-forget — never blocks
   // the create. The job resolves the row by id at run time, so it works
   // even when this persist ran inside a batch-import transaction that
   // commits slightly later.
-  enqueueEmbed(stored.row.id, stored.row.description);
+  try {
+    enqueueEmbed(stored.row.id, stored.row.description);
+  } catch (err) {
+    log.warn('ENQUEUE_EMBED_FAIL', { error: err instanceof Error ? err.message : String(err) });
+  }
   // Fire-and-forget budget recompute. We never block the create path on this.
   void recomputeAffectedBudgets(userId, spaceId, stored.row.category).catch((err) => {
     log.warn('BUDGET_RECOMPUTE_FAIL', {

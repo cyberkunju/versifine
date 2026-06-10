@@ -26,7 +26,8 @@ import { requireUserOrBot } from '../middleware/authEither.ts';
 import { limits, rateLimit } from '../middleware/rateLimit.ts';
 import { validate } from '../middleware/validate.ts';
 import { classifyIntent } from '../services/ai/intent.ts';
-import { planActions, logPlannerShadow } from '../services/ai/planner.ts';
+import { planActions, logPlannerShadow, type PlannerResult } from '../services/ai/planner.ts';
+import { executePlan, isExecutablePlan } from '../services/capture/plan.ts';
 import { screenInput } from '../services/ai/guard.ts';
 import {
   handleLendBorrowSmart,
@@ -575,8 +576,21 @@ function shouldDeferToChat(text: string): boolean {
   return false;
 }
 
+/**
+ * Cheap deterministic pre-gate for the live planner. We only pay the planner's
+ * extra LLM round-trip when a message plausibly carries MULTIPLE money events:
+ * at least two number tokens AND a clause joiner ("and"/"aur"/"then"/"plus"/
+ * "also"/comma/semicolon/&). A normal single expense ("spent 450 on auto")
+ * never trips this, so its latency is unchanged.
+ */
+function looksCompound(text: string): boolean {
+  const numbers = text.match(/\d[\d,.]*/g) ?? [];
+  if (numbers.length < 2) return false;
+  return /(\band\b|\baur\b|\bthen\b|\bplus\b|\balso\b|,|;|&|\baur\b)/i.test(text);
+}
+
 async function runTextPipeline(input: RunPipelineInput) {
-  const { c, text, origin, locale } = input;
+  const { c, text, origin, locale, source } = input;
   const user = c.get('user');
   const traceLog = c.get('log');
 
@@ -625,16 +639,58 @@ async function runTextPipeline(input: RunPipelineInput) {
     inputSize: summarizeForLog(text),
   });
 
-  // SHADOW PLANNER — runs in parallel with the legacy router. Never blocks the
-  // user-facing reply: we kick it off, log what it would have done, and the
-  // existing pipeline produces the actual response. The shadow log
-  // (PLANNER_SHADOW) is the source of truth for "would the typed plan have
-  // routed correctly?" — when agreement is consistently high AND the planner
-  // catches compound utterances the legacy router misses, we'll wire it live.
+  // PLANNER — compound utterances ("paid 500 rent and got 2000 salary and
+  // lent ravi 300") that the single-intent legacy router would collapse to
+  // ONE leg, silently dropping the rest. The planner decomposes the message
+  // into a typed action list; for a grounded, confident basket of money
+  // movements we execute ALL legs and reply with a per-line checklist.
+  //
+  // Guards:
+  //  - Latency: the planner is a 2nd LLM round-trip, so we only AWAIT it when
+  //    the message deterministically LOOKS compound (≥2 numbers + a joiner),
+  //    and we race it against an 8s timeout so a hung call can't stall the
+  //    webhook (which would trigger redelivery + a double write).
+  //  - Corrections: when `recentContext` is present the user may be amending
+  //    their last entry ("no, it was 500 not 2000"); the planner could re-read
+  //    that as two fresh expenses. We skip the LIVE planner in that case and
+  //    let the dedicated correct_last/delete_last branches below handle it.
   if (isAIConfigured()) {
-    void planActions(text, locale).then((plan) => {
+    if (looksCompound(text) && !input.recentContext) {
+      const NO_PLAN: PlannerResult = { actions: [{ kind: 'none' }], confidence: 0, allAmountsGrounded: false };
+      const plan = await Promise.race([
+        planActions(text, locale),
+        new Promise<PlannerResult>((resolve) => setTimeout(() => resolve(NO_PLAN), 8000)),
+      ]);
       logPlannerShadow(plan, intentResult.intent, summarizeForLog(text));
-    });
+      if (isExecutablePlan(plan)) {
+        const legs = await executePlan({
+          userId: user.id,
+          spaceId: user.activeSpaceId,
+          baseCurrency: user.baseCurrency,
+          source,
+          text,
+          plan,
+        });
+        // legs === null → nothing was attempted; safe to fall through to legacy.
+        // legs !== null → the planner OWNS this turn (writes were attempted);
+        // we must NOT re-route, or we'd double-log the committed legs.
+        if (legs !== null) {
+          traceLog.info('CAPTURE_PLAN_LIVE', { count: legs.length, confidence: plan.confidence });
+          return c.json(
+            ok({
+              intent: 'expense' as const,
+              needsConfirmation: false,
+              queryResult: { kind: 'plan_batch', results: legs },
+              echo: text,
+            }),
+          );
+        }
+      }
+    } else {
+      void planActions(text, locale).then((plan) => {
+        logPlannerShadow(plan, intentResult.intent, summarizeForLog(text));
+      });
+    }
   }
 
   // Correction / undo of the most recent transaction. Only reachable when the
