@@ -169,6 +169,7 @@ Return JSON only:
       "splitPeople": integer >= 2 if this item was split, otherwise null,
       "originalAmount": positive number if foreign currency was stated, otherwise null,
       "originalCurrency": ISO code if foreign currency was stated, otherwise null,
+      "sourceText": the EXACT span of the user's message this item came from, or null,
       "confidence": 0..1
     }
   ],
@@ -183,7 +184,13 @@ Rules:
 - Never invent missing amount, currency, wallet, or date. Use null.
 - Keep each "description" a SHORT noun phrase; put any extra story/context for
   that item (who/why/occasion/place) in its "notes", or null if none.
-- A leading quantity ("2 porotta") is not the amount when a later price exists.`;
+- A leading quantity ("2 porotta") is not the amount when a later price exists.
+- "sourceText": copy the exact words of THIS item from the user's message,
+  and ALWAYS include the amount plus any currency word/symbol that applies to
+  it. If the user stated the currency once for several items (e.g. "in dollars:
+  100 hotel, 50 food"), REPEAT that currency word in EACH item's sourceText
+  ("$100 hotel", "$50 food"). Currency belongs to an item ONLY if a currency
+  token sits in that item's own sourceText.`;
 
 const llmSchema = z
   .object({
@@ -198,6 +205,7 @@ const llmSchema = z
     splitPeople: z.union([z.number(), z.string(), z.null()]).optional(),
     originalAmount: z.union([z.number(), z.string(), z.null()]).optional(),
     originalCurrency: z.union([z.string(), z.null()]).optional(),
+    sourceText: z.union([z.string(), z.null()]).optional(),
     confidence: z.union([z.number(), z.string()]).optional(),
   })
   .passthrough();
@@ -735,14 +743,36 @@ export async function parseExpense(input: ParseInput): Promise<ParsedExpense> {
   return finalDraft;
 }
 
+/**
+ * Resolve the slice of the user's message that a single batch item came from.
+ * We trust the model's echoed `sourceText` ONLY when it is genuinely a
+ * substring of the original message (case- and whitespace-insensitive) — a
+ * paraphrase or translation can't be used to locate currency tokens, so in
+ * that case we fall back to the whole message (the old, safe-but-coarse
+ * behaviour). This keeps the per-item currency guard a strict improvement:
+ * it can only ever NARROW the text the foreign-token check sees when the span
+ * is reliable, never widen it.
+ */
+function itemSpan(data: z.infer<typeof llmSchema>, fullText: string): string {
+  const src = typeof data.sourceText === 'string' ? data.sourceText.trim() : '';
+  if (!src) return fullText;
+  const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
+  return norm(fullText).includes(norm(src)) ? src : fullText;
+}
+
 function parsedFromLlmData(data: z.infer<typeof llmSchema>, text = ''): ParsedExpense {
-  // Same deterministic foreign-currency guard as the single-parse path: a
-  // non-INR currency is honoured only when the message explicitly names a
-  // foreign token, else it's a model hallucination → INR. For a batch the
-  // check runs against the whole message (safe over-approximation: a mixed
-  // "$100 hotel and 2000 food" keeps both because "$" is present).
+  // Per-ITEM foreign-currency guard. A non-INR currency is honoured only when
+  // a foreign token appears in THIS item's own span — not anywhere in the
+  // message. The old whole-message check corrupted mixed-currency batches:
+  // "$100 hotel and 2000 food" set hasForeignToken=true for the WHOLE string,
+  // so a hallucinated USD on the ₹2000 food item survived and booked food as
+  // USD 2000 (≈ ₹1.66 lakh). We now scope the check to the item's sourceText
+  // (the model echoes the exact span, repeating any global currency word into
+  // each item), and fall back to the whole message only when no usable span
+  // was provided — so the worst case is the old behaviour, never worse.
+  const span = itemSpan(data, text);
   const rawCurrency = coerceCurrency(data.currency);
-  const hasForeignToken = textHasForeignCurrencyToken(text);
+  const hasForeignToken = textHasForeignCurrencyToken(span);
   const guardedCurrency =
     rawCurrency && rawCurrency !== 'INR' && !hasForeignToken ? null : rawCurrency;
   const currencyStripped = !!rawCurrency && rawCurrency !== 'INR' && !hasForeignToken;
@@ -822,6 +852,8 @@ export async function parseExpenseBatch(input: ParseInput): Promise<ParsedExpens
 
 export const __parserFallbacksForTests = {
   inferDescriptionFallback,
+  parsedFromLlmData,
+  itemSpan,
 };
 
 /* -----------------------------------------------------------------------
