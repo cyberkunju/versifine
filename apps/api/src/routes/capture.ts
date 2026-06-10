@@ -29,6 +29,7 @@ import { classifyIntent } from '../services/ai/intent.ts';
 import { planActions, logPlannerShadow, type PlannerResult } from '../services/ai/planner.ts';
 import { executePlan, isExecutablePlan } from '../services/capture/plan.ts';
 import { screenInput } from '../services/ai/guard.ts';
+import { classifyEpistemic } from '../services/ai/epistemic.ts';
 import {
   handleLendBorrowSmart,
   handleTransfer,
@@ -638,6 +639,42 @@ async function runTextPipeline(input: RunPipelineInput) {
     sourceType: intentResult.source,
     inputSize: summarizeForLog(text),
   });
+
+  // EPISTEMIC GATE — never mint money the user didn't actually claim to spend.
+  // "I didn't pay the 500 rent", "if I buy it'll be 80000", "should I spend
+  // 5000?", "rent will be 15000 next month" all carry a number but assert NO
+  // transaction. We route them to the copilot (which answers the hypothetical
+  // / acknowledges the non-event) instead of logging a phantom entry.
+  //
+  // Runs AFTER classification so we can bypass it for the intents that are
+  // legitimately allowed to carry negation/future words: corrections
+  // ("no it was 600 not 500"), deletes, queries ("how much of my 5000 left"),
+  // and language switches. For every other intent — and for the compound
+  // planner below — a non-assertive message must not create money. High
+  // precision: blocks only when EVERY money-bearing clause is non-assertive.
+  const epistemicBypass =
+    intentResult.intent === 'correct_last' ||
+    intentResult.intent === 'delete_last' ||
+    intentResult.intent === 'query_spending' ||
+    intentResult.intent === 'query_summary' ||
+    intentResult.intent === 'query_last' ||
+    intentResult.intent === 'query_forecast' ||
+    intentResult.intent === 'query_debts' ||
+    intentResult.intent === 'change_language';
+  if (!epistemicBypass) {
+    const epistemic = classifyEpistemic(text);
+    if (!epistemic.assertive) {
+      traceLog.info('CAPTURE_EPISTEMIC_BLOCK', { reason: epistemic.reason, inputSize: summarizeForLog(text) });
+      return c.json(
+        ok({
+          intent: 'chat' as const,
+          needsConfirmation: false,
+          copilotStreamUrl: '/copilot/chat',
+          echo: text,
+        }),
+      );
+    }
+  }
 
   // PLANNER — compound utterances ("paid 500 rent and got 2000 salary and
   // lent ravi 300") that the single-intent legacy router would collapse to

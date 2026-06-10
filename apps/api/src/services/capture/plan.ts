@@ -28,6 +28,7 @@ import { createTransaction } from '../transactions/create.ts';
 import { createEntry } from '../ledger/index.ts';
 import { listLiveWallets, pickWallet } from './wallet.ts';
 import { textHasForeignCurrencyToken } from '../ai/parserRegex.ts';
+import { classifyEpistemic } from '../ai/epistemic.ts';
 import type { PlannedAction, PlannerResult } from '../ai/planner.ts';
 
 const TODAY = (): string => new Date().toISOString().slice(0, 10);
@@ -124,6 +125,19 @@ export async function executePlan(args: ExecutePlanArgs): Promise<PlanLegResult[
   let attempted = false;
   for (const action of actions) {
     try {
+      // Per-leg epistemic guard: a compound message can mix a real spend with
+      // a negated/hypothetical/future one ("paid 500 rent but won't pay the
+      // 2000 loan yet"). The message-level gate let the whole thing through
+      // because an asserted clause exists; here we drop any individual leg
+      // whose OWN span is non-assertive, so we never mint the phantom leg.
+      const legSpan = 'sourceText' in action ? action.sourceText : null;
+      if (typeof legSpan === 'string' && legSpan.trim()) {
+        const legEpistemic = classifyEpistemic(legSpan);
+        if (!legEpistemic.assertive) {
+          log.info('PLAN_LEG_SKIPPED_EPISTEMIC', { kind: action.kind, reason: legEpistemic.reason });
+          continue;
+        }
+      }
       if (action.kind === 'log_expense' || action.kind === 'log_income') {
         if (action.amount == null || !Number.isFinite(action.amount) || action.amount <= 0) continue;
         const walletPick = pickWallet(liveWallets, action.walletHint ?? null);
