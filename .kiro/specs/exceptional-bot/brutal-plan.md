@@ -69,4 +69,6 @@ Every flaw below is a symptom of premature commitment + invisible uncertainty + 
 ## Status log
 
 - `22b19f3` — P0-3 per-item foreign-currency guard. DONE, live-verified.
-- (next) item 1 — multi-currency totals.
+- `79603c2` — P0-4 (display half / item 1a): multi-item log total never sums across currencies. DONE, live-verified ("$100 + ₹2,000 total"). Brutal-review P1s folded in (item-derived total, normalised currency key, per-item rounding).
+- **item 1b (deferred)** — deeper P0-4: `create.ts` stores `baseAmount` in WALLET currency, not space base, so `query.ts`/`reports/summary.ts` sums are wrong for multi-currency-WALLET spaces. Needs space-base anchoring (+ intersects FX worker, item 4).
+- (next) **item 2** — flip the planner live for compound intents.
