@@ -132,7 +132,12 @@ export interface MessagePack {
     baseCurrency?: string,
   ) => string;
 
-  /** Confirmation after multiple transactions are logged from one message. */
+  /**
+   * Confirmation after multiple transactions are logged from one message.
+   * The total is derived ENTIRELY from `items` (grouped per currency) — we
+   * deliberately don't take a precomputed `total`/`currency`, because a
+   * decoupled cross-currency sum is exactly what produced the "$2,100" bug.
+   */
   captureLoggedMany: (
     items: Array<{
       amount: number;
@@ -140,8 +145,6 @@ export interface MessagePack {
       description: string;
       category: string | null;
     }>,
-    total: number,
-    currency: string,
   ) => string;
 
   /** Asks the user to confirm a draft before persisting. */

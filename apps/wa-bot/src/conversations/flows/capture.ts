@@ -237,15 +237,10 @@ function renderCaptureResponse(session: Session, response: CaptureResponseShape)
         if (last?.id) {
           rememberLastTransaction(session, last);
         }
-        const total =
-          typeof response.queryResult?.total === 'number'
-            ? response.queryResult.total
-            : txs.reduce((sum, tx) => sum + tx.amount, 0);
-        const currency =
-          typeof response.queryResult?.currency === 'string'
-            ? response.queryResult.currency
-            : (txs[0]?.currency ?? 'INR');
-        const text = m.captureLoggedMany(txs, total, currency);
+        // The total is derived per-currency inside captureLoggedMany from the
+        // items themselves — we no longer pass a precomputed cross-currency sum
+        // (that decoupling produced the "$2,100" bug for mixed batches).
+        const text = m.captureLoggedMany(txs);
         return { text, speakable: text };
       }
 

@@ -42,6 +42,24 @@ function formatAmount(value: number, currency: string): string {
   return `${symbol}${separator}${formatINR(value)}`;
 }
 
+/**
+ * Render the total line for a multi-item log. NEVER sums across currencies — a
+ * mixed "$100 hotel + ₹2000 food" batch shows "$100 + ₹2,000", not a
+ * meaningless "$2,100". Everything is derived from the items themselves
+ * (currency keys normalised, each amount rounded before accumulating) so the
+ * total can never drift from the line items the user sees.
+ */
+function formatGroupedTotal(items: ReadonlyArray<{ amount: number; currency: string }>): string {
+  const byCurrency = new Map<string, number>();
+  for (const it of items) {
+    const key = (it.currency || 'INR').trim().toUpperCase();
+    byCurrency.set(key, (byCurrency.get(key) ?? 0) + Math.round(it.amount * 100) / 100);
+  }
+  return Array.from(byCurrency.entries())
+    .map(([c, a]) => formatAmount(a, c))
+    .join(' + ');
+}
+
 function describeDraft(d: DraftSummary): string {
   const parts: string[] = [];
   if (d.amount !== null && d.currency) {
@@ -143,11 +161,11 @@ export const en: MessagePack = {
       : `✅ Logged ${primary}${original}.`;
   },
 
-  captureLoggedMany: (items, total, currency) => {
+  captureLoggedMany: (items) => {
     const lines = items
       .map((item) => `- ${formatAmount(item.amount, item.currency)} - ${item.description}`)
       .join('\n');
-    return `Logged ${items.length} expenses (${formatAmount(total, currency)} total):\n${lines}`;
+    return `Logged ${items.length} expenses (${formatGroupedTotal(items)} total):\n${lines}`;
   },
 
   captureNeedsConfirm: (draft) =>

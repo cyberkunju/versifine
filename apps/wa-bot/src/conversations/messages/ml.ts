@@ -40,6 +40,18 @@ function formatAmount(value: number, currency: string): string {
   return `${symbol}${separator}${formatINR(value)}`;
 }
 
+/** Per-currency total for a multi-item log; never sums across currencies. */
+function formatGroupedTotal(items: ReadonlyArray<{ amount: number; currency: string }>): string {
+  const byCurrency = new Map<string, number>();
+  for (const it of items) {
+    const key = (it.currency || 'INR').trim().toUpperCase();
+    byCurrency.set(key, (byCurrency.get(key) ?? 0) + Math.round(it.amount * 100) / 100);
+  }
+  return Array.from(byCurrency.entries())
+    .map(([c, a]) => formatAmount(a, c))
+    .join(' + ');
+}
+
 function describeDraft(d: DraftSummary): string {
   const parts: string[] = [];
   if (d.amount !== null && d.currency) parts.push(formatAmount(d.amount, d.currency));
@@ -132,11 +144,11 @@ export const ml: MessagePack = {
       : `✅ ${primary}${original} രേഖപ്പെടുത്തി.`;
   },
 
-  captureLoggedMany: (items, total, currency) => {
+  captureLoggedMany: (items) => {
     const lines = items
       .map((item) => `- ${formatAmount(item.amount, item.currency)} - ${item.description}`)
       .join('\n');
-    return `${items.length} ചെലവുകൾ രേഖപ്പെടുത്തി (${formatAmount(total, currency)} മൊത്തം):\n${lines}`;
+    return `${items.length} ചെലവുകൾ രേഖപ്പെടുത്തി (${formatGroupedTotal(items)} മൊത്തം):\n${lines}`;
   },
 
   captureNeedsConfirm: (draft) =>
