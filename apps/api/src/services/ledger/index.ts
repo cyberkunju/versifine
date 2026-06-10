@@ -199,7 +199,7 @@ export async function settleEntry(
           tags: ['ledger'],
         },
       });
-      linkedTransactionId = created.id;
+      linkedTransactionId = created.row.id;
     }
 
     const [settlement] = await tx

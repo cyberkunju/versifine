@@ -48,6 +48,8 @@ export interface PersistResult {
     description: string;
     date: string;
     category: string | null;
+    /** User-facing 6-char undo token (L2-2). Present on the create path. */
+    undoToken?: string;
   };
 }
 
@@ -114,7 +116,7 @@ export async function persistDraft(input: PersistInput): Promise<PersistResult |
       .limit(1);
     const walletCurrency = wallet?.currency ?? 'INR';
 
-    const row = await createTransaction({
+    const { row, undoToken } = await createTransaction({
       userId: input.userId,
       spaceId: input.spaceId,
       source: input.source,
@@ -138,6 +140,7 @@ export async function persistDraft(input: PersistInput): Promise<PersistResult |
         description: row.description,
         date: row.date,
         category: row.category,
+        undoToken,
       },
     };
   } catch (err) {

@@ -41,7 +41,19 @@ export interface CreateTransactionOptions {
   input: TransactionCreateInput | Record<string, unknown>;
 }
 
-export async function createTransaction(opts: CreateTransactionOptions): Promise<Transaction> {
+/**
+ * Result of a successful create. The `undoToken` is the user-facing 6-char
+ * handle the bot surfaces in its reply ("✅ Logged ₹50 · undo K7P2A9") and
+ * the user types back to reverse THIS specific create. Transactions stay
+ * lookups by the UUID `row.id` internally; the token is the conversational
+ * layer (L2-2).
+ */
+export interface CreateTransactionResult {
+  row: Transaction;
+  undoToken: string;
+}
+
+export async function createTransaction(opts: CreateTransactionOptions): Promise<CreateTransactionResult> {
   const parsed = transactionCreateInput.parse(opts.input);
   return await persist(opts.userId, opts.spaceId, opts.source, parsed, db);
 }
@@ -49,7 +61,7 @@ export async function createTransaction(opts: CreateTransactionOptions): Promise
 /** Variant that runs inside an existing Drizzle transaction (for batch imports). */
 export async function createTransactionInTx(
   opts: CreateTransactionOptions & { tx: Db | DbTx },
-): Promise<Transaction> {
+): Promise<CreateTransactionResult> {
   const parsed = transactionCreateInput.parse(opts.input);
   return await persist(opts.userId, opts.spaceId, opts.source, parsed, opts.tx);
 }
@@ -60,7 +72,7 @@ async function persist(
   source: Transaction['source'],
   parsed: TransactionCreateInput,
   database: Db | DbTx,
-): Promise<Transaction> {
+): Promise<CreateTransactionResult> {
   const [wallet] = await database
     .select({
       id: wallets.id,
@@ -146,8 +158,10 @@ async function persist(
       .returning();
     if (!row) throw errors.internal('Failed to insert transaction');
     // Audit + undo stack: record the create atomically with the insert so
-    // "undo" right after a log removes this exact row.
-    await recordMutation(tx, {
+    // "undo" right after a log removes this exact row. recordMutation
+    // returns the user-facing token (L2-2) — the bot surfaces it in the
+    // reply so the user can type it to reverse THIS specific create.
+    const { token } = await recordMutation(tx, {
       spaceId,
       userId,
       transactionId: row.id,
@@ -155,18 +169,18 @@ async function persist(
       after: snapshotTx(row),
       source,
     });
-    return row;
+    return { row, undoToken: token };
   });
 
-  emitCreated(userId, stored);
+  emitCreated(userId, stored.row);
   // Best-effort RAG embedding for EVERY creation path (manual web, CSV
   // import, copilot tool, capture/confirm). Fire-and-forget — never blocks
   // the create. The job resolves the row by id at run time, so it works
   // even when this persist ran inside a batch-import transaction that
   // commits slightly later.
-  enqueueEmbed(stored.id, stored.description);
+  enqueueEmbed(stored.row.id, stored.row.description);
   // Fire-and-forget budget recompute. We never block the create path on this.
-  void recomputeAffectedBudgets(userId, spaceId, stored.category).catch((err) => {
+  void recomputeAffectedBudgets(userId, spaceId, stored.row.category).catch((err) => {
     log.warn('BUDGET_RECOMPUTE_FAIL', {
       error: err instanceof Error ? err.message : String(err),
     });

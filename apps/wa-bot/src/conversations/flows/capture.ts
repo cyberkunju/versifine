@@ -259,6 +259,7 @@ function renderCaptureResponse(session: Session, response: CaptureResponseShape)
             type?: string;
             baseAmount?: number;
             baseCurrency?: string;
+            undoToken?: string;
           }
         | undefined;
       if (tx) {
@@ -268,16 +269,23 @@ function renderCaptureResponse(session: Session, response: CaptureResponseShape)
         if (tx.id) {
           rememberLastTransaction(session, tx);
         }
-        const text = m.captureLogged(
+        const logged = m.captureLogged(
           tx.amount,
           tx.currency,
           tx.category,
           tx.baseAmount,
           tx.baseCurrency,
         );
+        // L2-2: append the 6-char undo token so the user can reverse THIS
+        // specific entry by typing it back ("undo K7P2A9"). The speakable
+        // (TTS) version omits the token — reading out a code is awkward.
+        const text =
+          typeof tx.undoToken === 'string' && tx.undoToken
+            ? `${logged}${m.undoHint(tx.undoToken)}`
+            : logged;
         return {
           text,
-          speakable: text,
+          speakable: logged,
         };
       }
     }

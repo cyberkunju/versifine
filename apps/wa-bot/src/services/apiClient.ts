@@ -405,6 +405,23 @@ export async function undoLast(phone: string): Promise<UndoResultShape> {
   });
 }
 
+export interface UndoByTokenShape {
+  undone: boolean;
+  reason?: 'not_found' | 'already_undone';
+  reversed?: 'create' | 'update' | 'delete';
+  transaction?: { id: string; amount: number; currency: string; category: string | null; description: string };
+}
+
+/** Reverse a SPECIFIC mutation by its user-facing 6-char token (L2-2). */
+export async function undoByToken(phone: string, token: string): Promise<UndoByTokenShape> {
+  return await call<UndoByTokenShape>({
+    method: 'POST',
+    path: '/transactions/undo-token',
+    phone,
+    body: { token },
+  });
+}
+
 /** Soft-delete a transaction by id (records a 'delete' mutation; reversible via undo). */
 export async function deleteTransaction(
   phone: string,

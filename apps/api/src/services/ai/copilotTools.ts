@@ -429,7 +429,7 @@ export async function log_transaction(
     if (currency) input.currency = currency;
     if (category) input.category = category;
 
-    const row = await createTransaction({
+    const { row } = await createTransaction({
       userId: ctx.userId,
       spaceId: ctx.spaceId,
       source: ctx.source ?? 'manual_web',

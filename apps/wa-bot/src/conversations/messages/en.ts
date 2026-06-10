@@ -220,6 +220,10 @@ export const en: MessagePack = {
     return `${verb}: ${primary}${original} — ${tx.description}${cat} (${tx.date}).`;
   },
   queryLastEntryEmpty: "You haven't logged anything yet — send me an expense to begin.",
+  undoHint: (token) => ` · undo: ${token}`,
+  undoByTokenDone: (summary) => `↩️ Undone — ${summary} removed. It's like it never happened.`,
+  undoTokenNotFound: "I couldn't find that undo code. It may have expired or already been used.",
+  undoTokenAlready: 'That one was already undone — nothing more to do.',
 
   captureFollowup: (q) => q,
 

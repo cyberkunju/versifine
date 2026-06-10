@@ -254,6 +254,22 @@ export interface MessagePack {
   /** "What was my last transaction?" — but no transaction exists yet. */
   queryLastEntryEmpty: string;
 
+  /**
+   * Compact undo hint appended to a freshly-logged transaction reply
+   * (L2-2). The user types the token to reverse THIS specific entry.
+   * e.g. " · undo K7P2A9" — kept terse so it doesn't bury the confirmation.
+   */
+  undoHint: (token: string) => string;
+
+  /** Acknowledgement after a token-undo succeeded. */
+  undoByTokenDone: (summary: string) => string;
+
+  /** Token-undo: token not found in this user's space. */
+  undoTokenNotFound: string;
+
+  /** Token-undo: that entry was already undone. */
+  undoTokenAlready: string;
+
   /** Free-form follow-up question forwarded from the API. */
   captureFollowup: (question: string) => string;
 

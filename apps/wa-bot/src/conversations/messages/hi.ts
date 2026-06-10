@@ -205,6 +205,10 @@ export const hi: MessagePack = {
     return `${verb}: ${primary}${original} — ${tx.description}${cat} (${tx.date})।`;
   },
   queryLastEntryEmpty: 'अभी तक कुछ भी log नहीं हुआ — एक खर्च भेजें शुरू करने के लिए।',
+  undoHint: (token) => ` · undo: ${token}`,
+  undoByTokenDone: (summary) => `↩️ वापस लिया — ${summary} हटा दिया।`,
+  undoTokenNotFound: 'वह undo कोड नहीं मिला। शायद expire हो गया या पहले इस्तेमाल हो चुका।',
+  undoTokenAlready: 'वह पहले ही undo हो चुका — और कुछ नहीं करना।',
 
   captureFollowup: (q) => q,
 

@@ -34,7 +34,7 @@ import { safeNormalizeMerchant, safeUpsertOverride } from '../services/categoriz
 import { emit } from '../services/events/bus.ts';
 import { getRate } from '../services/fx/client.ts';
 import { createTransaction, emitCreated } from '../services/transactions/create.ts';
-import { recordMutation, snapshotTx, undoLastMutation } from '../services/transactions/mutations.ts';
+import { recordMutation, snapshotTx, undoLastMutation, undoMutationByToken } from '../services/transactions/mutations.ts';
 import {
   getTransactionById,
   listTransactions,
@@ -57,13 +57,13 @@ app.get('/', async (c) => {
 app.post('/', zValidator('json', transactionCreateInput), async (c) => {
   const u = c.get('user');
   const body = c.req.valid('json');
-  const row = await createTransaction({
+  const { row, undoToken } = await createTransaction({
     userId: u.id,
     spaceId: u.activeSpaceId,
     source: 'manual_web',
     input: body,
   });
-  return c.json(ok({ transaction: serializeTransaction(row) }), 201);
+  return c.json(ok({ transaction: serializeTransaction(row), undoToken }), 201);
 });
 
 app.get('/export', async (c) => {
@@ -108,7 +108,7 @@ app.post('/import', async (c) => {
     const rec = records[i] as Record<string, string>;
     try {
       const candidate = mapCsvRow(rec, walletByName);
-      const row = await createTransaction({
+      const { row } = await createTransaction({
         userId: u.id,
         spaceId: u.activeSpaceId,
         source: 'csv_import',
@@ -229,7 +229,8 @@ app.patch('/:id', zValidator('json', transactionUpdateInput), async (c) => {
   // mutation inside ONE DB transaction so a partial failure can never leave the
   // ledger mutated without an audit row (the invariant the gate relies on).
   // Side effects (events, budget recompute, category-override learning) only
-  // run AFTER successful commit.
+  // run AFTER successful commit. recordMutation now returns a 6-char user-
+  // facing undo token (L2-2) which we surface in the API response.
   const txResult = await db.transaction(async (tx) => {
     const [updated] = await tx
       .update(transactions)
@@ -244,7 +245,7 @@ app.patch('/:id', zValidator('json', transactionUpdateInput), async (c) => {
       .returning();
     if (!updated) throw errors.internal('Update failed');
 
-    await recordMutation(tx, {
+    const { token } = await recordMutation(tx, {
       spaceId: u.activeSpaceId,
       userId: u.id,
       transactionId: updated.id,
@@ -253,9 +254,10 @@ app.patch('/:id', zValidator('json', transactionUpdateInput), async (c) => {
       after: snapshotTx(updated),
       source: c.req.header('x-bot-secret') ? 'whatsapp_correction' : 'manual_web',
     });
-    return updated;
+    return { row: updated, token };
   });
-  const updated = txResult;
+  const updated = txResult.row;
+  const undoToken = txResult.token;
 
   if (body.category && body.category !== existing.category) {
     await recordCategoryCorrection(
@@ -274,7 +276,7 @@ app.patch('/:id', zValidator('json', transactionUpdateInput), async (c) => {
   });
   void recomputeAffectedBudgets(u.id, u.activeSpaceId, updated.category ?? existing.category);
 
-  return c.json(ok({ transaction: serializeTransaction(updated) }));
+  return c.json(ok({ transaction: serializeTransaction(updated), undoToken }));
 });
 
 app.delete('/:id', async (c) => {
@@ -304,7 +306,7 @@ app.delete('/:id', async (c) => {
       .returning();
     if (!row) return null;
 
-    await recordMutation(tx, {
+    const { token } = await recordMutation(tx, {
       spaceId: u.activeSpaceId,
       userId: u.id,
       transactionId: row.id,
@@ -312,7 +314,7 @@ app.delete('/:id', async (c) => {
       before: snapshotTx(existing),
       source: c.req.header('x-bot-secret') ? 'whatsapp_delete' : 'manual_web',
     });
-    return row;
+    return { row, token };
   });
 
   if (!txResult) throw errors.notFound('Transaction not found');
@@ -322,8 +324,8 @@ app.delete('/:id', async (c) => {
     entityId: id,
     data: { transactionId: id },
   });
-  void recomputeAffectedBudgets(u.id, u.activeSpaceId, txResult.category);
-  return c.json(ok({ deleted: true }));
+  void recomputeAffectedBudgets(u.id, u.activeSpaceId, txResult.row.category);
+  return c.json(ok({ deleted: true, undoToken: txResult.token }));
 });
 
 /**
@@ -340,6 +342,45 @@ app.post('/undo', async (c) => {
   //   delete → created (the row is back; clients that REMOVED on .deleted
   //                     must re-add — emitting .updated would leak rows)
   //   update → updated
+  const eventType =
+    result.reversed === 'create'
+      ? 'transaction.deleted'
+      : result.reversed === 'delete'
+        ? 'transaction.created'
+        : 'transaction.updated';
+  emit(u.id, {
+    type: eventType,
+    entityId: result.transaction.id,
+    data: { transactionId: result.transaction.id },
+  });
+  void recomputeAffectedBudgets(u.id, u.activeSpaceId, result.affectedCategory);
+  return c.json(
+    ok({
+      undone: true,
+      reversed: result.reversed,
+      transaction: result.transaction,
+    }),
+  );
+});
+
+/**
+ * Undo a SPECIFIC mutation by its user-facing token (L2-2). The bot surfaces
+ * a 6-char token in every mutation reply ("✅ Logged ₹50 · undo K7P2A9"); the
+ * user types the token to reverse THAT exact change, even if it wasn't the
+ * most recent. Token is scoped to the space so it can't touch another user's
+ * ledger. Returns { undone:false, reason } for not-found / already-undone.
+ */
+const undoTokenInput = z.object({ token: z.string().min(4).max(8) });
+app.post('/undo-token', zValidator('json', undoTokenInput), async (c) => {
+  const u = c.get('user');
+  const { token } = c.req.valid('json');
+  const result = await undoMutationByToken(u.activeSpaceId, token);
+  if (result === 'not_found') {
+    return c.json(ok({ undone: false, reason: 'not_found' }));
+  }
+  if (result === 'already_undone') {
+    return c.json(ok({ undone: false, reason: 'already_undone' }));
+  }
   const eventType =
     result.reversed === 'create'
       ? 'transaction.deleted'

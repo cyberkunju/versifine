@@ -208,6 +208,10 @@ export const ml: MessagePack = {
     return `${verb}: ${primary}${original} — ${tx.description}${cat} (${tx.date}).`;
   },
   queryLastEntryEmpty: 'ഇതുവരെ ഒന്നും രേഖപ്പെടുത്തിയിട്ടില്ല — ഒരു ചെലവ് അയച്ച് തുടങ്ങൂ.',
+  undoHint: (token) => ` · undo: ${token}`,
+  undoByTokenDone: (summary) => `↩️ പിൻവലിച്ചു — ${summary} നീക്കം ചെയ്തു.`,
+  undoTokenNotFound: 'ആ undo കോഡ് കണ്ടെത്താനായില്ല. കാലഹരണപ്പെട്ടതോ ഇതിനകം ഉപയോഗിച്ചതോ ആകാം.',
+  undoTokenAlready: 'അത് നേരത്തെ തന്നെ പിൻവലിച്ചു — ഇനി ഒന്നും ചെയ്യാനില്ല.',
 
   captureFollowup: (q) => q,
 

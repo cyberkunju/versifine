@@ -55,6 +55,7 @@ import {
   tryResolvePendingPick,
 } from './flows/reference.ts';
 import { handleUndo } from './flows/undo.ts';
+import { handleUndoToken, looksLikeUndoToken } from './flows/undoToken.ts';
 import { handleLanguagePick, handleEmailStep, resolveFirstContact } from './flows/identity.ts';
 import {
   handleHelp,
@@ -319,6 +320,14 @@ async function dispatch(session: Session, message: IncomingMessage): Promise<Dis
   const pick = await tryResolvePendingPick(session, message.body);
   if (pick) {
     return { text: pick.text, speakable: true };
+  }
+
+  // Token-undo (L2-2) — a bare 6-char token ("K7P2A9") or "undo K7P2A9"
+  // reverses THAT specific mutation. Runs before the reference/correction/
+  // capture flows so a token is never mis-parsed as an expense description.
+  if (looksLikeUndoToken(message.body)) {
+    const out = await handleUndoToken(session, message.body);
+    return { text: out.text, speakable: true };
   }
 
   // Reference command — "delete the coffee one", "change yesterday's lunch
