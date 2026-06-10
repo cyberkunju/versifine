@@ -17,6 +17,15 @@ export const INTENTS = [
   'query_summary',
   'query_forecast',
   'query_debts',
+  /**
+   * "What was my last transaction?" / "show me my last entry" — returns the
+   * single most-recent row, NOT a period summary. Production failure:
+   * `enthayirunnu ente last transaction` was being mapped to query_summary
+   * which returned this month's total (₹8,261, top: Restaurants) instead of
+   * the actual last row. The empath subagent named this the "wrong question
+   * answered" failure mode.
+   */
+  'query_last',
   'ask_advice',
   'lend',
   'borrow',

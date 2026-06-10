@@ -197,6 +197,17 @@ export const ml: MessagePack = {
   },
   imageUnreadable:
     '📷 ഫോട്ടോ കണ്ടു പക്ഷെ വ്യക്തമായി വായിക്കാൻ പറ്റിയില്ല. എത്രയാണെന്നും എന്തിനായിരുന്നുവെന്നും ടൈപ്പ് ചെയ്യൂ, അല്ലെങ്കിൽ കൂടുതൽ വ്യക്തമായ ഫോട്ടോ അയക്കൂ.',
+  queryLastEntry: (tx) => {
+    const isForeign = tx.baseAmount != null && tx.baseAmount > 0 && tx.currency !== 'INR';
+    const primary = isForeign
+      ? `₹${formatINR(tx.baseAmount!)}`
+      : formatAmount(tx.amount, tx.currency);
+    const original = isForeign ? ` (യഥാർത്ഥം ${formatAmount(tx.amount, tx.currency)})` : '';
+    const cat = tx.category ? ` · ${tx.category}` : '';
+    const verb = tx.type === 'income' ? 'അവസാന വരുമാനം' : 'അവസാന entry';
+    return `${verb}: ${primary}${original} — ${tx.description}${cat} (${tx.date}).`;
+  },
+  queryLastEntryEmpty: 'ഇതുവരെ ഒന്നും രേഖപ്പെടുത്തിയിട്ടില്ല — ഒരു ചെലവ് അയച്ച് തുടങ്ങൂ.',
 
   captureFollowup: (q) => q,
 

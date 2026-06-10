@@ -195,6 +195,28 @@ function renderCaptureResponse(session: Session, response: CaptureResponseShape)
       clearTurnLanguage(session);
       return { text: m.greeting };
     }
+    if (moneyKind === 'last') {
+      // Single-row pull from `query_last` — return the actual last
+      // transaction in the user's language, NOT a period summary.
+      const tx = qr?.transaction as
+        | {
+            type: string;
+            amount: number;
+            currency: string;
+            baseAmount: number | null;
+            description: string;
+            category: string | null;
+            date: string;
+            createdAt: string;
+          }
+        | null
+        | undefined;
+      if (!tx) {
+        return { text: m.queryLastEntryEmpty, speakable: m.queryLastEntryEmpty };
+      }
+      const text = m.queryLastEntry(tx);
+      return { text, speakable: text };
+    }
 
     if (
       response.intent === 'expense' ||

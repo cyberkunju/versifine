@@ -209,6 +209,17 @@ export const en: MessagePack = {
   },
   imageUnreadable:
     "📷 I see the image but couldn't read it clearly. Could you type the total and what it was for, or send a sharper photo?",
+  queryLastEntry: (tx) => {
+    const isForeign = tx.baseAmount != null && tx.baseAmount > 0 && tx.currency !== 'INR';
+    const primary = isForeign
+      ? `₹${formatINR(tx.baseAmount!)}`
+      : formatAmount(tx.amount, tx.currency);
+    const original = isForeign ? ` (originally ${formatAmount(tx.amount, tx.currency)})` : '';
+    const cat = tx.category ? ` · ${tx.category}` : '';
+    const verb = tx.type === 'income' ? 'Last income' : 'Last entry';
+    return `${verb}: ${primary}${original} — ${tx.description}${cat} (${tx.date}).`;
+  },
+  queryLastEntryEmpty: "You haven't logged anything yet — send me an expense to begin.",
 
   captureFollowup: (q) => q,
 

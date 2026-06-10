@@ -235,6 +235,25 @@ export interface MessagePack {
    */
   imageUnreadable: string;
 
+  /**
+   * "What was my last transaction?" — single-row pull. Localized formatter
+   * for the most-recent entry. The bot used to answer this with a monthly
+   * summary; this primitive returns the actual row in the user's language.
+   */
+  queryLastEntry: (tx: {
+    type: 'expense' | 'income' | 'transfer' | string;
+    amount: number;
+    currency: string;
+    baseAmount: number | null;
+    description: string;
+    category: string | null;
+    date: string;
+    createdAt: string;
+  }) => string;
+
+  /** "What was my last transaction?" — but no transaction exists yet. */
+  queryLastEntryEmpty: string;
+
   /** Free-form follow-up question forwarded from the API. */
   captureFollowup: (question: string) => string;
 

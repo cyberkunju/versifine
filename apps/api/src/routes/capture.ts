@@ -56,6 +56,7 @@ import {
 } from '../services/capture/drafts.ts';
 import { persistDraft } from '../services/capture/persist.ts';
 import { answerQuery } from '../services/capture/queryStubs.ts';
+import { listTransactions } from '../services/transactions/query.ts';
 import { listLiveWallets, pickWallet } from '../services/capture/wallet.ts';
 import { safeCategorize } from '../services/categorize/_safe.ts';
 import { categorizeFromMerchantDB } from '../services/categorize/merchants.ts';
@@ -798,6 +799,45 @@ async function runTextPipeline(input: RunPipelineInput) {
         intent: intentResult.intent,
         needsConfirmation: false,
         queryResult: reply,
+        echo: text,
+      }),
+    );
+  }
+
+  // "What was my last transaction?" — first-class fast path. Returns the
+  // single most-recent row instead of the period summary the user used to
+  // get from the catch-all query_summary intent.
+  if (intentResult.intent === 'query_last') {
+    const result = await listTransactions(user.activeSpaceId, { limit: '1', offset: '0' });
+    const last = result.items[0] ?? null;
+    if (!last) {
+      return c.json(
+        ok({
+          intent: 'query_last' as const,
+          needsConfirmation: false,
+          queryResult: { kind: 'last', transaction: null },
+          echo: text,
+        }),
+      );
+    }
+    return c.json(
+      ok({
+        intent: 'query_last' as const,
+        needsConfirmation: false,
+        queryResult: {
+          kind: 'last',
+          transaction: {
+            id: last.id,
+            type: last.type,
+            amount: last.amount,
+            currency: last.currency,
+            baseAmount: last.baseAmount,
+            description: last.description,
+            category: last.category,
+            date: last.date,
+            createdAt: last.createdAt,
+          },
+        },
         echo: text,
       }),
     );

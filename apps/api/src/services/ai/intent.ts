@@ -62,6 +62,16 @@ Read the user's message and pick exactly ONE intent from this list:
                      (today, yesterday, this week, this month, last month, etc.),
                      e.g. "today spend", "how much today", "this week total",
                      "kitna kharch hua aaj", "ഇന്ന് എത്ര ചെലവായി"
+  query_last       — user asks for their MOST RECENT TRANSACTION (a single
+                     row), not a period summary. "what was my last
+                     transaction", "show me my last entry", "what did I just
+                     log", "my recent expense", "aakhri kharch", "aakhri
+                     entry", "enthayirunnu ente last", "kadaisi chelavu",
+                     "previous one", "the last one" — in any language.
+                     Distinguished from query_summary by the noun: "last
+                     month" is a period (→ query_summary), "last entry" /
+                     "last transaction" / "last expense" is a single-row
+                     pull (→ query_last).
   query_forecast   — user asks how much they'll spend next, projection, what's coming
   query_debts      — user asks about money OWED: who owes them, how much they
                      owe, what a specific person owes, "am I debt free", "my
@@ -261,6 +271,30 @@ function regexFallback(text: string): IntentResult {
       amount: null,
       currency: null,
       confidence: 0.55,
+      source: 'regex',
+    };
+  }
+  // Last-entry fast path. The presence of a "last/recent/previous/aakhri/...
+  // (entry|transaction|expense|kharch|chelavu)" pair is a strong signal —
+  // distinct from "last month/week" (→ query_summary). We test a token-pair
+  // pattern rather than just one word so "last month total" stays a summary.
+  if (
+    /\b(?:my\s+)?(?:last|recent|prev|previous|aakhri|akhri|last|kadaisi)\s+(?:one|entry|entries|transaction|transactions|expense|expenses|spend|kharch|kharcha|kharcha|chelav|chelavu|chelavakku|kharchu|item|items)\b/i.test(
+      lower,
+    ) ||
+    /\b(?:enthayirunnu|enthaayirunnu)\s+(?:ente\s+)?last\b/i.test(lower) ||
+    /\bwhat\s+(?:did\s+i\s+(?:just\s+)?(?:log|spend|enter)|was\s+my\s+last)\b/i.test(lower) ||
+    /\bwhich\s+was\s+(?:my\s+)?last\b/i.test(lower) ||
+    /\bshow\s+(?:me\s+)?(?:my\s+)?last\s+(?:entry|transaction|expense|spend|kharch|chelav)/i.test(
+      lower,
+    )
+  ) {
+    return {
+      intent: 'query_last',
+      category: null,
+      amount: null,
+      currency: null,
+      confidence: 0.7,
       source: 'regex',
     };
   }

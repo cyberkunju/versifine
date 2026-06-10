@@ -194,6 +194,17 @@ export const hi: MessagePack = {
   },
   imageUnreadable:
     '📷 तस्वीर देखी पर ठीक से पढ़ नहीं पाया। Total और किसके लिए था टाइप करें, या साफ़ photo भेजें।',
+  queryLastEntry: (tx) => {
+    const isForeign = tx.baseAmount != null && tx.baseAmount > 0 && tx.currency !== 'INR';
+    const primary = isForeign
+      ? `₹${formatINR(tx.baseAmount!)}`
+      : formatAmount(tx.amount, tx.currency);
+    const original = isForeign ? ` (मूल ${formatAmount(tx.amount, tx.currency)})` : '';
+    const cat = tx.category ? ` · ${tx.category}` : '';
+    const verb = tx.type === 'income' ? 'पिछली आमदनी' : 'पिछली entry';
+    return `${verb}: ${primary}${original} — ${tx.description}${cat} (${tx.date})।`;
+  },
+  queryLastEntryEmpty: 'अभी तक कुछ भी log नहीं हुआ — एक खर्च भेजें शुरू करने के लिए।',
 
   captureFollowup: (q) => q,
 
