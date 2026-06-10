@@ -54,6 +54,15 @@ export interface Session {
   accountResolved: boolean;
   /** Last activity timestamp used for the 12h sweep. */
   lastSeenAt: number;
+  /**
+   * TRANSIENT, per-turn detected input language. Set by the engine at the
+   * start of every turn (when message.body has detectable script/markers)
+   * and cleared at end of turn. NEVER persisted to the DB — that's what
+   * `language` is for. Flows that produce user-facing text should prefer
+   * `turnLanguage ?? language` so a Manglish question gets a Malayalam
+   * answer even when the persistent session is `en`.
+   */
+  turnLanguage?: Language;
 }
 
 export interface IncomingMessage {

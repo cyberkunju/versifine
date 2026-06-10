@@ -16,9 +16,10 @@ import { ApiClientError, undoLast } from '../../services/apiClient.ts';
 import { getMessages } from '../messages/index.ts';
 import { updateSession } from '../state.ts';
 import { log } from '../../utils/logger.ts';
+import { effectiveLanguage } from '../../utils/langDetect.ts';
 
 export async function handleUndo(session: Session): Promise<{ text: string }> {
-  const m = getMessages(session.language);
+  const m = getMessages(effectiveLanguage(session));
   try {
     const res = await undoLast(session.phone);
     if (!res.undone || !res.transaction) {

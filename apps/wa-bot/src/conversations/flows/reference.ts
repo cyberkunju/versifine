@@ -23,6 +23,7 @@ import { ApiClientError, deleteTransaction, patchTransaction, resolveTxReference
 import { getMessages } from '../messages/index.ts';
 import { updateSession } from '../state.ts';
 import { log } from '../../utils/logger.ts';
+import { effectiveLanguage } from '../../utils/langDetect.ts';
 
 /** Verbs that signal the user wants to MODIFY/REMOVE a transaction. */
 const DELETE_VERB = /\b(delete|remove|cancel|undo|kill)\b/i;
@@ -90,7 +91,7 @@ export async function handleReferenceCommand(
   session: Session,
   body: string,
 ): Promise<{ text: string }> {
-  const m = getMessages(session.language);
+  const m = getMessages(effectiveLanguage(session));
   const lower = body.toLowerCase();
   const isDelete = DELETE_VERB.test(lower) && !/\bto\s+\d/i.test(lower);
   const targetAmount = isDelete ? null : extractCorrectionAmount(body);
@@ -109,9 +110,7 @@ export async function handleReferenceCommand(
   }
 
   if (candidates.length === 0) {
-    return {
-      text: `I couldn't find a matching transaction. Try mentioning the amount, the merchant, or the date — e.g. "delete the ₹250 coffee" or "change yesterday's lunch to 350".`,
-    };
+    return { text: m.refNoMatch };
   }
 
   // Multiple candidates → ask which one. Stash them on the session so a
@@ -127,7 +126,7 @@ export async function handleReferenceCommand(
     };
     updateSession(session.phone, { pending });
     return {
-      text: `Which one do you want to ${verb}?\n${list}\nReply with the number (1-${candidates.length}) or CANCEL.`,
+      text: m.refMultipleCandidates(verb, list, candidates.length),
     };
   }
 
@@ -142,7 +141,7 @@ async function applyReferenceAction(
   isDelete: boolean,
   targetAmount: number | null,
 ): Promise<{ text: string }> {
-  const m = getMessages(session.language);
+  const m = getMessages(effectiveLanguage(session));
   try {
     if (isDelete) {
       await deleteTransaction(session.phone, c.id);
@@ -172,7 +171,7 @@ async function applyReferenceAction(
       const newAmt = `₹${transaction.amount.toLocaleString('en-IN')}`;
       return { text: m.correctUpdated(`${oldAmt} → ${newAmt}`) };
     }
-    return { text: 'Found the entry but I need to know what to change it to.' };
+    return { text: m.refUpdateNeedsTarget };
   } catch (err) {
     log.warn('REF_CMD_APPLY_FAIL', {
       phone: session.phone,
@@ -206,7 +205,7 @@ export async function tryResolvePendingPick(
     const cleared = { ...(session.pending ?? {}) };
     delete cleared.pendingRefAction;
     updateSession(session.phone, { pending: cleared });
-    return { text: 'Cancelled.' };
+    return { text: getMessages(effectiveLanguage(session)).refPickCancelled };
   }
   // Number pick.
   const numMatch = /^\s*(\d{1,2})\b/.exec(body) ?? /^\s*(?:the\s+)?(first|second|third|fourth|fifth)\b/i.exec(body);

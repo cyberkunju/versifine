@@ -48,6 +48,8 @@
  */
 import type { Session } from '../types.ts';
 import { log } from '../utils/logger.ts';
+import { effectiveLanguage } from '../utils/langDetect.ts';
+import { getMessages } from './messages/index.ts';
 import { updateSession } from './state.ts';
 
 /** All known frame kinds. Adding a new frame requires a new resolver. */
@@ -258,8 +260,9 @@ export async function tryResolveFrame(
   const cancelToken = normalizeForCancel(body);
   if (cancelToken && CANCEL_TOKENS.has(cancelToken)) {
     clearOpenFrame(session, 'user_cancel');
+    const m = getMessages(effectiveLanguage(session));
     return {
-      text: 'Cancelled. What would you like to do?',
+      text: m.frameCancelled,
       speakable: false,
       consumed: true,
     };
@@ -285,8 +288,9 @@ export async function tryResolveFrame(
       kind: frame.kind,
       error: err instanceof Error ? err.message.slice(0, 200) : String(err),
     });
+    const m = getMessages(effectiveLanguage(session));
     return {
-      text: 'Something went wrong. Please try again, or type CANCEL to skip.',
+      text: m.frameError,
       speakable: false,
       consumed: true,
     };
@@ -303,10 +307,9 @@ export async function tryResolveFrame(
     log.info('FRAME_RETRY', { phone: session.phone, kind: frame.kind, retries });
     if (retries >= MAX_RETRIES) {
       clearOpenFrame(session, 'max_retries');
+      const m = getMessages(effectiveLanguage(session));
       return {
-        text:
-          verdict.text +
-          '\n\n(Cancelled — too many tries. Send a fresh message when ready.)',
+        text: verdict.text + m.frameMaxRetriesSuffix,
         speakable: false,
         consumed: true,
       };

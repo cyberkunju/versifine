@@ -166,6 +166,21 @@ export const ml: MessagePack = {
     return `ഏത് ${word} ആണെന്ന് മനസ്സിലായില്ല. നമ്പർ (1-${options.length}) അല്ലെങ്കിൽ ${codes}-ൽ ഒന്ന് അയക്കൂ.`;
   },
 
+  frameCancelled: 'റദ്ദാക്കി. ഇനി എന്താണ് ചെയ്യേണ്ടത്?',
+  frameError: 'എന്തോ പിശക് സംഭവിച്ചു. വീണ്ടും ശ്രമിക്കൂ, അല്ലെങ്കിൽ CANCEL അയക്കൂ.',
+  frameMaxRetriesSuffix: '\n\n(റദ്ദാക്കി — വളരെയധികം ശ്രമങ്ങൾ. തയ്യാറാകുമ്പോൾ പുതിയ സന്ദേശം അയക്കൂ.)',
+  nothingToConfirm: 'ഇപ്പോൾ confirm ചെയ്യാൻ ഒന്നുമില്ല. HELP അയക്കൂ.',
+  engineError: 'എന്തോ പിശക് സംഭവിച്ചു. വീണ്ടും ശ്രമിക്കൂ അല്ലെങ്കിൽ RESET അയക്കൂ.',
+  voiceUnclear: '🎤 ശബ്ദം വ്യക്തമല്ല. വീണ്ടും അയക്കൂ അല്ലെങ്കിൽ ടൈപ്പ് ചെയ്യൂ.',
+  refNoMatch:
+    'പൊരുത്തപ്പെടുന്ന transaction കണ്ടെത്താനായില്ല. തുക, merchant, അല്ലെങ്കിൽ തീയതി പറയൂ — ഉദാ "delete the ₹250 coffee" അല്ലെങ്കിൽ "change yesterday\'s lunch to 350".',
+  refMultipleCandidates: (verb, list, count) =>
+    `ഏതാണ് ${verb} ചെയ്യേണ്ടത്?\n${list}\nനമ്പർ (1-${count}) അയക്കൂ അല്ലെങ്കിൽ CANCEL.`,
+  refUpdateNeedsTarget: 'Entry കണ്ടെത്തി പക്ഷെ എന്ത് മാറ്റണമെന്ന് അറിയില്ല.',
+  refPickCancelled: 'റദ്ദാക്കി.',
+  captureMissingDetail:
+    'ഒരു detail ബാക്കിയുണ്ട്. ഇവിടെ ടൈപ്പ് ചെയ്യൂ, അല്ലെങ്കിൽ CANCEL അയക്കൂ.',
+
   captureFollowup: (q) => q,
 
   captureAsk: (needs) => {

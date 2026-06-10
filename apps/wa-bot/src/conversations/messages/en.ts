@@ -177,6 +177,21 @@ export const en: MessagePack = {
     return `I didn't catch which ${word}. Reply with the number (1-${options.length}) or one of ${codes}.`;
   },
 
+  frameCancelled: 'Cancelled. What would you like to do?',
+  frameError: 'Something went wrong. Please try again, or type CANCEL to skip.',
+  frameMaxRetriesSuffix: '\n\n(Cancelled — too many tries. Send a fresh message when ready.)',
+  nothingToConfirm: 'Nothing to confirm right now. Send HELP for commands.',
+  engineError: 'Something went wrong. Try again or send RESET.',
+  voiceUnclear: "🎤 I couldn't make out that voice note. Could you try again or type it?",
+  refNoMatch:
+    "I couldn't find a matching transaction. Try mentioning the amount, the merchant, or the date — e.g. \"delete the ₹250 coffee\" or \"change yesterday's lunch to 350\".",
+  refMultipleCandidates: (verb, list, count) =>
+    `Which one do you want to ${verb}?\n${list}\nReply with the number (1-${count}) or CANCEL.`,
+  refUpdateNeedsTarget: 'Found the entry but I need to know what to change it to.',
+  refPickCancelled: 'Cancelled.',
+  captureMissingDetail:
+    'I need one missing detail. Type it here, or send CANCEL to discard this draft.',
+
   captureFollowup: (q) => q,
 
   captureAsk: (needs) => {

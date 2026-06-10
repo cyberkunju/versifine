@@ -73,6 +73,7 @@ import {
 } from './languageMenu.ts';
 import type { InteractiveListSpec } from '../types.ts';
 import { getSession, setReplyMode, setState, updateSession, preloadSession, persistSession } from './state.ts';
+import { clearTurnLanguage, commitTurnLanguage, effectiveLanguage } from '../utils/langDetect.ts';
 
 interface DispatchOutcome {
   /** Localized text from the flow handler (still in the *engine's source language*, en for ta/te/kn). */
@@ -114,6 +115,17 @@ async function dispatch(session: Session, message: IncomingMessage): Promise<Dis
   // Make sure frame resolvers are wired up. First call is async; subsequent
   // calls are a memoized no-op so this stays cheap on the hot path.
   await ensureResolvers();
+
+  // PER-TURN LANGUAGE DETECTION — runs FIRST, before any flow that produces
+  // user-facing text. The cardinal sin we're killing: a Manglish/Hinglish/
+  // native-script user gets an English lecture because their session was
+  // bootstrapped as `en`. From now on, every reply respects what the user
+  // actually wrote on THIS turn.
+  if (message.body && message.body.trim()) {
+    commitTurnLanguage(session, message.body);
+  } else {
+    clearTurnLanguage(session);
+  }
 
   // OPEN-FRAME RESOLVER — runs FIRST, before universal commands, link
   // handling, state-based dispatch, settings/copilot/capture. This is the
@@ -191,7 +203,8 @@ async function dispatch(session: Session, message: IncomingMessage): Promise<Dis
           return { text: result.text, speakable: true };
         }
         // Otherwise the user typed CONFIRM/CANCEL out of context; ignore.
-        return { text: 'Nothing to confirm right now. Send HELP for commands.', speakable: false };
+        const mUni = getMessages(effectiveLanguage(session));
+        return { text: mUni.nothingToConfirm, speakable: false };
       }
     }
   }
@@ -213,7 +226,7 @@ async function dispatch(session: Session, message: IncomingMessage): Promise<Dis
 
   // CAPTURE_CONFIRM with free-form follow-up.
   if (session.state === 'CAPTURE_CONFIRM') {
-    const m = getMessages(session.language);
+    const m = getMessages(effectiveLanguage(session));
     if (message.hasImage && message.imageBuffer) {
       // Treat a receipt/photo as a fresh capture instead of shoving an
       // empty caption through the text-only draft-confirm endpoint.
@@ -224,9 +237,7 @@ async function dispatch(session: Session, message: IncomingMessage): Promise<Dis
     }
     if (!message.body.trim()) {
       return {
-        text: m.captureFollowup(
-          'I need one missing detail. Type it here, or send CANCEL to discard this draft.',
-        ),
+        text: m.captureMissingDetail,
         speakable: true,
       };
     }
@@ -407,12 +418,10 @@ export async function runEngine(message: IncomingMessage): Promise<OutgoingReply
     });
     if (!voiceTranscript) {
       // Couldn't make out the audio — tell the user instead of failing
-      // silently or pushing an empty body downstream.
-      const couldntHear = await localize(
-        "🎤 I couldn't make out that voice note. Could you try again or type it?",
-        getSession(message.phone).language,
-      );
-      return { text: couldntHear, state: getSession(message.phone).state };
+      // silently or pushing an empty body downstream. We have no inbound
+      // text body to detect a turn-language from, so use session.language.
+      const sess = getSession(message.phone);
+      return { text: getMessages(sess.language).voiceUnclear, state: sess.state };
     }
     // Collapse to a text message carrying the transcript. Downstream flows
     // (capture/confirm/budget/query) now see plain text — single source of
@@ -497,11 +506,14 @@ export async function runEngine(message: IncomingMessage): Promise<OutgoingReply
       phone: active.phone,
       error: err instanceof Error ? err.message.slice(0, 200) : String(err),
     });
-    outcome = { text: 'Something went wrong. Try again or send RESET.' };
+    outcome = { text: getMessages(effectiveLanguage(active)).engineError };
   }
 
   const body = welcomePrefix ? `${welcomePrefix}\n\n${outcome.text}` : outcome.text;
-  const localized = await localize(body, active.language);
+  // Use the per-turn detected language (Manglish in → Malayalam out) when
+  // available; fall back to the persistent session language otherwise.
+  const replyLang = effectiveLanguage(active);
+  const localized = await localize(body, replyLang);
 
   // Record bot response in conversational history
   if (localized && localized.trim()) {
@@ -521,8 +533,12 @@ export async function runEngine(message: IncomingMessage): Promise<OutgoingReply
   const speakable = outcome.speakable !== false && active.replyMode !== 'text' && wasVoice;
   // Only the actual answer is spoken, never the transcript echo.
   const voicePromise: Promise<OutgoingVoice | null> | undefined = speakable
-    ? speak(localized, active.language)
+    ? speak(localized, replyLang)
     : undefined;
+
+  // Clear the transient turn-language BEFORE persistSession so it never
+  // leaks to the DB. The persistent session.language stays intact.
+  clearTurnLanguage(active);
 
   await persistSession(active.phone);
 

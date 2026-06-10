@@ -25,6 +25,7 @@ import { ApiClientError, captureConfirm } from '../../services/apiClient.ts';
 import { setState, updateSession } from '../state.ts';
 import { log } from '../../utils/logger.ts';
 import { getMessages } from '../messages/index.ts';
+import { effectiveLanguage } from '../../utils/langDetect.ts';
 import {
   type FrameOption,
   type OpenFrame,
@@ -89,7 +90,7 @@ export function rememberCurrencyChoice(
     label: `${o.name} (${o.code})`,
     payload: o,
   }));
-  const m = getMessages(session.language);
+  const m = getMessages(effectiveLanguage(session));
   setOpenFrame(session, {
     kind: 'currency_choice',
     prompt: m.currencyChoicePrompt(word, options, amount),
@@ -177,7 +178,7 @@ const currencyResolver = async (
   const ctx = frame.context as CurrencyChoiceContext;
   if (!ctx?.draftId || !Array.isArray(ctx.options)) return { kind: 'unrelated' };
 
-  const m = getMessages(session.language);
+  const m = getMessages(effectiveLanguage(session));
   const verdict = resolvePick(body, ctx.options);
 
   if (verdict.kind === 'unrelated') return { kind: 'unrelated' };

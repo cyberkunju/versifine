@@ -17,6 +17,7 @@ import { ApiClientError, createBudget } from '../../services/apiClient.ts';
 import { log } from '../../utils/logger.ts';
 import { getMessages } from '../messages/index.ts';
 import { setState, updateSession } from '../state.ts';
+import { effectiveLanguage } from '../../utils/langDetect.ts';
 
 export interface BudgetResult {
   text: string;
@@ -109,7 +110,7 @@ async function submitBudget(
   category: Category,
   amount: number,
 ): Promise<BudgetResult> {
-  const m = getMessages(session.language);
+  const m = getMessages(effectiveLanguage(session));
   try {
     await createBudget(session.phone, {
       name: `${category} budget`,
@@ -130,7 +131,7 @@ async function submitBudget(
 }
 
 async function submitOverallBudget(session: Session, amount: number): Promise<BudgetResult> {
-  const m = getMessages(session.language);
+  const m = getMessages(effectiveLanguage(session));
   try {
     await createBudget(session.phone, {
       name: 'Monthly budget',
@@ -151,7 +152,7 @@ async function submitOverallBudget(session: Session, amount: number): Promise<Bu
 }
 
 export async function handleBudget(session: Session, body: string): Promise<BudgetResult> {
-  const m = getMessages(session.language);
+  const m = getMessages(effectiveLanguage(session));
   const text = body.trim();
 
   // First-touch: a set-budget message in any phrasing ("set a budget for food

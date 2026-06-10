@@ -27,6 +27,7 @@ import { log } from '../../utils/logger.ts';
 import { translateChatAnswer } from '../../services/ai/translate.ts';
 import { applyParsedCorrection } from './correct.ts';
 import { rememberCurrencyChoice } from './currencyPick.ts';
+import { clearTurnLanguage, effectiveLanguage } from '../../utils/langDetect.ts';
 import { getMessages } from '../messages/index.ts';
 import type { QuerySummaryView, LedgerView, LedgerSettledView, DebtsView, TransferView } from '../messages/types.ts';
 import { setState, updateSession } from '../state.ts';
@@ -111,7 +112,7 @@ function summarizeQueryResult(result: Record<string, unknown> | undefined): stri
 }
 
 function renderCaptureResponse(session: Session, response: CaptureResponseShape): CaptureResult {
-  const m = getMessages(session.language);
+  const m = getMessages(effectiveLanguage(session));
 
   // Currency disambiguation — the API parsed an amount with a generic
   // "riyal"/"rial"/"dinar" word and no country qualifier. Stash the options
@@ -177,6 +178,12 @@ function renderCaptureResponse(session: Session, response: CaptureResponseShape)
       const lang = typeof qr?.language === 'string' ? qr.language : null;
       if (lang && isLanguage(lang)) {
         updateSession(session.phone, { language: lang as Language });
+        // Clear the turn-language detection so `effectiveLanguage` falls
+        // through to the just-set persistent language. Without this, a
+        // user typing "ningalkku tamil-il samsarikkanam" detects ml as the
+        // turn language, sets language=ta, but renders the confirmation
+        // in Malayalam (turn) instead of Tamil (target).
+        clearTurnLanguage(session);
         const mt = getMessages(lang as Language);
         const label = LANGUAGE_META[lang as Language].englishName;
         const text = mt.languageChanged?.(label) ?? `Done — I'll reply in ${label} from now on.`;
@@ -185,6 +192,7 @@ function renderCaptureResponse(session: Session, response: CaptureResponseShape)
       // Couldn't resolve the target → drop into language-pick mode and show
       // the menu (the user can tap or type a language).
       setState(session.phone, 'AWAITING_LANGUAGE');
+      clearTurnLanguage(session);
       return { text: m.greeting };
     }
 
@@ -320,7 +328,7 @@ function renderCaptureResponse(session: Session, response: CaptureResponseShape)
  * pointer. Replies with what was removed + how to bring it back.
  */
 async function handleDeleteLast(session: Session): Promise<CaptureResult> {
-  const m = getMessages(session.language);
+  const m = getMessages(effectiveLanguage(session));
   if (!session.lastTransactionId) {
     return { text: m.correctNotPossible };
   }
@@ -348,15 +356,20 @@ async function handleDeleteLast(session: Session): Promise<CaptureResult> {
  * Falls back to the website nudge if the answer can't be produced.
  */
 async function answerChat(session: Session, question: string): Promise<CaptureResult> {
-  const m = getMessages(session.language);
+  // Respect the per-turn detected language (Manglish in → Malayalam out)
+  // over the persistent session language. This is the cardinal sin we
+  // committed for years — a user wrote `eda kazhveri njan last
+  // chelavakkiyath…` and got a long English-translated lecture back.
+  const replyLang = effectiveLanguage(session);
+  const m = getMessages(replyLang);
   if (!question.trim()) return { text: m.copilotNudge };
   try {
     const { answer } = await askCopilot(session.phone, question);
     if (answer && answer.trim()) {
-      // The copilot always answers in English now; translate the dynamic
-      // answer into the user's language (clean, native — even for hi/ml, whose
-      // fixed packs are native but whose model-generated chat text was clunky).
-      const localized = await translateChatAnswer(answer.trim(), session.language);
+      // Translate the model's English answer into the user's *turn* language
+      // (clean, native — even for hi/ml, whose fixed packs are native but
+      // whose model-generated chat text was clunky).
+      const localized = await translateChatAnswer(answer.trim(), replyLang);
       return { text: localized, speakable: localized };
     }
     return { text: m.copilotNudge };
@@ -373,7 +386,7 @@ export async function handleCapture(
   session: Session,
   message: IncomingMessage,
 ): Promise<CaptureResult> {
-  const m = getMessages(session.language);
+  const m = getMessages(effectiveLanguage(session));
   // The API's /capture/* `locale` is the short language enum (en/hi/ml/ta/te/kn),
   // NOT a BCP-47 tag. Sending `en-IN` here makes captureTextInput's zod enum
   // reject every request with a 400 ZodError, which the bot rendered as the
@@ -474,7 +487,7 @@ export async function handleConfirm(
   command: 'CONFIRM' | 'CANCEL' | 'EDIT',
   followupBody: string | null,
 ): Promise<CaptureResult> {
-  const m = getMessages(session.language);
+  const m = getMessages(effectiveLanguage(session));
   if (!session.lastDraftId) {
     setState(session.phone, 'LINKED_MAIN');
     return { text: m.unknown };

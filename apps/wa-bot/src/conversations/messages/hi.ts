@@ -163,6 +163,21 @@ export const hi: MessagePack = {
     return `${word} कौन सा, समझ नहीं आया। नंबर (1-${options.length}) या इनमें से एक भेजें: ${codes}।`;
   },
 
+  frameCancelled: 'रद्द किया। आगे क्या करना है?',
+  frameError: 'कुछ गड़बड़ हुई। फिर से कोशिश करें, या CANCEL टाइप करें।',
+  frameMaxRetriesSuffix: '\n\n(रद्द — बहुत बार कोशिश की। तैयार होने पर नया मैसेज भेजें।)',
+  nothingToConfirm: 'अभी confirm करने को कुछ नहीं है। HELP भेजें।',
+  engineError: 'कुछ गड़बड़ हो गई। फिर से कोशिश करें या RESET भेजें।',
+  voiceUnclear: '🎤 आवाज़ समझ नहीं आई। दोबारा भेजें या टाइप करें।',
+  refNoMatch:
+    'मिलती-जुलती transaction नहीं मिली। amount, merchant, या date बताएँ — जैसे "delete the ₹250 coffee" या "change yesterday\'s lunch to 350"।',
+  refMultipleCandidates: (verb, list, count) =>
+    `कौन सा ${verb} करना है?\n${list}\nनंबर (1-${count}) भेजें या CANCEL।`,
+  refUpdateNeedsTarget: 'Entry मिल गई पर पता नहीं क्या बदलना है।',
+  refPickCancelled: 'रद्द किया।',
+  captureMissingDetail:
+    'एक छोटी सी detail चाहिए। यहाँ टाइप करें, या CANCEL भेजें।',
+
   captureFollowup: (q) => q,
 
   captureAsk: (needs) => {

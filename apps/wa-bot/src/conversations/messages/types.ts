@@ -173,6 +173,47 @@ export interface MessagePack {
     options: ReadonlyArray<{ code: string; country: string; name: string }>,
   ) => string;
 
+  /** Universal-cancel acknowledgement — used when the user types CANCEL,
+   *  STOP, "venda", etc. to close any open dialogue frame. */
+  frameCancelled: string;
+
+  /** A frame's resolver crashed — apologise + invite a retry without
+   *  losing state. */
+  frameError: string;
+
+  /** Auto-clear after MAX_RETRIES of unparseable answers. */
+  frameMaxRetriesSuffix: string;
+
+  /** A user typed CONFIRM/CANCEL/EDIT but no draft is in confirmation state. */
+  nothingToConfirm: string;
+
+  /** Generic engine-level "something went wrong, retry or RESET". */
+  engineError: string;
+
+  /** Voice transcription empty / silent. */
+  voiceUnclear: string;
+
+  /** Reference resolver — couldn't find a candidate matching the user's
+   *  reference (e.g. "delete the coffee one"). */
+  refNoMatch: string;
+
+  /** Reference resolver — multiple candidates; ask the user to pick. */
+  refMultipleCandidates: (
+    verb: string,
+    list: string,
+    count: number,
+  ) => string;
+
+  /** Reference resolver — found the entry but missing what to update to. */
+  refUpdateNeedsTarget: string;
+
+  /** Reference resolver — pending pick was cancelled by the user. */
+  refPickCancelled: string;
+
+  /** "Send the missing detail or CANCEL" — when the user sends an empty
+   *  message while a draft is awaiting clarification. */
+  captureMissingDetail: string;
+
   /** Free-form follow-up question forwarded from the API. */
   captureFollowup: (question: string) => string;
 

@@ -129,6 +129,7 @@ describe('openFrame primitive — tryResolveFrame', () => {
     openFrame(s, { kind: TEST_KIND, prompt: 'how much?', context: {} });
     const res = await tryResolveFrame(s, 'cancel');
     expect(res).not.toBeNull();
+    // English session gets English cancel text.
     expect(res!.text).toContain('Cancelled');
     expect(resolverCalled).toBe(false);
     expect(hasOpenFrame(s)).toBe(false);
@@ -146,7 +147,7 @@ describe('openFrame primitive — tryResolveFrame', () => {
     expect(hasOpenFrame(s)).toBe(false);
   });
 
-  test('Malayalam "venda" cancels the frame', async () => {
+  test('Malayalam "venda" cancels the frame and returns Malayalam text', async () => {
     const s = freshSession('ml');
     registerResolver(TEST_KIND, async () => ({
       kind: 'consumed',
@@ -154,7 +155,9 @@ describe('openFrame primitive — tryResolveFrame', () => {
     }));
     openFrame(s, { kind: TEST_KIND, prompt: 'how much?', context: {} });
     const res = await tryResolveFrame(s, 'venda');
-    expect(res!.text).toContain('Cancelled');
+    // ml-session user gets a Malayalam-script cancel reply (not the English
+    // 'Cancelled' string) — L1-3 cardinal-sin fix.
+    expect(res!.text).toMatch(/[\u0D00-\u0D7F]/u);
     expect(hasOpenFrame(s)).toBe(false);
   });
 

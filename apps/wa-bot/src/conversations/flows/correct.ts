@@ -29,6 +29,7 @@ import {
 } from '../../services/apiClient.ts';
 import { log } from '../../utils/logger.ts';
 import { getMessages } from '../messages/index.ts';
+import { effectiveLanguage } from '../../utils/langDetect.ts';
 
 /** Phrases that signal the user is correcting the previous entry. */
 const TRIGGER_RE =
@@ -264,7 +265,7 @@ export async function applyParsedCorrection(
   },
   opts: { previousAmount?: number | null; previousCurrency?: string | null } = {},
 ): Promise<{ text: string }> {
-  const m = getMessages(session.language);
+  const m = getMessages(effectiveLanguage(session));
   if (!session.lastTransactionId) {
     return { text: m.correctNotPossible };
   }

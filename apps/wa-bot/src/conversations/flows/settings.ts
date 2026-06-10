@@ -22,6 +22,7 @@ import { log } from '../../utils/logger.ts';
 import { parseEmail, looksLikeSkip } from '../../utils/text.ts';
 import { getMessages } from '../messages/index.ts';
 import { setLanguage, setLinked, setReplyMode, updateSession } from '../state.ts';
+import { effectiveLanguage } from '../../utils/langDetect.ts';
 
 export interface SettingsOutcome {
   text: string;
@@ -104,7 +105,7 @@ export function wantsLanguageMenu(text: string): boolean {
 }
 
 async function linkEmail(session: Session, email: string): Promise<SettingsOutcome> {
-  const m = getMessages(session.language);
+  const m = getMessages(effectiveLanguage(session));
   try {
     const account = await botEnsureUser(session.phone, session.language, email);
     setLinked(session.phone, { userId: account.userId, spaceId: account.spaceId });
@@ -152,14 +153,14 @@ export async function detectSettingsIntent(
     if (email) return await linkEmail(session, email);
     if (looksLikeSkip(raw)) {
       updateSession(session.phone, { pending: { ...session.pending, awaitingEmailLink: false } });
-      const m = getMessages(session.language);
+      const m = getMessages(effectiveLanguage(session));
       return { text: m.emailSkipped ?? 'No problem — skipped.', language: session.language };
     }
     // Not an email and not a skip while we're waiting: only treat as the
     // email step if it still looks email-ish; otherwise fall through so a
     // real expense/question isn't swallowed.
     if (EMAIL_WORD.test(lower)) {
-      const m = getMessages(session.language);
+      const m = getMessages(effectiveLanguage(session));
       return {
         text: m.emailInvalid ?? "That doesn't look like an email. Send a valid one, or reply SKIP.",
         language: session.language,
@@ -179,7 +180,7 @@ export async function detectSettingsIntent(
   if (!email && EMAIL_INTENT.test(lower)) {
     // User wants to link but didn't give the address yet — ask for it.
     updateSession(session.phone, { pending: { ...session.pending, awaitingEmailLink: true } });
-    const m = getMessages(session.language);
+    const m = getMessages(effectiveLanguage(session));
     return {
       text: m.askEmail ?? 'Sure — what email should I link? Send it here, or reply SKIP.',
       language: session.language,
@@ -217,7 +218,7 @@ export async function detectSettingsIntent(
   if (mode) {
     setReplyMode(session.phone, mode);
     updateSession(session.phone, { replyMode: mode });
-    const m = getMessages(session.language);
+    const m = getMessages(effectiveLanguage(session));
     const confirm =
       mode === 'text'
         ? (m.replyModeText ?? '✅ I will reply with text only now.')
