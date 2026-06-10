@@ -150,11 +150,13 @@ The handler returns: amount in user's base currency, original currency if foreig
 
 ---
 
-## Layer 2 — Feels-alive upgrades (2-3 weeks)
+## Layer 2 — Feels-alive upgrades (2-3 weeks) — IN PROGRESS
 
-Three architectural changes that elevate the whole bot. They preserve the current pipeline shape but make every module confidence-aware.
+- **L2-3 — banned-phrase CI lint** — SHIPPED (`42ac08e`). Scans `apps/wa-bot/src/**` for 13 banned English fallback phrases; comment-stripped; wired into deploy gate + wa-bot typecheck added to gate.
+- **L2-2 — confidence-budget UX / per-mutation undo tokens** — SHIPPED (`d7e5aae`). Migration 0013. Every create/update/delete mints a 6-char token (guaranteed digit+letter), surfaced in the reply, reversible by typing it back. `undoMutationByToken` with FOR UPDATE lock. 35 unit tests + live verified.
+- **L2-1 — best-effort parser contract** — NEXT. Parser never returns null; returns field-level confidences + open_questions; the gate consumes uncertainty instead of the 5-signal vector.
 
-### L2-1 — Best-effort parser contract
+### L2-1 — Best-effort parser contract (the original L2-1 spec)
 
 The parser never returns null. It always returns:
 
