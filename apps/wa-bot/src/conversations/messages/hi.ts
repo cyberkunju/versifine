@@ -193,20 +193,22 @@ export const hi: MessagePack = {
     return `${word} कौन सा, समझ नहीं आया। नंबर (1-${options.length}) या इनमें से एक भेजें: ${codes}।`;
   },
 
-  frameCancelled: 'रद्द किया। आगे क्या करना है?',
-  frameError: 'कुछ गड़बड़ हुई। फिर से कोशिश करें, या CANCEL टाइप करें।',
-  frameMaxRetriesSuffix: '\n\n(रद्द — बहुत बार कोशिश की। तैयार होने पर नया मैसेज भेजें।)',
-  nothingToConfirm: 'अभी confirm करने को कुछ नहीं है। HELP भेजें।',
-  engineError: 'कुछ गड़बड़ हो गई। फिर से कोशिश करें या RESET भेजें।',
-  voiceUnclear: '🎤 आवाज़ समझ नहीं आई। दोबारा भेजें या टाइप करें।',
+  frameCancelled: 'कोई बात नहीं — अब क्या करें?',
+  frameError: 'वो नहीं हो पाया — एक बार फिर कोशिश करें? या CANCEL टाइप करके बाहर आ जाएँ।',
+  frameMaxRetriesSuffix: '\n\n(कोई बात नहीं — इसे अभी छोड़ देते हैं। जब तैयार हों, नया मैसेज भेजें।)',
+  nothingToConfirm: 'अभी हाँ कहने के लिए कुछ बाकी नहीं — पर मैं यहीं हूँ। कोई खर्चा लिखें, टोटल पूछें, या देखें मैं क्या-क्या कर सकता हूँ।',
+  engineError: 'मेरी तरफ़ से ज़रा गड़बड़ हुई — ये मेरी गलती है, आपकी नहीं। आपका मैसेज सुरक्षित है; एक बार फिर भेज देंगे?',
+  voiceUnclear: '🎤 आवाज़ ठीक से समझ नहीं पाया। एक बार फिर बोलें, या टाइप कर दें?',
   refNoMatch:
-    'मिलती-जुलती transaction नहीं मिली। amount, merchant, या date बताएँ — जैसे "delete the ₹250 coffee" या "change yesterday\'s lunch to 350"।',
-  refMultipleCandidates: (verb, list, count) =>
-    `कौन सा ${verb} करना है?\n${list}\nनंबर (1-${count}) भेजें या CANCEL।`,
-  refUpdateNeedsTarget: 'Entry मिल गई पर पता नहीं क्या बदलना है।',
-  refPickCancelled: 'रद्द किया।',
+    'अरे, वो मुझे नहीं मिली। amount, जगह या दिन बता दें — जैसे "delete the ₹250 coffee" या "change yesterday\'s lunch to 350" — मैं ठीक कर दूँगा।',
+  refMultipleCandidates: (verb, list, count) => {
+    const v = verb === 'delete' ? 'हटाऊँ' : 'बदलूँ';
+    return `कुछ मिल सकती हैं — कौन सी ${v}?\n${list}\nनंबर (1-${count}) भेजें, या कहें रहने दो।`;
+  },
+  refUpdateNeedsTarget: 'मिल गई — इसे क्या बना दूँ?',
+  refPickCancelled: 'कोई बात नहीं — जैसी थी वैसी रहने दी।',
   captureMissingDetail:
-    'एक छोटी सी detail चाहिए। यहाँ टाइप करें, या CANCEL भेजें।',
+    'बस एक कदम और — एक छोटी सी detail और यह रिकॉर्ड हो जाएगी। यहाँ भेज दें, या कहें रहने दो।',
   imageAck: (seen) => {
     const amt = seen.amount;
     const cur = seen.currency ?? 'INR';
@@ -243,16 +245,16 @@ export const hi: MessagePack = {
   captureFollowup: (q) => q,
 
   captureAsk: (needs) => {
-    if (needs.includes('amount')) return 'कितने का था?';
-    if (needs.includes('description')) return 'किस चीज़ के लिए था?';
+    if (needs.includes('amount')) return 'समझ गया — कितने का था?';
+    if (needs.includes('description')) return 'ठीक है — किस चीज़ के लिए था?';
     if (needs.includes('wallet')) return 'कौन सा अकाउंट या वॉलेट इस्तेमाल किया?';
     if (needs.includes('currency')) return 'कौन सी करेंसी थी?';
-    return 'बस एक और जानकारी चाहिए — किस लिए था?';
+    return 'बस एक और बात — किस लिए था?';
   },
 
-  captureCancelled: 'रद्द कर दिया। कुछ save नहीं हुआ।',
+  captureCancelled: 'कोई बात नहीं — छोड़ दिया, कुछ save नहीं हुआ।',
 
-  captureFailed: 'इसे रिकॉर्ड नहीं कर पाया। फिर से कोशिश करें या RESET भेजें।',
+  captureFailed: 'अरे, यह save नहीं हुआ — और यह मेरी तरफ़ से है, आपकी गलती नहीं। एक बार फिर कोशिश करें?',
 
   queryAnswer: (text) => text,
 
@@ -364,11 +366,11 @@ export const hi: MessagePack = {
 
   resetDone: '🔄 रीसेट हो गया। HELP भेजें यह देखने के लिए कि मैं क्या कर सकता हूँ।',
 
-  stopAcknowledged: 'ठीक है, अब चुप हो जाता हूँ। कभी भी messages भेज कर फिर से जगा सकते हैं।',
+  stopAcknowledged: 'ठीक है, मैं अभी रुक जाता हूँ। दोबारा शुरू करने के लिए कभी भी RESET भेजें।',
 
-  unknown: "समझ नहीं आया। कोई खर्चा लिखें (जैसे '200 चाय पे') या HELP भेजें।",
+  unknown: "मैं इसे सही करना चाहता हूँ, पर ठीक से समझ नहीं पाया कि आपका मतलब क्या था। कोई खर्चा लिखें (जैसे '200 चाय पे'), टोटल पूछें, या देखें मैं क्या-क्या कर सकता हूँ — बस कह दें।",
 
-  error: 'मेरी तरफ़ से कुछ गड़बड़ हुई। फिर से कोशिश करें या RESET भेजें।',
+  error: 'मेरी तरफ़ से कुछ गड़बड़ हुई — आपका मैसेज सुरक्षित है। एक बार फिर कोशिश करें?',
 
   notLinked: 'आपका message मिल गया लेकिन यह नंबर अभी लिंक नहीं है। वेब से 6 अंकों का कोड लेकर LINK <कोड> भेजें।',
 };

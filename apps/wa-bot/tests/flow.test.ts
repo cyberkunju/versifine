@@ -14,6 +14,7 @@
  */
 import { afterAll, beforeAll, expect, mock, test } from 'bun:test';
 import { _resetAllSessions } from '../src/conversations/state.ts';
+import { getMessages } from '../src/conversations/messages/index.ts';
 
 interface ApiCall {
   method: string;
@@ -311,11 +312,11 @@ test('CANCEL on a draft routes through draft pending state', async () => {
   await fresh(inbound(PHONE, 'SKIP'));
 
   const drafted = await fresh(inbound(PHONE, 'something'));
-  expect(drafted.text).toContain('How much');
+  expect(drafted.text).toBe(getMessages('en').captureAsk(['amount', 'description']));
   expect(drafted.state).toBe('CAPTURE_CONFIRM');
 
   const cancelled = await fresh(inbound(PHONE, 'CANCEL'));
-  expect(cancelled.text).toMatch(/Cancel/i);
+  expect(cancelled.text).toBe(getMessages('en').captureCancelled);
   expect(cancelled.state).toBe('LINKED_MAIN');
 });
 
@@ -405,7 +406,7 @@ test('expired draft reprocesses the follow-up instead of trapping the user', asy
   await fresh(inbound(phone, 'SKIP'));
 
   const drafted = await fresh(inbound(phone, 'something'));
-  expect(drafted.text).toContain('What did you spend it on?');
+  expect(drafted.text).toBe(getMessages('en').captureAsk(['description']));
   expect(drafted.state).toBe('CAPTURE_CONFIRM');
 
   const recovered = await fresh(inbound(phone, 'spent 90 on tea'));

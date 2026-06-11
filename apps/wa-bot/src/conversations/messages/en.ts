@@ -213,20 +213,20 @@ export const en: MessagePack = {
     return `I didn't catch which ${word}. Reply with the number (1-${options.length}) or one of ${codes}.`;
   },
 
-  frameCancelled: 'Cancelled. What would you like to do?',
-  frameError: 'Something went wrong. Please try again, or type CANCEL to skip.',
-  frameMaxRetriesSuffix: '\n\n(Cancelled — too many tries. Send a fresh message when ready.)',
-  nothingToConfirm: 'Nothing to confirm right now. Send HELP for commands.',
-  engineError: 'Something went wrong. Try again or send RESET.',
-  voiceUnclear: "🎤 I couldn't make out that voice note. Could you try again or type it?",
+  frameCancelled: 'No problem — what would you like to do next?',
+  frameError: "That didn't go through — mind trying again? Or type CANCEL to step out.",
+  frameMaxRetriesSuffix: "\n\n(No worries — let's leave that for now. Send a fresh message whenever you're ready.)",
+  nothingToConfirm: "Nothing waiting for a yes right now — but I'm here. Want to log a spend, check a total, or see what I can do?",
+  engineError: "Something glitched on my side — that's on me, not you. Your message is safe; mind sending it once more?",
+  voiceUnclear: "🎤 I couldn't quite make that out. Mind saying it again, or typing it?",
   refNoMatch:
-    "I couldn't find a matching transaction. Try mentioning the amount, the merchant, or the date — e.g. \"delete the ₹250 coffee\" or \"change yesterday's lunch to 350\".",
+    "Hmm, I couldn't find that one. Tell me the amount, place, or day — like \"delete the ₹250 coffee\" or \"change yesterday's lunch to 350\" — and I'll sort it.",
   refMultipleCandidates: (verb, list, count) =>
-    `Which one do you want to ${verb}?\n${list}\nReply with the number (1-${count}) or CANCEL.`,
-  refUpdateNeedsTarget: 'Found the entry but I need to know what to change it to.',
-  refPickCancelled: 'Cancelled.',
+    `A few could match — which one should I ${verb}?\n${list}\nReply with the number (1-${count}), or say never mind.`,
+  refUpdateNeedsTarget: "Found it — what should I change it to?",
+  refPickCancelled: 'No problem — left as is.',
   captureMissingDetail:
-    'I need one missing detail. Type it here, or send CANCEL to discard this draft.',
+    "Almost there — just one more detail and it's logged. Pop it here, or say never mind to drop it.",
   imageAck: (seen) => {
     const amt = seen.amount;
     const cur = seen.currency ?? 'INR';
@@ -264,16 +264,16 @@ export const en: MessagePack = {
   captureFollowup: (q) => q,
 
   captureAsk: (needs) => {
-    if (needs.includes('amount')) return 'How much was it?';
-    if (needs.includes('description')) return 'What was it for?';
+    if (needs.includes('amount')) return 'Got it — how much was it?';
+    if (needs.includes('description')) return 'Sure — what was it for?';
     if (needs.includes('wallet')) return 'Which account or wallet did you use?';
     if (needs.includes('currency')) return 'Which currency was that?';
-    return 'I just need one more detail — what was it for?';
+    return 'Just one more thing — what was it for?';
   },
 
-  captureCancelled: 'Cancelled. Nothing saved.',
+  captureCancelled: 'No worries — dropped it, nothing saved.',
 
-  captureFailed: "Couldn't log that. Try again or send RESET.",
+  captureFailed: "Hmm, that didn't save — and that's on my end, not yours. Mind trying once more?",
 
   queryAnswer: (text) => text,
 
@@ -385,11 +385,12 @@ export const en: MessagePack = {
 
   resetDone: '🔄 Reset. Send HELP to see what I can do.',
 
-  stopAcknowledged: "Okay, I'll stop replying. Message me again anytime to wake me up.",
+  stopAcknowledged: "Okay, I'll pause here. Send RESET anytime to start fresh and bring me back.",
 
-  unknown: "I didn't catch that. Try logging an expense ('spent 200 on coffee') or send HELP.",
+  unknown:
+    "I want to get this right, but I'm not quite sure what you meant. Want to log a spend (like '200 coffee'), check a total, or see everything I can do? Just say the word.",
 
-  error: 'Something went sideways on my end. Try again, or send RESET to start fresh.',
+  error: "Something went sideways on my end — your message is safe. Mind trying again?",
 
   notLinked:
     "I see your message but this number isn't linked yet. Send LINK <6-digit code> from the web app.",

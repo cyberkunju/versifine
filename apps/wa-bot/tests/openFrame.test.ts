@@ -18,6 +18,7 @@ import {
   updateSession,
 } from '../src/conversations/state.ts';
 import type { FrameKind } from '../src/conversations/openFrame.ts';
+import { getMessages } from '../src/conversations/messages/index.ts';
 import {
   clearOpenFrame,
   getOpenFrame,
@@ -129,8 +130,8 @@ describe('openFrame primitive — tryResolveFrame', () => {
     openFrame(s, { kind: TEST_KIND, prompt: 'how much?', context: {} });
     const res = await tryResolveFrame(s, 'cancel');
     expect(res).not.toBeNull();
-    // English session gets English cancel text.
-    expect(res!.text).toContain('Cancelled');
+    // English session gets the localized cancel text.
+    expect(res!.text).toBe(getMessages('en').frameCancelled);
     expect(resolverCalled).toBe(false);
     expect(hasOpenFrame(s)).toBe(false);
   });
@@ -143,7 +144,7 @@ describe('openFrame primitive — tryResolveFrame', () => {
     }));
     openFrame(s, { kind: TEST_KIND, prompt: 'how much?', context: {} });
     const res = await tryResolveFrame(s, '  CANCEL!! ');
-    expect(res!.text).toContain('Cancelled');
+    expect(res!.text).toBe(getMessages('en').frameCancelled);
     expect(hasOpenFrame(s)).toBe(false);
   });
 
@@ -191,7 +192,7 @@ describe('openFrame primitive — tryResolveFrame', () => {
     await tryResolveFrame(s, 'one');
     await tryResolveFrame(s, 'two');
     const r3 = await tryResolveFrame(s, 'three');
-    expect(r3!.text).toContain('Cancelled');
+    expect(r3!.text).toContain(getMessages('en').frameMaxRetriesSuffix);
     expect(hasOpenFrame(s)).toBe(false);
   });
 
@@ -212,7 +213,7 @@ describe('openFrame primitive — tryResolveFrame', () => {
     openFrame(s, { kind: TEST_KIND, prompt: 'how much?', context: {} });
     const res = await tryResolveFrame(s, 'anything');
     expect(res).not.toBeNull();
-    expect(res!.text).toMatch(/try again/i);
+    expect(res!.text).toBe(getMessages('en').frameError);
     expect(hasOpenFrame(s)).toBe(true);
   });
 
