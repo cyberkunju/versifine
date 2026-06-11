@@ -10,7 +10,7 @@
  * A 12-hour sweep retires idle sessions so the map can't grow unbounded
  * across long uptimes.
  */
-import type { Language } from '@versifine/shared';
+import { LANGUAGES, type Language } from '@versifine/shared';
 import type { ConversationState, ReplyMode, Session } from '../types.ts';
 import { apiGetBotSession, apiSaveBotSession } from '../services/apiClient.ts';
 
@@ -159,6 +159,16 @@ export async function preloadSession(phone: string): Promise<Session> {
         accountResolved: dbSess.accountResolved,
         lastSeenAt: Date.now(),
       };
+      // The per-user language prior (recentLangs) is carried inside the
+      // persisted `pending` blob so it survives this rebuild-from-DB on every
+      // message. Without this, "fail toward the user" could never accumulate
+      // across turns (preload wipes in-memory-only fields).
+      const persistedLangs = (dbSess.pending as Record<string, unknown> | undefined)?.recentLangs;
+      if (Array.isArray(persistedLangs)) {
+        session.recentLangs = persistedLangs.filter(
+          (l): l is Language => typeof l === 'string' && (LANGUAGES as readonly string[]).includes(l),
+        );
+      }
       sessions.set(phone, session);
       return session;
     }
@@ -187,7 +197,12 @@ export async function persistSession(phone: string): Promise<void> {
       lastDraftId: session.lastDraftId,
       lastTransactionId: session.lastTransactionId,
       replyMode: session.replyMode,
-      pending: session.pending,
+      // Stash the per-user language prior in the persisted pending blob so it
+      // round-trips across the per-message preload (it has no dedicated column).
+      pending:
+        session.recentLangs && session.recentLangs.length > 0
+          ? { ...(session.pending ?? {}), recentLangs: session.recentLangs }
+          : session.pending,
       accountResolved: session.accountResolved,
     });
   } catch (err) {
