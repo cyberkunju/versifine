@@ -180,3 +180,105 @@ describe('effectiveLanguage / commit / clear', () => {
     expect(s.turnLanguage).toBeUndefined();
   });
 });
+
+describe('detectInputLanguage — morphological recall (no listed pronoun)', () => {
+  // Ordinary code-mixed sentences the closed lexicon used to miss → English
+  // reply (the cardinal sin). Caught now by agglutinative endings.
+  const mlCases = [
+    'ATM il ninnu 2000 eduthu', // ninnu → -nnu
+    'bill adachu 1200', // adachu → -chu
+    'rent kodukkanam 5000', // kodukkanam → -kkanam
+  ];
+  for (const t of mlCases) {
+    test(`"${t}" → ml (morphology)`, () => {
+      expect(detectInputLanguage(t)).toBe('ml');
+    });
+  }
+  test('Hinglish "-wala" suffix recall: "doodhwala ko 50 rupaye" → hi', () => {
+    expect(detectInputLanguage('doodhwala ko 50 rupaye')).toBe('hi');
+  });
+});
+
+describe('commitTurnLanguage — fail toward the user (kills residual cardinal sin)', () => {
+  test('an en-onboarded user who has been writing Malayalam keeps getting Malayalam', () => {
+    const s: any = { language: 'en', state: 'LINKED_MAIN' };
+    // Turn 1: clear Manglish → ml (also seeds the prior).
+    expect(commitTurnLanguage(s, 'njan oonu kazhicchu')).toBe('ml');
+    // Turn 2: a message that slips past detection AND isn't clearly English →
+    // fail toward the user's established language instead of snapping to en.
+    expect(commitTurnLanguage(s, 'athinu sesham verum')).toBe('ml');
+  });
+
+  test('a clearly-English message from a Malayalam-leaning user STILL gets English', () => {
+    const s: any = { language: 'en', state: 'LINKED_MAIN' };
+    commitTurnLanguage(s, 'njan oonu kazhicchu'); // seed ml prior
+    // English function words present → English wins, never flipped to ml.
+    expect(commitTurnLanguage(s, 'what is my balance today')).toBe('en');
+    expect(s.turnLanguage).toBeUndefined();
+  });
+
+  test('a fresh en user with no history is unaffected (no basis to guess)', () => {
+    const s: any = { language: 'en', state: 'LINKED_MAIN' };
+    expect(commitTurnLanguage(s, 'asdf qwer')).toBe('en');
+  });
+});
+
+describe('detectInputLanguage — brutal-review false-positives must NOT flip', () => {
+  // P0-1: hi -enge removed.
+  const englishWords = ['challenge 300', 'revenge movie ticket 300', 'scavenge', 'lozenge 50'];
+  // P0-2: ml -ille removed.
+  const places = ['louisville trip 200', 'nashville 500', 'knoxville', 'grille 250', 'seville'];
+  // P1-7: ta -nen removed.
+  const linen = ['linen 500'];
+  // P1-8: standalone mein/wala no longer match.
+  const foods = ['chow mein 250', 'chow mein noodles 300'];
+  for (const t of [...englishWords, ...places, ...linen, ...foods]) {
+    test(`"${t}" → null (no false Indic flip)`, () => {
+      expect(detectInputLanguage(t)).toBeNull();
+    });
+  }
+});
+
+describe('detectInputLanguage — ml/ta morphology collision (P1-5)', () => {
+  test('Tamil "seipannu" stays Tamil (not Malayalam via -nnu)', () => {
+    expect(detectInputLanguage('naan seipannu')).toBe('ta');
+  });
+  test('Malayalam "ninnu"/"vannu" still detect as ml', () => {
+    expect(detectInputLanguage('ATM il ninnu 2000 eduthu')).toBe('ml');
+  });
+});
+
+describe('commitTurnLanguage — reverse cardinal sin guards', () => {
+  test('bare merchant+amount from an ml-prior user STILL replies English (P0-3)', () => {
+    const s: any = { language: 'en', state: 'LINKED_MAIN' };
+    commitTurnLanguage(s, 'njan oonu kazhicchu'); // seed ml prior
+    expect(commitTurnLanguage(s, 'uber 250')).toBe('en');
+    expect(commitTurnLanguage(s, 'zomato 450')).toBe('en');
+    expect(commitTurnLanguage(s, '500')).toBe('en');
+  });
+
+  test('a picker token / undo token from an ml-prior user is not flipped (P2-10)', () => {
+    const s: any = { language: 'en', state: 'LINKED_MAIN' };
+    commitTurnLanguage(s, 'njan oonu kazhicchu');
+    expect(commitTurnLanguage(s, 'Omr')).toBe('en');
+    expect(commitTurnLanguage(s, 'K7P2A9')).toBe('en');
+    expect(commitTurnLanguage(s, '2')).toBe('en');
+  });
+
+  test('a morphology-only detection does NOT build the prior (P1-4)', () => {
+    const s: any = { language: 'en', state: 'LINKED_MAIN' };
+    // "bill adachu 1200" is detected ml by MORPHOLOGY (adachu → -chu) for THIS
+    // turn, but must not seed the prior...
+    expect(commitTurnLanguage(s, 'bill adachu 1200')).toBe('ml');
+    expect(s.recentLangs ?? []).toEqual([]); // morph hit not remembered
+    // ...so a later bare prose turn does NOT get pulled to ml off a morph hit.
+    expect(commitTurnLanguage(s, 'athinu sesham verum')).toBe('en');
+  });
+
+  test('decisive lexicon detection DOES build the prior', () => {
+    const s: any = { language: 'en', state: 'LINKED_MAIN' };
+    commitTurnLanguage(s, 'njan oonu kazhicchu'); // lexicon ml → remembered
+    expect(s.recentLangs).toContain('ml');
+    expect(commitTurnLanguage(s, 'athinu sesham verum')).toBe('ml'); // prose → prior
+  });
+});

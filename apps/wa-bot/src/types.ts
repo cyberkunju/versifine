@@ -63,6 +63,16 @@ export interface Session {
    * answer even when the persistent session is `en`.
    */
   turnLanguage?: Language;
+  /**
+   * Rolling window of the last decisively-detected (native-script or
+   * closed-lexicon — NOT morphology-only) NON-English input languages. Lets
+   * the bot "fail toward the user": when a later turn is genuine code-mixed
+   * prose that slips past detection, we reply in the language the user has
+   * actually been writing instead of snapping to English (the cardinal sin).
+   * A bounded window so a bilingual user can drift and a single stray
+   * detection can't poison the prior forever. In-memory only.
+   */
+  recentLangs?: Language[];
 }
 
 export interface IncomingMessage {
