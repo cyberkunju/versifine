@@ -30,6 +30,7 @@ import { transactionRoutes } from './routes/transactions.ts';
 import { walletRoutes } from './routes/wallets.ts';
 import { authoriseUpgrade, selectedSubprotocol, wsRoutes } from './routes/ws.ts';
 import { attachSocket, detachSocket, type WsAttachment } from './services/events/ws.ts';
+import { startFxResolutionWorker, stopFxResolutionWorker } from './services/fx/resolveWorker.ts';
 import { log } from './utils/logger.ts';
 
 import { webhookRoutes } from './routes/webhook.ts';
@@ -139,8 +140,16 @@ log.info('API_LISTENING', {
   ws: '/ws',
 });
 
+// Background FX resolution — re-converts transactions that were booked at a
+// 1:1 fallback during an FX-provider outage, so their base amounts (and every
+// total/budget/forecast that sums them) self-heal instead of staying wrong.
+if (env.NODE_ENV !== 'test') {
+  startFxResolutionWorker();
+}
+
 const shutdown = (signal: string) => {
   log.info('API_SHUTDOWN', { signal });
+  stopFxResolutionWorker();
   server.stop(true);
   process.exit(0);
 };

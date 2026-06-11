@@ -186,16 +186,20 @@ app.patch('/:id', zValidator('json', transactionUpdateInput), async (c) => {
 
   if (body.amount !== undefined || body.currency !== undefined) {
     if (newCurrency === baseCcy) {
-      // Same-currency: amount equals baseAmount; rate is identity.
+      // Same-currency: amount equals baseAmount; rate is identity. Any stale
+      // FX-pending flag is definitively resolved.
       updates.baseAmount = newAmount.toFixed(2);
       updates.fxRate = '1.00000000';
+      updates.needsFxResolution = false;
     } else if (body.currency !== undefined) {
       // Currency changed: must fetch a fresh rate (the old fxRate was for the
-      // OLD currency pair). FX outage is non-fatal: degrade to identity and
-      // log so the row stays editable; the user can correct again later.
+      // OLD currency pair). FX outage is non-fatal: degrade to identity, KEEP
+      // the row flagged so the background worker heals it, and log.
       let fxRate = 1;
+      let stillPending = true;
       try {
         fxRate = await getRate(newCurrency, baseCcy);
+        stillPending = false;
       } catch (err) {
         log.warn('FX_PATCH_FALLBACK', {
           transactionId: id,
@@ -207,11 +211,36 @@ app.patch('/:id', zValidator('json', transactionUpdateInput), async (c) => {
       }
       updates.baseAmount = (newAmount * fxRate).toFixed(2);
       updates.fxRate = fxRate.toFixed(8);
+      updates.needsFxResolution = stillPending;
     } else {
-      // Amount only changed — preserve the existing FX rate so the row's
-      // historical conversion is unchanged.
-      const rate = oldAmount > 0 ? Number(existing.baseAmount) / oldAmount : 1;
-      updates.baseAmount = (newAmount * rate).toFixed(2);
+      // Amount only changed (currency unchanged).
+      if (existing.needsFxResolution && newCurrency !== baseCcy) {
+        // The row was booked at a 1:1 outage fallback — its stored baseAmount
+        // is a placeholder, NOT a real conversion, so we must re-establish FX
+        // rather than scale the placeholder. Try now; if FX is still down,
+        // keep the flag set and the background worker will heal it later.
+        let fxRate = 1;
+        let stillPending = true;
+        try {
+          fxRate = await getRate(newCurrency, baseCcy);
+          stillPending = false;
+        } catch (err) {
+          log.warn('FX_PATCH_PENDING_RETRY_FAIL', {
+            transactionId: id,
+            from: newCurrency,
+            to: baseCcy,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          fxRate = 1;
+        }
+        updates.baseAmount = (newAmount * fxRate).toFixed(2);
+        updates.fxRate = fxRate.toFixed(8);
+        updates.needsFxResolution = stillPending;
+      } else {
+        // Healthy row: preserve the historical rate so the conversion is stable.
+        const rate = oldAmount > 0 ? Number(existing.baseAmount) / oldAmount : 1;
+        updates.baseAmount = (newAmount * rate).toFixed(2);
+      }
     }
   }
   if (body.date !== undefined) updates.date = body.date;
