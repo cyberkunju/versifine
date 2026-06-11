@@ -88,6 +88,10 @@ const schema = z.object({
     .optional(),
   SARVAM_API_URL: z.string().default('https://api.sarvam.ai'),
   SARVAM_STT_MODEL: z.string().default('saaras:v3'),
+  /** Native-script speech-to-text model (`/speech-to-text`, saarika family).
+   *  Preferred over the translate endpoint so Indic voice keeps its script and
+   *  register; the translate model above is the fallback. */
+  SARVAM_TRANSCRIBE_MODEL: z.string().default('saarika:v2.5'),
 
   OPENAI_VISION_MODEL: z.string().default('gpt-4o'),
   OPENAI_PARSE_MODEL: z.string().default('gpt-4o-mini'),

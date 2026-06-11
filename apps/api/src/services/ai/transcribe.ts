@@ -50,6 +50,37 @@ function bareLanguageHint(language?: string): string | undefined {
   return tag && tag.length === 2 ? tag : undefined;
 }
 
+/** Map a hint (2-letter or BCP47) to the Sarvam `language_code` the
+ *  `/speech-to-text` endpoint expects, or `unknown` for auto-detect. */
+function sarvamLanguageCode(fallback: string | undefined): string {
+  if (fallback && isLanguage(fallback) && fallback !== 'en') return LANGUAGE_META[fallback].bcp47;
+  return 'unknown';
+}
+
+/** Resolve the spoken language from a returned transcript: the native SCRIPT
+ *  is authoritative (we asked for native-script output), then Sarvam's own
+ *  `language_code`, then the caller's hint, then English. */
+function languageFromTranscript(text: string, sarvamCode: string | undefined, fallback: string | undefined): string {
+  const byScript = detectScript(text);
+  if (byScript && byScript !== 'en') {
+    // Devanagari resolves to 'hi' by script, but Hindi and Marathi share it.
+    // Honour an explicit Marathi signal (Sarvam's code or the caller hint) so
+    // a Marathi voice note doesn't get a Hindi reply (regression the review
+    // caught vs the old translate path).
+    if (byScript === 'hi' && (bareLanguageHint(sarvamCode) === 'mr' || bareLanguageHint(fallback) === 'mr')) {
+      return 'mr';
+    }
+    return byScript;
+  }
+  const byCode = bareLanguageHint(sarvamCode);
+  if (byCode && ROMANISABLE_LANGS.has(byCode)) return byCode;
+  if (byScript === 'en') {
+    const fb = bareLanguageHint(fallback);
+    return fb && ROMANISABLE_LANGS.has(fb) ? fb : 'en';
+  }
+  return bareLanguageHint(fallback) ?? 'en';
+}
+
 function maiLocales(lang: string | undefined): string[] {
   if (lang && isLanguage(lang) && lang !== 'en') return [LANGUAGE_META[lang].bcp47, 'en-IN'];
   return ['en-IN', 'en-US'];
@@ -65,16 +96,72 @@ function resolveLanguage(text: string, fallback: string | undefined): string {
   return bareLanguageHint(fallback) ?? 'en';
 }
 
-/** Sarvam Saaras speech-to-text-translate (Indic). Returns null on any failure. */
+/**
+ * Sarvam Indic transcription. Prefers the NATIVE-SCRIPT `/speech-to-text`
+ * (saarika) endpoint so the transcript keeps its script and register —
+ * "ഞാൻ നാല് പൊറോട്ട..." instead of an English translation. This lets the
+ * downstream parser (which handles native script) and the per-turn language
+ * detector (which keys off script) reply in the user's own language. The
+ * translate endpoint (saaras) is kept ONLY as a fallback so a saarika outage
+ * still degrades to *something* rather than nothing. Returns null on total
+ * failure.
+ */
 async function transcribeSarvam(
   audio: Buffer,
   mimetype: string,
   fallback: string | undefined,
 ): Promise<TranscribeResult | null> {
   if (!env.SARVAM_API_KEY) return null;
+  const native = await sarvamSpeechToText(audio, mimetype, fallback);
+  if (native) return native;
+  // ALWAYS fall back on native failure — including a 4xx "model not enabled".
+  // Safety beats the extra round-trip: if an account lacks saarika, we must
+  // still transcribe (via saaras) rather than break every Indic voice note.
+  // The distinct log lines (SARVAM_STT_NATIVE_FAIL vs _TRANSLATE_FAIL) let us
+  // watch saarika health and flip the default model if it's chronically down.
+  return sarvamTranslate(audio, mimetype, fallback);
+}
+
+/** Native-script STT (`/speech-to-text`, saarika). Returns native script +
+ *  Sarvam's detected language_code. Null on any failure. */
+async function sarvamSpeechToText(
+  audio: Buffer,
+  mimetype: string,
+  fallback: string | undefined,
+): Promise<TranscribeResult | null> {
   const cleanMime = (mimetype.split(';')[0] || 'audio/ogg').trim();
   try {
-    const result = await withLatency('transcribe.sarvam', async () => {
+    const result = await withLatency('transcribe.sarvam.native', async () => {
+      const fd = new FormData();
+      fd.append('file', new Blob([new Uint8Array(audio)], { type: cleanMime }), filenameFor(cleanMime));
+      fd.append('model', env.SARVAM_TRANSCRIBE_MODEL);
+      fd.append('language_code', sarvamLanguageCode(fallback));
+      const res = await fetch(`${env.SARVAM_API_URL.replace(/\/+$/, '')}/speech-to-text`, {
+        method: 'POST',
+        headers: { 'api-subscription-key': env.SARVAM_API_KEY as string },
+        body: fd,
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text().catch(() => '')).slice(0, 160)}`);
+      return (await res.json()) as { transcript?: string; language_code?: string };
+    });
+    const text = (result.transcript ?? '').trim();
+    if (!text) return null;
+    return { text, language: languageFromTranscript(text, result.language_code, fallback), source: 'sarvam' };
+  } catch (err) {
+    log.warn('SARVAM_STT_NATIVE_FAIL', { error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
+    return null;
+  }
+}
+
+/** Sarvam Saaras speech-to-text-translate (Indic → English). Fallback only. */
+async function sarvamTranslate(
+  audio: Buffer,
+  mimetype: string,
+  fallback: string | undefined,
+): Promise<TranscribeResult | null> {
+  const cleanMime = (mimetype.split(';')[0] || 'audio/ogg').trim();
+  try {
+    const result = await withLatency('transcribe.sarvam.translate', async () => {
       const fd = new FormData();
       fd.append('file', new Blob([new Uint8Array(audio)], { type: cleanMime }), filenameFor(cleanMime));
       fd.append('model', env.SARVAM_STT_MODEL);
@@ -88,9 +175,9 @@ async function transcribeSarvam(
     });
     const text = (result.transcript ?? '').trim();
     if (!text) return null;
-    return { text, language: fallback ?? 'en', source: 'sarvam' };
+    return { text, language: languageFromTranscript(text, undefined, fallback), source: 'sarvam' };
   } catch (err) {
-    log.warn('SARVAM_STT_FAIL', { error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
+    log.warn('SARVAM_STT_TRANSLATE_FAIL', { error: err instanceof Error ? err.message.slice(0, 200) : String(err) });
     return null;
   }
 }
@@ -154,3 +241,6 @@ export async function transcribe(
   log.warn('AI_TRANSCRIBE_UNAVAILABLE', { mimetype });
   return { text: '', language: fallback ?? 'en', source: 'mock' };
 }
+
+/** Test-only surface for the pure language-resolution helpers. */
+export const __transcribeInternals = { sarvamLanguageCode, languageFromTranscript };
