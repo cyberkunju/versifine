@@ -97,14 +97,19 @@ function resolveLanguage(text: string, fallback: string | undefined): string {
 }
 
 /**
- * Sarvam Indic transcription. Prefers the NATIVE-SCRIPT `/speech-to-text`
- * (saarika) endpoint so the transcript keeps its script and register —
- * "ഞാൻ നാല് പൊറോട്ട..." instead of an English translation. This lets the
- * downstream parser (which handles native script) and the per-turn language
- * detector (which keys off script) reply in the user's own language. The
- * translate endpoint (saaras) is kept ONLY as a fallback so a saarika outage
- * still degrades to *something* rather than nothing. Returns null on total
- * failure.
+ * Sarvam Indic transcription.
+ *
+ * Uses the TRANSLATE endpoint (saaras) as PRIMARY: real-audio testing showed
+ * the downstream batch/compound parser splits an English transcript into the
+ * correct multiple expenses, but mis-handles a native-script compound (1 item
+ * instead of 3) — and correct transaction extraction is paramount. The
+ * reply still lands in the user's language via session + per-turn detection,
+ * so we don't lose language mirroring by translating for UNDERSTANDING.
+ *
+ * The native-script `/speech-to-text` (saarika) endpoint is kept as a fallback
+ * (register-preserving) for when translate fails, and is ready to become
+ * primary once the parser reliably splits native-script compounds. Returns
+ * null on total failure.
  */
 async function transcribeSarvam(
   audio: Buffer,
@@ -112,14 +117,11 @@ async function transcribeSarvam(
   fallback: string | undefined,
 ): Promise<TranscribeResult | null> {
   if (!env.SARVAM_API_KEY) return null;
-  const native = await sarvamSpeechToText(audio, mimetype, fallback);
-  if (native) return native;
-  // ALWAYS fall back on native failure — including a 4xx "model not enabled".
-  // Safety beats the extra round-trip: if an account lacks saarika, we must
-  // still transcribe (via saaras) rather than break every Indic voice note.
-  // The distinct log lines (SARVAM_STT_NATIVE_FAIL vs _TRANSLATE_FAIL) let us
-  // watch saarika health and flip the default model if it's chronically down.
-  return sarvamTranslate(audio, mimetype, fallback);
+  const translated = await sarvamTranslate(audio, mimetype, fallback);
+  if (translated) return translated;
+  // Fallback: native-script STT. Register-preserving; used only if translate
+  // is unavailable so voice still degrades to a usable transcript.
+  return sarvamSpeechToText(audio, mimetype, fallback);
 }
 
 /** Native-script STT (`/speech-to-text`, saarika). Returns native script +
